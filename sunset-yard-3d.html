@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <title>Sunset Yard 3D</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <script type="importmap">{"imports":{
@@ -126,6 +127,15 @@
   .btn.ollie:active,.btn.ollie.dn{background:rgba(240,86,42,.68);}
   .btn i{font-style:normal;display:block;line-height:1;}
   .btn u{display:block;text-decoration:none;font-size:8px;letter-spacing:.14em;opacity:.72;margin-top:2px;}
+  /* readable word buttons + font-independent CSS arrows (no tofu glyphs) */
+  #touch .btn.word{border-radius:14px;width:auto;min-width:0;height:54px;font-size:14px;font-weight:800;letter-spacing:.04em;padding:0 12px;}
+  #touch .btn.ollie{border-radius:16px;width:auto;min-width:0;height:70px;font-size:18px;font-weight:800;letter-spacing:.04em;padding:0 16px;}
+  @media (max-width:412px){ #touch{padding-left:6px;padding-right:6px;} .pad{gap:5px;}
+    #touch .btn.word{padding:0 9px;font-size:13px;} #touch .btn.ollie{padding:0 12px;font-size:16px;}
+    #touch .btn.arrow{width:52px;height:52px;} }
+  .btn .tri{width:0;height:0;border-top:12px solid transparent;border-bottom:12px solid transparent;}
+  .btn .tri.l{border-right:18px solid var(--chalk);}
+  .btn .tri.r{border-left:18px solid var(--chalk);}
   .pad{gap:6px;}
   @media (max-width:400px){
     .btn.arrow,.btn.small{width:58px;height:58px;font-size:22px;}
@@ -191,22 +201,24 @@
   </div>
   <div id="touch">
     <div class="pad left">
-      <button class="btn arrow" data-act="left">◀</button>
-      <button class="btn arrow" data-act="right">▶</button>
+      <button class="btn arrow" data-act="left" aria-label="steer left"><span class="tri l"></span></button>
+      <button class="btn arrow" data-act="right" aria-label="steer right"><span class="tri r"></span></button>
     </div>
     <div class="pad right">
-      <button class="btn small" data-act="trick" aria-label="Trick"><i>✦</i><u>trick</u></button>
-      <button class="btn small" data-act="manual" aria-label="Manual"><i>◣</i><u>manual</u></button>
-      <button class="btn ollie" data-act="ollie" aria-label="Ollie"><i>⌃</i><u>ollie</u></button>
+      <button class="btn word" data-act="trick" aria-label="Trick">TRICK</button>
+      <button class="btn word" data-act="manual" aria-label="Manual">MANUAL</button>
+      <button class="btn ollie" data-act="ollie" aria-label="Ollie">OLLIE</button>
     </div>
   </div>
   <div class="overlay hide" id="start">
     <div class="brand">Sunset<br><em>Yard</em></div>
     <div class="tag">Late sun on concrete · two-minute line</div>
-    <div class="help">You roll forward automatically. <b>Steer</b> to carve, <b>ollie</b> to pop,
-      <b>spin</b> and <b>flip</b> in the air — finish your flips or you bail. Orange edges <b>grind</b>.
-      Hold <b>manual</b> to link across the flat. Keep one long combo alive; the multiplier climbs.</div>
-    <div class="help" id="kbHelp"><b>Keys</b> — ←/→ steer &amp; spin · Space ollie · J flip · K grab · S manual</div>
+    <div class="help">You roll forward automatically. <b>Steer</b> left/right to carve — and in the air,
+      steering <b>spins</b> you. <b>OLLIE</b> to jump, <b>TRICK</b> for flips &amp; grabs (finish a flip before
+      you land or you bail), ride the orange edges to <b>grind</b>, hold <b>MANUAL</b> to link tricks across
+      flat ground. Keep one combo alive — the multiplier climbs.</div>
+    <div class="help" id="kbHelp"><b>Touch:</b> ◀ ▶ steer/spin · OLLIE · TRICK · MANUAL &nbsp;&nbsp;<b>Keys:</b> ←/→ steer · Space ollie · J/K trick · S manual</div>
+    <label class="help" style="display:flex;gap:9px;align-items:center;justify-content:center;cursor:pointer;user-select:none;"><input type="checkbox" id="tiltChk" style="width:18px;height:18px;accent-color:var(--orange);"> Tilt phone to steer <span style="opacity:.55">(beta)</span></label>
     <button class="cta" id="startBtn">Drop In</button>
     <div class="fine">Original 3D game · desktop &amp; mobile</div>
   </div>
@@ -3577,6 +3589,16 @@ function onResize(){
    9. INPUT / AUDIO / STATE  (gameplay preserved)
    ======================================================================= */
 const held={ollie:false,trick:false,left:false,right:false,manual:false}; const edges=new Set();
+/* optional tilt steering (mobile): gamma is left/right tilt in portrait. iOS 13+
+   needs a permission request fired from a user gesture (the Drop In tap). */
+let tiltSteer=0, tiltOn=false;
+function __handleTilt(e){ let g=e.gamma; if(g==null) return;
+  const dz=4; g = Math.abs(g)<dz ? 0 : (g>0?g-dz:g+dz);
+  tiltSteer = Math.max(-1, Math.min(1, -g/22)); }   /* tilt right -> steer right */
+function enableTilt(){ if(tiltOn) return; const D=window.DeviceOrientationEvent;
+  const go=()=>{ window.addEventListener("deviceorientation", __handleTilt); tiltOn=true; };
+  if(D && typeof D.requestPermission==="function"){ D.requestPermission().then(s=>{ if(s==="granted") go(); }).catch(()=>{}); }
+  else if(D){ go(); } }
 function press(a){ if(!held[a])edges.add(a); held[a]=true; }
 function rel(a){ held[a]=false; }
 const KEY={" ":"ollie",ArrowUp:"ollie",w:"ollie",W:"ollie",ArrowLeft:"left",a:"left",A:"left",
@@ -3640,7 +3662,9 @@ function loseCombo(){ combo.active=false;combo.tricks=[];combo.base=0; updateCom
 function stokeAdd(n){ if(special.on)return; special.meter=Math.min(1,special.meter+n);
   if(special.meter>=1){ special.on=true;special.t=1;el("stokeWrap").classList.add("hot"); flash("STOKED! 2×"); } }
 
-function startGame(){ audioInit();resumeAudio(); resetSkater();loseCombo();
+function startGame(){ audioInit();resumeAudio();
+  { const __tc=document.getElementById("tiltChk"); if(__tc&&__tc.checked) enableTilt(); }
+  resetSkater();loseCombo();
   special.meter=0;special.on=false;special.t=0;el("stokeWrap").classList.remove("hot");
   for(const L of letterObjs){ L.got=false; L.anim=-1; L.mesh.visible=true; L.mesh.material.opacity=1; L.mesh.position.y=L.base; }
   document.querySelectorAll("#letters span").forEach(s=>s.classList.remove("got"));
@@ -3674,7 +3698,7 @@ function step(dt){
   if(special.on){ special.t-=dt*T.stokeDrain; if(special.t<=0){special.on=false;special.meter=0;el("stokeWrap").classList.remove("hot");} }
   const ev=new Set(edges); edges.clear();
   if(sk.state!=="air"){ sk.spinRate=(sk.spinRate||0)*0.82; sk.flipRate=0; }
-  const steer=(held.left?1:0)-(held.right?1:0);
+  const steer=Math.max(-1,Math.min(1,(held.left?1:0)-(held.right?1:0)+(tiltOn?tiltSteer:0)));
   sk.steer += (steer-sk.steer)*Math.min(1,dt*9);
   const fwd=new THREE.Vector3(Math.sin(sk.yaw),0,Math.cos(sk.yaw));
 
