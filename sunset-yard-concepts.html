@@ -1,0 +1,46 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sunset Yard — Skater Concepts</title>
+<style>
+  :root{ --ink:#FDEFE6; --dim:#E7B9A6; --mag:#FF3E8A; --gold:#FFD98A; --bg:#1a1228; }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:linear-gradient(180deg,#241546,#7A3B8F 55%,#E8613C);min-height:100vh;
+    font-family:"Arial Narrow","Helvetica Neue",system-ui,sans-serif;color:var(--ink);padding:28px 18px 60px;}
+  header{text-align:center;margin-bottom:26px;}
+  h1{font-size:min(11vw,54px);font-weight:800;text-transform:uppercase;letter-spacing:.02em;
+    background:linear-gradient(180deg,#FFE7B0,var(--gold) 40%,var(--mag));-webkit-background-clip:text;background-clip:text;color:transparent;}
+  .sub{color:var(--ink);opacity:.85;font-size:15px;letter-spacing:.04em;margin-top:6px;}
+  h2{grid-column:1/-1;text-transform:uppercase;letter-spacing:.2em;font-size:13px;color:var(--gold);
+    margin:22px 4px 2px;border-bottom:1px solid rgba(255,217,138,.3);padding-bottom:6px;}
+  .grid{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;}
+  figure{background:rgba(20,12,30,.5);border:1px solid rgba(255,122,61,.35);border-radius:14px;overflow:hidden;backdrop-filter:blur(4px);}
+  figure img{width:100%;display:block;background:#eae7e0;}
+  figcaption{padding:11px 13px;}
+  figcaption b{display:block;font-size:17px;font-weight:800;letter-spacing:.03em;}
+  figcaption span{font-size:13px;color:var(--dim);line-height:1.5;}
+  .pick{grid-column:1/-1;text-align:center;background:rgba(20,12,30,.55);border:1px solid rgba(255,62,138,.4);
+    border-radius:12px;padding:16px;margin-top:26px;font-size:15px;line-height:1.6;}
+  .tag{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+    color:#1a1228;background:var(--gold);border-radius:6px;padding:2px 8px;margin-bottom:6px;}
+</style>
+<header>
+  <h1>Sunset Yard — Skater Concepts</h1>
+  <div class="sub">Generated with Nano Banana · original art · pick a direction for the 3D rebuild</div>
+</header>
+<div class="grid">
+  <h2>Character concepts</h2>
+  <figure><img src="./sunset-yard-assets/concept-lowpoly.png" alt="low-poly mascot">
+    <figcaption><span class="tag">my pick</span><b>Low-poly mascot</b><span>Chunky faceted style — closest to what's buildable in the game's 3D engine and on-palette.</span></figcaption></figure>
+  <figure><img src="./sunset-yard-assets/concept-synthwave.png" alt="synthwave">
+    <figcaption><b>Synthwave</b><span>Neon retrowave, matches the sunset palette exactly. More illustrated than low-poly.</span></figcaption></figure>
+  <figure><img src="./sunset-yard-assets/concept-street.png" alt="street">
+    <figcaption><b>90s street</b><span>Grounded skater — cap, tee, baggy jeans. Realistic proportions.</span></figcaption></figure>
+  <figure><img src="./sunset-yard-assets/concept-modern.png" alt="modern">
+    <figcaption><b>Modern minimal</b><span>Flat-shaded, muted greys with one sunset-orange accent.</span></figcaption></figure>
+  <h2>Texture / skin examples</h2>
+  <figure><img src="./sunset-yard-assets/texture-deck.png" alt="deck graphic">
+    <figcaption><span class="tag">live in-game</span><b>Deck graphic</b><span>Applied to the board's underside in the game right now — see it during flips.</span></figcaption></figure>
+  <figure><img src="./sunset-yard-assets/texture-outfit.png" alt="outfit skin">
+    <figcaption><b>Outfit skin sheet</b><span>UV-style clothing texture (tee, sleeves, jeans, beanie) to wrap on the character.</span></figcaption></figure>
+  <div class="pick">Tell me which <b>character direction</b> to build the 3D skater toward — I'll rebuild the model to match, wrap the outfit skin on it, and tackle solid collision next.</div>
+</div>
