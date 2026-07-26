@@ -310,6 +310,24 @@ let sky, keyLight, rimLight, dust, contact, skyDome;
 const rails=[], kickers=[], letterObjs=[], silhouettes=[], wheelMeshes=[];
 let speedLines=null, impactRings=[];
 let skater, board, rigYaw, rig, hips, torso, head, shoulderL, shoulderR, armLU, armRU, thighF, thighB, shinF, shinB;
+/* selectable roster — skin tones varied & ambiguous, everyone curly-haired */
+let matSkin, matTop, matBottom, matHair, hairGroup, capBrim;
+const CHARACTERS=[
+  {id:'lowpoly-woman',  style:'Low-poly',  name:'Nova', skin:0x6E4A34, hair:0x241712, top:0x9B3FE0, bottom:0x2FBFA8, hairScale:1.20},
+  {id:'lowpoly-man',    style:'Low-poly',  name:'Rio',  skin:0x8A5A3C, hair:0x1E1712, top:0x2FA6C8, bottom:0x6B6350, hairScale:0.82},
+  {id:'synthwave-woman',style:'Synthwave', name:'Vela', skin:0xB07A55, hair:0x1A1220, top:0x6B3FA0, bottom:0x24202E, hairScale:1.12},
+  {id:'synthwave-man',  style:'Synthwave', name:'Dex',  skin:0x7A5236, hair:0x161018, top:0x4A3A8A, bottom:0x262030, hairScale:0.86},
+  {id:'street90s-woman',style:'90s Street',name:'Mika', skin:0xB88A60, hair:0x2A1C14, top:0xE0603A, bottom:0x5A6E9A, hairScale:0.98},
+  {id:'street90s-man',  style:'90s Street',name:'Cole', skin:0x9A6B45, hair:0x2E2018, top:0x4E5E38, bottom:0x4A3A2A, hairScale:1.02},
+];
+let SELECTED=0;
+function applyCharacter(i){
+  const c=CHARACTERS[i]; if(!c||!matSkin) return; SELECTED=i;
+  matSkin.color.setHex(c.skin); matTop.color.setHex(c.top);
+  matBottom.color.setHex(c.bottom); matHair.color.setHex(c.hair);
+  if(capBrim) capBrim.visible=false;                 /* everyone curly, no ballcap brim */
+  if(hairGroup) hairGroup.scale.setScalar(c.hairScale||1);
+}
 let ankleF=null, ankleB=null;
 /* pelvis twist against the shoulders. The legs counter-rotate it (see mkLeg) so
    the knees still bend down the board's long axis. */
@@ -3626,10 +3644,14 @@ const KEY={" ":"ollie",ArrowUp:"ollie",w:"ollie",W:"ollie",ArrowLeft:"left",a:"l
 addEventListener("keydown",e=>{const a=KEY[e.key];if(a){e.preventDefault();if(!e.repeat)press(a);}});
 addEventListener("keyup",e=>{const a=KEY[e.key];if(a){e.preventDefault();rel(a);}});
 function bindTouch(){ document.querySelectorAll("#touch .btn").forEach(b=>{const a=b.dataset.act;
-  const dn=e=>{e.preventDefault();b.classList.add("dn");press(a);resumeAudio();};
-  const up=e=>{e.preventDefault();b.classList.remove("dn");rel(a);};
-  b.addEventListener("pointerdown",dn);b.addEventListener("pointerup",up);
-  b.addEventListener("pointercancel",up);b.addEventListener("pointerleave",up);});}
+  const dn=e=>{ e.preventDefault(); try{b.setPointerCapture(e.pointerId);}catch(_){}
+    b.classList.add("dn");
+    edges.add(a); held[a]=true;        /* ALWAYS fire the edge — a dropped pointerup must never dead-lock the button */
+    resumeAudio(); };
+  const up=e=>{ if(e&&e.preventDefault)e.preventDefault(); b.classList.remove("dn"); held[a]=false; };
+  b.addEventListener("pointerdown",dn); b.addEventListener("pointerup",up);
+  b.addEventListener("pointercancel",up); b.addEventListener("lostpointercapture",up);
+  }); }
 if(matchMedia("(pointer:coarse)").matches){ document.getElementById("touch").classList.add("show");
   document.getElementById("kbHelp").innerHTML="<b>Touch</b> — steer/spin (left) · ollie, trick, manual (right)"; }
 
@@ -3754,7 +3776,7 @@ function step(dt){
         sk.flipRate=rate;
       } else sk.flipRate=0;
       const nr=nearestRail();
-      if(sk.vy<0 && nr.rail && nr.dist<1.4 && Math.abs(sk.pos.y-nr.rail.y)<1.1){ enterGrind(nr); break; }
+      if(sk.vy<4 && nr.rail && nr.dist<1.9 && Math.abs(sk.pos.y-nr.rail.y)<1.5){ enterGrind(nr); break; }
       if(sk.pos.y<=groundH(sk.pos.x,sk.pos.z)){ landGround(); }
       break; }
     case "grind":{
@@ -4101,8 +4123,12 @@ function flash(txt,bail){ const f=el("flash"); f.textContent=txt; f.classList.to
    13. LOOP
    ======================================================================= */
 let acc=0; const DT=1/120;
+let __lastW=0, __lastH=0;
 function frame(){
   requestAnimationFrame(frame);
+  /* bulletproof against missed orientation/resize events (iOS): if the viewport
+     no longer matches what we last sized to, re-fit this frame. Cheap int compare. */
+  if(innerWidth!==__lastW || innerHeight!==__lastH){ __lastW=innerWidth; __lastH=innerHeight; onResize(); }
   frameIdx++;
   let f = SHOT ? 1/60 : clock.getDelta();
   if(f>0.2)f=0.2;
