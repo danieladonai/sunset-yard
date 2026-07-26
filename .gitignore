@@ -1,2 +1,4 @@
 tools/shots/
 *.bak
+sunset-yard-vendor/
+node_modules/

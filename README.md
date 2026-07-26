@@ -32,8 +32,26 @@ Feel constants live in the `T = { ... }` object near the top of each file
 (pop height, gravity, roll speed, spin/flip rate, landing tolerance, balance
 decay, score curve). Tweak those first.
 
+## Running / hosting
+`sunset-yard.html` (2D) is fully standalone — just open it.
+
+`sunset-yard-3d.html` loads Three.js r160 from a local `sunset-yard-vendor/`
+folder (same-origin = fast, reliable, offline). That folder is gitignored;
+regenerate it once with:
+
+```
+npm install three@0.160.0
+mkdir -p sunset-yard-vendor/addons
+cp node_modules/three/build/three.module.js sunset-yard-vendor/three.module.js
+cp -r node_modules/three/examples/jsm/* sunset-yard-vendor/addons/
+```
+
+Then serve the folder over HTTP (ES modules need http/https, not `file://`).
+
 ## Status
-Early arcade builds — playable, not AAA. See `PROMPT.md` for the generation prompt
-and notes on pushing the visual quality further.
+Early arcade builds. The 3D build went through a multi-agent screenshot-critic
+"glow-up" pass (see `PROMPT.md`) — much richer than the first cut, but still
+arcade, not AAA. `tools/shot.js` is the headless screenshot harness used by that
+loop.
 
 🤖 Built with [Claude Code](https://claude.com/claude-code)
