@@ -3580,15 +3580,21 @@ async function buildScene(){
   }catch(e){ console.warn("env",e); }
 
   await buildPost();
-  addEventListener("resize",onResize);
+  addEventListener("resize",scheduleResize);
+  addEventListener("orientationchange",scheduleResize);
+  if(window.visualViewport) visualViewport.addEventListener("resize",scheduleResize);
   clock=new THREE.Clock();
 }
+/* iOS fires orientationchange with stale/late layout — re-apply a few times */
+function scheduleResize(){ onResize(); [60,250,500].forEach(ms=>setTimeout(onResize,ms)); }
 function onResize(){
-  camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth,innerHeight);
-  if(composer){ composer.setSize(innerWidth,innerHeight);
-    finalPass.uniforms.uRes.value.set(innerWidth,innerHeight);
-    if(bloomPass) bloomPass.setSize(innerWidth,innerHeight); }
+  if(!renderer||!camera) return;
+  const w=innerWidth, h=innerHeight;
+  camera.aspect=w/h; camera.updateProjectionMatrix();
+  renderer.setSize(w,h);
+  if(composer){ composer.setSize(w,h);
+    if(finalPass&&finalPass.uniforms&&finalPass.uniforms.uRes) finalPass.uniforms.uRes.value.set(w,h);
+    if(bloomPass) bloomPass.setSize(w,h); }
 }
 
 /* =======================================================================
@@ -3598,9 +3604,17 @@ const held={ollie:false,trick:false,left:false,right:false,manual:false}; const 
 /* optional tilt steering (mobile): gamma is left/right tilt in portrait. iOS 13+
    needs a permission request fired from a user gesture (the Drop In tap). */
 let tiltSteer=0, tiltOn=false;
-function __handleTilt(e){ let g=e.gamma; if(g==null) return;
-  const dz=4; g = Math.abs(g)<dz ? 0 : (g>0?g-dz:g+dz);
-  tiltSteer = Math.max(-1, Math.min(1, -g/22)); }   /* tilt right -> steer right */
+function __handleTilt(e){ if(e.gamma==null||e.beta==null) return;
+  /* pick the physical LEFT/RIGHT tilt axis for the current screen orientation
+     so tilt steering works in portrait AND both landscape orientations */
+  let a = (screen.orientation && typeof screen.orientation.angle==="number") ? screen.orientation.angle : (window.orientation||0);
+  let v;                                   /* screen tilted toward its right = positive */
+  if(a===90) v = -e.beta;
+  else if(a===270 || a===-90) v = e.beta;
+  else if(a===180) v = -e.gamma;
+  else v = e.gamma;                        /* 0 = portrait */
+  const dz=4; v = Math.abs(v)<dz ? 0 : (v>0?v-dz:v+dz);
+  tiltSteer = Math.max(-1, Math.min(1, -v/22)); }   /* tilt right -> steer right */
 function enableTilt(){ if(tiltOn) return; const D=window.DeviceOrientationEvent;
   const go=()=>{ window.addEventListener("deviceorientation", __handleTilt); tiltOn=true; };
   if(D && typeof D.requestPermission==="function"){ D.requestPermission().then(s=>{ if(s==="granted") go(); }).catch(()=>{}); }
