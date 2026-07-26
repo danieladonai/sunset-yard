@@ -1024,6 +1024,25 @@ BOWL.wallW  = 0.40;                            /* radial band that fakes the ver
 BOWL.rLip   = BOWL.rArc + BOWL.wallW;          /* y=0 crossing in the height field */
 BOWL.rDeck  = BOWL.rArc + BOWL.deck;           /* outer edge of the poured pool deck */
 const DOCK={x:-12, z:25, hw:9, hd:8, h:1.35, fil:1.9};
+
+/* =========================== SOLID COLLISION ===========================
+   Two registries, populated as buildPark() runs:
+   FUNBOXES — axis-aligned rideable box tops. groundH() rises smoothly onto
+   them (same DOCK-style fillet), so the skater rolls UP onto the box instead
+   of clipping through it at flat height.
+   WALLS — lateral blockers for tall transition/vert geometry (quarter-pipes,
+   the vert wall, perimeter/accent banks). We do NOT attempt to let the rider
+   surf the curved transition face (out of scope, risky) — each of these is
+   registered as a simple rotated-rectangle footprint that BLOCKS the skater
+   below the structure's top height. resolveWalls() (see step()) pushes the
+   skater back out to the nearest footprint edge and damps speed, so it reads
+   as sliding off the wall rather than a hard stop or a teleport-through. */
+const FUNBOXES=[], WALLS=[];
+/* Register a rotated-rectangle wall footprint. (x,z,rot) is the same pivot/
+   yaw used by M(x,0,z,rot); x0..x1/z0..z1 are the LOCAL-space rectangle (the
+   same local frame fed into that M() call) and top is the world-space height
+   the structure blocks up to. */
+function addWall(x,z,rot,x0,x1,z0,z1,top){ WALLS.push({x,z,rot,x0,x1,z0,z1,top}); }
 function kidK(a){ return 1 + Math.cos(a*2)*0.055 + Math.sin(a)*0.045; }   /* kidney squash */
 function bowlH(x,z){
   const px=x-BOWL.x, pz=z-BOWL.z;
@@ -1052,6 +1071,20 @@ function groundH(x,z){
   if(sd<3.5) y -= 0.35*(Math.cos(sd/3.5*Math.PI)*0.5+0.5);
   /* drained sump: the kidney bowl */
   y += bowlH(x,z);
+  /* RIDEABLE BOX TOPS — funboxes (and any other registered axis-aligned box).
+     Same fillet math as the DOCK plateau above: within ~1.0-1.5m of the box
+     edge the height eases up to the box top so the skater rides UP onto it
+     instead of teleporting. Only applied inside the fillet ring (od<fb.fil)
+     so it can never clamp the swale or bowl to 0 from far away. */
+  for(const fb of FUNBOXES){
+    const fdx=Math.abs(x-fb.x)-fb.hw, fdz=Math.abs(z-fb.z)-fb.hd;
+    const fod=Math.hypot(Math.max(fdx,0),Math.max(fdz,0)) + Math.min(Math.max(fdx,fdz),0);
+    if(fod<fb.fil){
+      const ft=1-Math.max(0,fod/fb.fil);
+      const fy=fb.top*(ft*ft*(3-2*ft));
+      if(fy>y) y=fy;
+    }
+  }
   return y;
 }
 
@@ -1088,6 +1121,12 @@ function addKicker(x,z,rot){
 }
 function addBank(x,z,rot,w){
   const h=5,d=7;
+  /* WALL BLOCK, not a rideable transition — see the note above WALLS. The
+     extruded shape (after its internal rotateY(90)+translate below) occupies
+     local x in [-w/2,w/2] (width) and local z in [-d,0] (depth, ground at
+     z=0 flush with the pivot, the curve rising back to z=-d), exactly the
+     local frame the closing M(x,0,z,rot) transform expects. */
+  addWall(x,z,rot, -w/2,w/2, -d,0, h);
   const shape=new THREE.Shape();
   shape.moveTo(0,0); shape.lineTo(d,0); shape.quadraticCurveTo(d,h,0.35,h); shape.lineTo(0,h*0.86); shape.lineTo(0,0);
   const geo=new THREE.ExtrudeGeometry(shape,{depth:w,bevelEnabled:true,bevelSize:0.05,bevelThickness:0.05,bevelSegments:1,curveSegments:16});
@@ -1106,6 +1145,9 @@ function addBank(x,z,rot,w){
       occ(bx+wx*t, bz+wz*t, 3.4, h); } }
 }
 function addFunbox(x,z){
+  /* rideable box top: half-extents match the chamferBox(10,1.4,6) below, with a
+     1.2m fillet ring so the climb onto the deck is a smooth ease, not a step */
+  FUNBOXES.push({x,z,hw:5,hd:3,top:1.4,fil:1.2});
   const box=chamferBox(10,1.4,6,0.06); uvScale(box,2.2);
   push("conc", box, M(x,0.7,z));
   /* polished orange grind stripes on the top edges (affordance, not decoration) */
@@ -1217,6 +1259,13 @@ function transShape(R, vert, plat){
 /* R = transition radius, vert = metres of true vertical above it, plat = top deck
    depth, w = width. Local +x is the APPROACH side; rot turns that into world. */
 function addQuarter(x,z,rot,w,R,vert,plat,copperLip){
+  /* WALL BLOCK — see the note above WALLS. Riding UP the curved transition
+     face is explicitly out of scope (risky); this registers the quarter's
+     full footprint (local x in [-plat,R], the deck-to-toe span; local z in
+     [-w/2,w/2]) as a flat blocker up to the coping height R+vert. That is
+     conservative right at the toe (x~=R), where the real mesh height is
+     still ~0 — a known limitation, acceptable per the task's scope. */
+  addWall(x,z,rot, -plat,R, -w/2,w/2, R+vert);
   const g=new THREE.ExtrudeGeometry(transShape(R,vert,plat),
     {depth:w,bevelEnabled:true,bevelSize:0.05,bevelThickness:0.05,bevelSegments:1,curveSegments:16});
   g.translate(0,0,-w/2); uvScale(g,0.60);
@@ -1243,6 +1292,10 @@ function addVertWall(x,z,rot,totalW,R,vert,plat){
   for(const s of [-1,1]){
     const off=s*(chan+segW)/2;
     const px=x+nx*off, pz=z+nz*off;
+    /* WALL BLOCK for this half of the vert wall — same footprint convention
+       as addQuarter (this segment IS a quarter-pipe transition, just paired
+       with its mirror across the channel). See the note above WALLS. */
+    addWall(px,pz,rot, -plat,R, -segW/2,segW/2, R+vert);
     const g=new THREE.ExtrudeGeometry(transShape(R,vert,plat),
       {depth:segW,bevelEnabled:true,bevelSize:0.05,bevelThickness:0.05,bevelSegments:1,curveSegments:16});
     g.translate(0,0,-segW/2); uvScale(g,0.60);
@@ -3852,6 +3905,10 @@ function step(dt){
       sk.pos.y=groundH(sk.pos.x,sk.pos.z); sk.bailT-=dt; sk.speed*=0.9;
       if(sk.bailT<=0){ sk.state="roll"; sk.speed=T.cruise*0.6; sk.flip=0; } break; }
   }
+  /* solid wall block, run right after the state machine moves sk.pos — skip
+     "grind" only, since that state's position is fully rail-driven (see
+     resolveWalls() above landGround()) */
+  if(sk.state!=="grind") resolveWalls();
 
   /* crouch scalar: anticipation on hold, snap on pop, tuck in air, spike on land */
   let target=0;
@@ -3937,6 +3994,33 @@ let mAcc=0; function manualPts(dt){ mAcc+=dt; if(mAcc>=0.4){mAcc=0;combo.base+=M
 function drift(dt,ev){ if(!sk._tip)sk._tip=RNG()<.5?-1:1;
   sk.balance+=sk._tip*T.balanceDrift*dt*0.6; if(held.left)sk.balance-=T.balanceFix*dt; if(held.right)sk.balance+=T.balanceFix*dt;
   if(Math.abs(sk.balance)>1) bail(); }
+/* LATERAL WALL BLOCK — see the WALLS note above groundH(). Run once per frame
+   after the state machine has moved sk.pos. For every registered footprint the
+   skater is standing inside (and below the top of), push straight out to the
+   NEAREST rectangle edge in the wall's local space and bleed forward speed.
+   That reads as sliding off the face — never a hard stop-dead, never a
+   launch — and the skater is never trapped: stepping away from the wall next
+   frame frees it immediately since the push always lands just outside the
+   footprint. */
+function resolveWalls(){
+  for(const w of WALLS){
+    const dx=sk.pos.x-w.x, dz=sk.pos.z-w.z;
+    const c=Math.cos(w.rot), s=Math.sin(w.rot);
+    const lx=dx*c-dz*s, lz=dx*s+dz*c;                 /* world offset -> wall-local */
+    if(lx<w.x0||lx>w.x1||lz<w.z0||lz>w.z1) continue;   /* outside the footprint */
+    if(sk.pos.y>=w.top-0.05) continue;                 /* already standing on/above it */
+    const dLeft=lx-w.x0, dRight=w.x1-lx, dNear=lz-w.z0, dFar=w.z1-lz;
+    const m=Math.min(dLeft,dRight,dNear,dFar);
+    let nlx=lx, nlz=lz;
+    if(m===dLeft) nlx=w.x0-0.02;
+    else if(m===dRight) nlx=w.x1+0.02;
+    else if(m===dNear) nlz=w.z0-0.02;
+    else nlz=w.z1+0.02;
+    sk.pos.x = w.x + nlx*c + nlz*s;                    /* wall-local -> world offset */
+    sk.pos.z = w.z - nlx*s + nlz*c;
+    sk.speed *= 0.5;
+  }
+}
 function landGround(){ sk.pos.y=groundH(sk.pos.x,sk.pos.z); sk.vy=0;
   fxLand(sk.pos.x, sk.pos.y, sk.pos.z); impactHit();
   if(sk.flipRem>T.landTol){ bail(); return; }
