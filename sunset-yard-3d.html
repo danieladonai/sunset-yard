@@ -163,6 +163,23 @@
   .cta:active{transform:translate(3px,3px);box-shadow:3px 3px 0 rgba(36,30,51,.85);}
   .result{display:flex;gap:26px;flex-wrap:wrap;justify-content:center;}.result .stat{align-items:center;}.result .stat span{font-size:34px;}
   .fine{font-size:10px;letter-spacing:.18em;color:rgba(207,195,174,.6);text-transform:uppercase;}
+  /* character select — a horizontal, scrollable roster of tappable cards */
+  #roster{width:100%;max-width:560px;}
+  #rosterLabel{font-size:12px;letter-spacing:.30em;text-transform:uppercase;color:var(--haze);margin-bottom:8px;}
+  #rosterRow{display:flex;gap:9px;overflow-x:auto;overflow-y:hidden;padding:4px 4px 8px 4px;
+    scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;}
+  #rosterRow::-webkit-scrollbar{height:5px;}
+  #rosterRow::-webkit-scrollbar-thumb{background:rgba(240,86,42,.5);}
+  .char-card{flex:0 0 auto;width:76px;cursor:pointer;pointer-events:auto;user-select:none;-webkit-user-select:none;
+    scroll-snap-align:start;display:flex;flex-direction:column;gap:4px;background:rgba(36,30,51,.55);
+    border:2px solid rgba(207,195,174,.30);padding:4px;transition:border-color .12s,box-shadow .12s,transform .06s;}
+  .char-card:active{transform:scale(.96);}
+  .char-card .thumb{width:100%;height:92px;overflow:hidden;background:#1A1526;}
+  .char-card .thumb img{width:100%;height:100%;object-fit:cover;object-position:top center;display:block;}
+  .char-card .cname{font-size:9px;letter-spacing:.10em;text-transform:uppercase;color:var(--conc);line-height:1.3;}
+  .char-card .cname b{display:block;font-size:11px;color:var(--chalk);letter-spacing:.03em;}
+  .char-card.sel{border-color:var(--orange);box-shadow:0 0 0 2px rgba(240,86,42,.35),0 0 10px rgba(240,86,42,.55);}
+  .char-card.sel .cname b{color:var(--orange);}
   #load{position:absolute;inset:0;display:grid;place-items:center;color:var(--conc);font-size:13px;letter-spacing:.24em;
     text-transform:uppercase;text-align:center;padding:24px;background:#241E33;}
   @media (prefers-reduced-motion:reduce){*{transition:none!important;}}
@@ -219,6 +236,10 @@
       flat ground. Keep one combo alive — the multiplier climbs.</div>
     <div class="help" id="kbHelp"><b>Touch:</b> ◀ ▶ steer/spin · OLLIE · TRICK · MANUAL &nbsp;&nbsp;<b>Keys:</b> ←/→ steer · Space ollie · J/K trick · S manual</div>
     <label class="help" style="display:flex;gap:9px;align-items:center;justify-content:center;cursor:pointer;user-select:none;"><input type="checkbox" id="tiltChk" style="width:18px;height:18px;accent-color:var(--orange);"> Tilt phone to steer <span style="opacity:.55">(beta)</span></label>
+    <div id="roster">
+      <div id="rosterLabel">Choose your skater</div>
+      <div id="rosterRow"></div>
+    </div>
     <button class="cta" id="startBtn">Drop In</button>
     <div class="fine">Original 3D game · desktop &amp; mobile</div>
   </div>
@@ -327,6 +348,21 @@ function applyCharacter(i){
   matBottom.color.setHex(c.bottom); matHair.color.setHex(c.hair);
   if(capBrim) capBrim.visible=false;                 /* everyone curly, no ballcap brim */
   if(hairGroup) hairGroup.scale.setScalar(c.hairScale||1);
+  document.querySelectorAll(".char-card").forEach((card,ix)=>card.classList.toggle("sel", ix===i));
+}
+/* character-select row on the start overlay — built from CHARACTERS so the
+   roster art / colours / names stay driven by one source of truth. */
+function buildRoster(){
+  const row=el("rosterRow"); if(!row) return;
+  row.innerHTML="";
+  CHARACTERS.forEach((c,i)=>{
+    const card=document.createElement("div");
+    card.className="char-card"+(i===SELECTED?" sel":"");
+    card.innerHTML='<div class="thumb"><img src="./sunset-yard-assets/'+c.id+'.png" alt="'+c.name+'" loading="lazy"></div>'+
+      '<div class="cname">'+c.style+'<b>'+c.name+'</b></div>';
+    card.addEventListener("click", ()=>applyCharacter(i));
+    row.appendChild(card);
+  });
 }
 let ankleF=null, ankleB=null;
 /* pelvis twist against the shoulders. The legs counter-rotate it (see mkLeg) so
@@ -3033,6 +3069,7 @@ function buildSkater(){
   const skin =charRim(new THREE.MeshStandardMaterial({color:P.rust,roughness:0.85,metalness:0.0}),0.6);
   const cap  =charRim(new THREE.MeshStandardMaterial({color:P.orange,roughness:0.75,metalness:0.0}),0.5);
   const dark =new THREE.MeshStandardMaterial({color:P.black,roughness:0.9,metalness:0.0});
+  matTop=cloth; matBottom=pants; matSkin=skin; matHair=cap;
 
   skater=new THREE.Group();
   buildBoard(dark);
@@ -3076,8 +3113,22 @@ function buildSkater(){
   const hm=new THREE.Mesh(new THREE.SphereGeometry(0.235,12,10),skin); hm.position.y=0.20; hm.castShadow=true; head.add(hm);
   const capM=new THREE.Mesh(new THREE.SphereGeometry(0.243,12,8,0,6.283,0,1.0),cap); capM.position.y=0.20; capM.castShadow=true; head.add(capM);
   const brim=new THREE.Mesh(new THREE.BoxGeometry(0.44,0.045,0.26),cap); brim.position.set(0.0,0.193,0.21); brim.castShadow=true; head.add(brim);
+  capBrim=brim;
   const visor=new THREE.Mesh(new THREE.BoxGeometry(0.38,0.12,0.10),dark);  /* faceless: dark visor block */
   visor.position.set(0,0.162,0.17); head.add(visor);
+  /* curly hair cluster — a cap-material puff so applyCharacter's hair colour
+     covers it too. Reads as a voluminous afro/curl cluster from the chase cam
+     (behind + above), not a helmet: spheres wrap the crown, sides and back. */
+  hairGroup=new THREE.Group(); hairGroup.position.y=0.30; head.add(hairGroup);
+  const hairPuffs=[
+    [0.000,0.075,0.010,0.150],  [-0.120,0.045,-0.030,0.120], [0.120,0.045,-0.030,0.120],
+    [-0.130,0.010,0.100,0.110], [0.130,0.010,0.100,0.110],
+    [0.000,0.030,-0.170,0.140], [0.000,0.130,-0.070,0.115],
+  ];
+  for(const [x,y,z,r] of hairPuffs){
+    const puff=new THREE.Mesh(new THREE.SphereGeometry(r,8,7),cap);
+    puff.position.set(x,y,z); puff.castShadow=true; hairGroup.add(puff);
+  }
 
   shoulderL=new THREE.Group(); shoulderL.position.set(0.0,0.60,0.30); torso.add(shoulderL);
   shoulderR=new THREE.Group(); shoulderR.position.set(0.0,0.60,-0.30); torso.add(shoulderR);
@@ -3164,6 +3215,7 @@ function buildSkater(){
   contact=new THREE.Mesh(new THREE.PlaneGeometry(2.3,2.3),
     new THREE.MeshBasicMaterial({map:TEX.blob,color:P.black,transparent:true,opacity:0.55,depthWrite:false,fog:false}));
   contact.rotation.x=-Math.PI/2; contact.position.y=0.015; contact.renderOrder=1; scene.add(contact);
+  applyCharacter(SELECTED);
 }
 function buildBoard(dark){
   board=new THREE.Group();
@@ -3705,6 +3757,7 @@ function stokeAdd(n){ if(special.on)return; special.meter=Math.min(1,special.met
   if(special.meter>=1){ special.on=true;special.t=1;el("stokeWrap").classList.add("hot"); flash("STOKED! 2×"); } }
 
 function startGame(){ audioInit();resumeAudio();
+  applyCharacter(SELECTED);
   { const __tc=document.getElementById("tiltChk"); if(__tc&&__tc.checked) enableTilt(); }
   resetSkater();loseCombo();
   special.meter=0;special.on=false;special.t=0;el("stokeWrap").classList.remove("hot");
@@ -4206,6 +4259,7 @@ window.__camShot=(name)=>{
 async function boot(){
   try{
     await buildScene();
+    buildRoster();
     bindTouch(); resetSkater(); applyTransform(1/60); updateKeyLight();
     el("load").style.display="none"; el("start").classList.remove("hide");
     window.__booted=true;
