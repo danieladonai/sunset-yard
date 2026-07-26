@@ -1,0 +1,723 @@
+<title>Sunset Yard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<style>
+  /* ---- SUNSET YARD — palette grounded in a dusk skatepark ---------------
+     sky dusk purple -> magenta -> orange horizon; hot-magenta + cyan UI. */
+  :root{
+    --ink:#FDEFE6; --ink-dim:#E7B9A6;
+    --mag:#FF3E8A; --cyan:#34E0D8; --gold:#FFD98A; --orange:#FF7A3D;
+    --panel:rgba(24,14,34,.62); --panel-line:rgba(255,122,61,.35);
+    --disp: "Arial Narrow", "Helvetica Neue", system-ui, sans-serif;
+    --num: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%; overflow:hidden; background:#160E22; touch-action:none; overscroll-behavior:none;}
+  #game{position:fixed; inset:0; overflow:hidden; user-select:none; -webkit-user-select:none;}
+  canvas{position:absolute; inset:0; width:100%; height:100%; display:block;}
+
+  /* ---------- HUD ---------- */
+  #hud{position:absolute; inset:0; pointer-events:none; font-family:var(--disp);}
+  #topbar{position:absolute; top:0; left:0; right:0; display:flex; align-items:flex-start;
+    justify-content:space-between; gap:12px; padding:14px 16px calc(14px + env(safe-area-inset-top,0)) 16px;}
+  .stat{display:flex; flex-direction:column; gap:2px;}
+  .stat label, #stokeWrap label{font-size:11px; letter-spacing:.22em; color:var(--ink-dim); text-transform:uppercase;}
+  .stat span{font-family:var(--num); font-size:30px; line-height:.9; font-weight:700; color:var(--ink);
+    font-variant-numeric:tabular-nums; text-shadow:0 2px 0 rgba(0,0,0,.35);}
+  #score span, #scoreV{color:var(--gold);}
+  #stokeWrap{display:flex; flex-direction:column; align-items:flex-end; gap:5px; min-width:132px;}
+  #stokeBar{width:132px; height:12px; border-radius:99px; background:rgba(0,0,0,.4);
+    border:1px solid rgba(52,224,216,.4); overflow:hidden;}
+  #stoke{display:block; height:100%; width:0%;
+    background:linear-gradient(90deg,var(--cyan),#8affe9); transition:width .12s linear;}
+  #stokeWrap.hot #stokeBar{border-color:var(--gold); box-shadow:0 0 14px rgba(255,217,138,.7);}
+  #stokeWrap.hot #stoke{background:linear-gradient(90deg,var(--gold),#fff);}
+
+  /* live combo readout */
+  #combo{position:absolute; top:78px; left:50%; transform:translateX(-50%);
+    display:flex; flex-direction:column; align-items:center; gap:3px; text-align:center;
+    opacity:0; transition:opacity .12s; width:min(92vw,520px);}
+  #combo.on{opacity:1;}
+  #comboTricks{font-size:15px; letter-spacing:.14em; color:var(--ink); text-transform:uppercase;
+    line-height:1.45; text-shadow:0 1px 3px rgba(0,0,0,.6);}
+  #comboTricks b{color:var(--cyan); font-weight:700;}
+  #comboTotal{font-family:var(--num); font-weight:700; font-size:34px; color:#fff;
+    text-shadow:0 0 18px rgba(255,62,138,.7), 0 2px 0 rgba(0,0,0,.4);}
+  #comboTotal em{color:var(--mag); font-style:normal;}
+
+  #goals{position:absolute; left:16px; bottom:calc(16px + env(safe-area-inset-bottom,0));
+    display:flex; flex-direction:column; gap:7px; font-size:12px; letter-spacing:.04em;}
+  #letters{display:flex; gap:6px;}
+  #letters span{font-family:var(--disp); font-weight:700; font-size:17px; width:22px; height:22px;
+    display:grid; place-items:center; border-radius:6px; color:var(--ink-dim);
+    background:rgba(0,0,0,.3); border:1px solid rgba(255,255,255,.12);}
+  #letters span.got{color:#160E22; background:var(--gold); border-color:var(--gold); box-shadow:0 0 12px rgba(255,217,138,.6);}
+  #goalList{color:var(--ink-dim);}
+  #goalList div.done{color:var(--cyan);}
+  #goalList div.done::before{content:"✓ ";}
+  #goalList div::before{content:"○ "; opacity:.6;}
+
+  .flash{position:absolute; top:44%; left:50%; transform:translate(-50%,-50%) scale(1);
+    font-family:var(--disp); font-weight:700; font-size:min(13vw,88px); letter-spacing:.03em;
+    color:#fff; text-transform:uppercase; opacity:0; pointer-events:none;
+    text-shadow:0 0 24px rgba(255,62,138,.8);}
+  .flash.bail{color:var(--orange); text-shadow:0 0 24px rgba(255,122,61,.9);}
+
+  /* ---------- touch controls ---------- */
+  #touch{position:absolute; inset:auto 0 0 0; display:none;
+    padding:0 18px calc(20px + env(safe-area-inset-bottom,0)) 18px;
+    justify-content:space-between; align-items:flex-end; pointer-events:none;}
+  #touch.show{display:flex;}
+  .pad{display:flex; gap:14px; pointer-events:auto;}
+  .pad.right{align-items:flex-end;}
+  .btn{-webkit-user-select:none; user-select:none; touch-action:none; cursor:pointer;
+    font-family:var(--disp); font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+    color:var(--ink); background:var(--panel); border:1.5px solid var(--panel-line);
+    border-radius:16px; backdrop-filter:blur(6px); display:grid; place-items:center;
+    transition:transform .05s, background .05s;}
+  .btn:active,.btn.dn{transform:scale(.92); background:rgba(255,62,138,.28); border-color:var(--mag);}
+  .btn.arrow{width:60px; height:60px; font-size:26px;}
+  .btn.small{width:74px; height:56px; font-size:15px;}
+  .btn.ollie{width:96px; height:96px; font-size:20px; border-color:var(--cyan);
+    background:rgba(52,224,216,.16); box-shadow:0 0 20px rgba(52,224,216,.25);}
+  .btn.ollie:active,.btn.ollie.dn{background:rgba(52,224,216,.4);}
+
+  /* ---------- overlays ---------- */
+  .overlay{position:absolute; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:18px; text-align:center; padding:24px;
+    background:radial-gradient(120% 90% at 50% 12%, rgba(122,59,143,.34), rgba(22,14,34,.86) 70%);
+    font-family:var(--disp); color:var(--ink); pointer-events:auto;}
+  .overlay.hide{display:none;}
+  .brand{font-weight:700; text-transform:uppercase; line-height:.86;
+    font-size:min(17vw,120px); letter-spacing:.02em;
+    background:linear-gradient(180deg,#FFE7B0,var(--gold) 38%,var(--mag) 88%);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    filter:drop-shadow(0 4px 0 rgba(0,0,0,.25)); text-wrap:balance;}
+  .tag{font-size:13px; letter-spacing:.34em; text-transform:uppercase; color:var(--cyan); margin-top:-6px;}
+  .help{max-width:440px; font-size:14px; line-height:1.75; color:var(--ink-dim); letter-spacing:.02em;}
+  .help b{color:var(--ink); font-weight:700;}
+  .cta{pointer-events:auto; cursor:pointer; font-family:var(--disp); font-weight:700;
+    text-transform:uppercase; letter-spacing:.12em; font-size:20px; color:#160E22;
+    padding:15px 42px; border:none; border-radius:99px;
+    background:linear-gradient(180deg,#fff,var(--gold)); box-shadow:0 6px 0 #a86a00, 0 10px 22px rgba(0,0,0,.4);
+    transition:transform .06s, box-shadow .06s;}
+  .cta:active{transform:translateY(4px); box-shadow:0 2px 0 #a86a00, 0 6px 14px rgba(0,0,0,.4);}
+  .result{display:flex; gap:26px; flex-wrap:wrap; justify-content:center;}
+  .result .stat span{font-size:40px;}
+  .result .stat{align-items:center;}
+  .fine{font-size:11px; letter-spacing:.14em; color:rgba(231,185,166,.6); text-transform:uppercase;}
+  @media (max-width:520px){ .stat span{font-size:24px;} #comboTotal{font-size:28px;} }
+  @media (prefers-reduced-motion:reduce){ *{transition:none !important;} }
+</style>
+
+<div id="game">
+  <canvas id="c"></canvas>
+
+  <div id="hud">
+    <div id="topbar">
+      <div class="stat" id="scoreS"><label>Score</label><span id="scoreV">0</span></div>
+      <div class="stat"><label>Time</label><span id="timeV">2:00</span></div>
+      <div id="stokeWrap"><label>Stoke</label><div id="stokeBar"><i id="stoke"></i></div></div>
+    </div>
+
+    <div id="combo"><div id="comboTricks"></div><div id="comboTotal"></div></div>
+
+    <div id="goals">
+      <div id="letters"><span>S</span><span>K</span><span>A</span><span>T</span><span>E</span></div>
+      <div id="goalList">
+        <div data-g="score">Score 10,000</div>
+        <div data-g="combo">One combo worth 5,000</div>
+        <div data-g="letters">Collect S-K-A-T-E</div>
+      </div>
+    </div>
+
+    <div class="flash" id="flash"></div>
+  </div>
+
+  <div id="touch">
+    <div class="pad left">
+      <button class="btn arrow" data-act="spinL" aria-label="spin left">⟲</button>
+      <button class="btn arrow" data-act="spinR" aria-label="spin right">⟳</button>
+    </div>
+    <div class="pad right">
+      <button class="btn small" data-act="trick">Trick</button>
+      <button class="btn small" data-act="manual">Manual</button>
+      <button class="btn ollie" data-act="ollie">Ollie</button>
+    </div>
+  </div>
+
+  <div class="overlay" id="start">
+    <div class="brand">Sunset<br>Yard</div>
+    <div class="tag">Two-minute line · one long combo</div>
+    <div class="help">
+      Roll auto. <b>Ollie</b> to pop, <b>spin</b> in the air, then land clean —
+      finish your rotation or you bail. Ollie onto a <b>rail</b> to grind,
+      hold <b>manual</b> to link tricks across the flat. Keep the chain alive; the
+      multiplier climbs until you land or eat it.
+      <br><br>
+      <span id="kbHelp"><b>Keys</b> — Space: ollie · ←/→: spin · J/K: flip &amp; grab · S: manual</span>
+    </div>
+    <button class="cta" id="startBtn">Drop In</button>
+    <div class="fine">Original game · plays on desktop &amp; mobile</div>
+  </div>
+
+  <div class="overlay hide" id="over">
+    <div class="tag">Run complete</div>
+    <div class="brand" style="font-size:min(11vw,80px)">Nice line</div>
+    <div class="result">
+      <div class="stat"><label>Final Score</label><span id="fScore">0</span></div>
+      <div class="stat"><label>Best Combo</label><span id="fCombo">0</span></div>
+      <div class="stat"><label>Letters</label><span id="fLetters">0/5</span></div>
+    </div>
+    <div id="goalSummary" class="help"></div>
+    <button class="cta" id="againBtn">Skate Again</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ============================ SUNSET YARD ============================
+   Original side-view combo skater. Single file, no dependencies, Canvas 2D.
+   -------------------------------------------------------------------
+   DESIGN NOTES (the ambiguous feel calls, made toward the rubric):
+   - Roll is automatic so both thumbs are free for tricks (mobile-first).
+   - Air is forgiving on flips/grabs (always safe, points) but SPINS must be
+     completed — you bail if you land far from upright. That's the skill gate.
+   - Grinds & manuals have a gentle balance drift you correct with spin L/R;
+     tuned slow so it reads as "keep nudging", not "twitch or die".
+   - A combo banks a short beat after you settle; bailing loses it. Reverts are
+     automatic (the settle grace) so the chain links without an extra button.
+   ==================================================================== */
+
+/* ------- TUNING: the feel lives here. Tweak these first. ------- */
+const T = {
+  roll:        360,   // base forward speed (world px/s)
+  gravity:     2100,  // fall accel
+  ollie:       720,   // pop velocity (up)
+  ollieCharge: 300,   // extra pop from a held/charged ollie
+  chargeTime:  0.28,  // seconds to fully charge a pop
+  spinRate:    7.6,   // rad/s while holding a spin
+  landTol:     0.55,  // rad from upright still counts as a clean land (~31°)
+  grindBoost:  1.12,  // speed while grinding
+  balanceDrift:0.85,  // how fast manual/grind balance tips (0..1 per s)
+  balanceFix:  1.9,   // how fast a nudge corrects it
+  railSnap:    26,    // vertical snap window onto a rail
+  comboGrace:  0.7,   // settle beats before a combo banks
+  bailLock:    0.95,  // stumble lockout
+  stokePerTrick:0.13, // stoke gained per trick
+  stokeDrain:  1/9,   // special lasts ~9s
+};
+/* Two constants most worth tweaking for taste: T.ollie (pop height) and
+   T.roll (pace / how much air you get over gaps). */
+
+const RUN_TIME = 120;             // 2:00
+const GROUND = 300;               // world-y of flat ground (feet line)
+const VH = 380;                   // virtual height; everything scales to this
+const FLIPS = ["Kickflip","Heelflip","Shuvit","360 Flip","Impossible","Hardflip"];
+const GRABS = ["Melon","Indy","Nosegrab","Stalefish","Method","Tailgrab"];
+const GRINDS= ["50-50","Boardslide","Nosegrind","Crooked","Smith","Feeble"];
+
+/* ------- setup ------- */
+const cv = document.getElementById("c"), ctx = cv.getContext("2d");
+let VW = 640, scale = 1, dpr = 1;
+function resize(){
+  dpr = Math.min(window.devicePixelRatio||1, 2);
+  const w = window.innerWidth, h = window.innerHeight;
+  cv.width = Math.round(w*dpr); cv.height = Math.round(h*dpr);
+  scale = h / VH;                 // fit virtual height to screen
+  VW = w / scale;                 // virtual width follows aspect
+}
+window.addEventListener("resize", resize); resize();
+
+/* ------- audio (procedural, no assets) ------- */
+let AC=null, master=null, rollOsc=null, rollGain=null, rollFilt=null, grindGain=null;
+function audioInit(){
+  if(AC) return;
+  try{ AC = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ return; }
+  master = AC.createGain(); master.gain.value=0.5; master.connect(AC.destination);
+  // rolling rumble: filtered saw whose pitch tracks speed
+  rollOsc = AC.createOscillator(); rollOsc.type="sawtooth"; rollOsc.frequency.value=60;
+  rollFilt = AC.createBiquadFilter(); rollFilt.type="lowpass"; rollFilt.frequency.value=420;
+  rollGain = AC.createGain(); rollGain.gain.value=0.0;
+  rollOsc.connect(rollFilt); rollFilt.connect(rollGain); rollGain.connect(master); rollOsc.start();
+  // grind bed
+  grindGain = AC.createGain(); grindGain.gain.value=0;
+  const gb=AC.createOscillator(); gb.type="square"; gb.frequency.value=180;
+  const gf=AC.createBiquadFilter(); gf.type="bandpass"; gf.frequency.value=1600; gf.Q.value=3;
+  gb.connect(gf); gf.connect(grindGain); grindGain.connect(master); gb.start();
+}
+function blip(freq, dur, type, vol){
+  if(!AC) return;
+  const o=AC.createOscillator(), g=AC.createGain();
+  o.type=type||"triangle"; o.frequency.value=freq;
+  g.gain.value=vol||0.3; g.gain.exponentialRampToValueAtTime(0.0001, AC.currentTime+dur);
+  o.connect(g); g.connect(master); o.start(); o.stop(AC.currentTime+dur);
+}
+const sfx = {
+  ollie(){ if(!AC)return; const o=AC.createOscillator(),g=AC.createGain(); o.type="triangle";
+    o.frequency.setValueAtTime(240,AC.currentTime); o.frequency.exponentialRampToValueAtTime(560,AC.currentTime+.12);
+    g.gain.value=.32; g.gain.exponentialRampToValueAtTime(.0001,AC.currentTime+.16);
+    o.connect(g); g.connect(master); o.start(); o.stop(AC.currentTime+.16); },
+  trick(){ blip(420+Math.random()*180,.09,"square",.22); },
+  land(mult){ blip(300+mult*20,.14,"triangle",.34); blip(150+mult*10,.18,"sine",.24); },
+  letter(){ blip(880,.1,"sine",.3); blip(1320,.14,"sine",.24); },
+  bail(){ if(!AC)return; const o=AC.createOscillator(),g=AC.createGain(); o.type="sawtooth";
+    o.frequency.setValueAtTime(180,AC.currentTime); o.frequency.exponentialRampToValueAtTime(50,AC.currentTime+.35);
+    g.gain.value=.4; g.gain.exponentialRampToValueAtTime(.0001,AC.currentTime+.4);
+    o.connect(g); g.connect(master); o.start(); o.stop(AC.currentTime+.4); },
+  bank(){ blip(660,.1,"square",.28); setTimeout(()=>blip(990,.14,"square",.26),90); },
+};
+
+/* ------- input ------- */
+const held = {ollie:false, trick:false, spinL:false, spinR:false, manual:false};
+const edges = new Set();
+function press(a){ if(!held[a]) edges.add(a); held[a]=true; }
+function release(a){ held[a]=false; }
+const KEY = {
+  " ":"ollie", "ArrowUp":"ollie", "w":"ollie", "W":"ollie",
+  "ArrowLeft":"spinL", "a":"spinL", "A":"spinL",
+  "ArrowRight":"spinR", "d":"spinR", "D":"spinR",
+  "j":"trick","J":"trick","k":"trick","K":"trick",
+  "ArrowDown":"manual","s":"manual","S":"manual",
+};
+addEventListener("keydown", e=>{ const a=KEY[e.key]; if(a){ e.preventDefault(); if(!e.repeat) press(a); }});
+addEventListener("keyup", e=>{ const a=KEY[e.key]; if(a){ e.preventDefault(); release(a); }});
+document.querySelectorAll("#touch .btn").forEach(b=>{
+  const a=b.dataset.act;
+  const dn=e=>{ e.preventDefault(); b.classList.add("dn"); press(a); audioResume(); };
+  const up=e=>{ e.preventDefault(); b.classList.remove("dn"); release(a); };
+  b.addEventListener("pointerdown",dn); b.addEventListener("pointerup",up);
+  b.addEventListener("pointercancel",up); b.addEventListener("pointerleave",up);
+});
+function audioResume(){ if(AC && AC.state==="suspended") AC.resume(); }
+if(matchMedia("(pointer:coarse)").matches){
+  document.getElementById("touch").classList.add("show");
+  document.getElementById("kbHelp").textContent = "Touch — buttons bottom of screen: spin (left) · ollie, trick, manual (right)";
+}
+
+/* ------- world ------- */
+let cam=0, feats=[], letters=[], genX=0, lettersOrder=["S","K","A","T","E"], lettersDone=0;
+function groundAt(){ return GROUND; }            // flat baseline (kickers are pop-boosts)
+function generate(untilX){
+  while(genX < untilX){
+    const gap = 240 + Math.random()*260;
+    genX += gap;
+    const r = Math.random();
+    if(r < 0.5){                                  // rail / ledge to grind
+      const len = 120 + Math.random()*180;
+      const h = 60 + Math.random()*46;            // height above ground
+      feats.push({type:"rail", x:genX, len, h, ledge: Math.random()<0.4});
+      genX += len;
+    } else if(r < 0.78){                           // kicker ramp (pop boost)
+      feats.push({type:"kicker", x:genX, w:66});
+      genX += 66;
+    } else {                                        // quarter/hip visual bump + air
+      feats.push({type:"bump", x:genX, w:90});
+      genX += 90;
+    }
+    // sprinkle SKATE letters in the air over obstacles
+    if(lettersOrder.length && Math.random()<0.5){
+      const ch = lettersOrder.shift();
+      letters.push({x:genX-40, y:GROUND-130-Math.random()*60, ch, got:false});
+    }
+  }
+}
+
+/* ------- skater ------- */
+const sk = {};
+function resetSkater(){
+  sk.x=120; sk.y=GROUND; sk.vy=0; sk.rot=0; sk.state="roll";
+  sk.spin=0; sk.spinDir=0; sk.charge=0; sk.balance=0; sk.railRef=null;
+  sk.grace=0; sk.bailT=0; sk.grindType=""; sk.speed=T.roll;
+}
+
+/* ------- combo ------- */
+const combo = { active:false, tricks:[], base:0, banked:false };
+function comboStart(){ if(!combo.active){ combo.active=true; combo.tricks=[]; combo.base=0; } }
+function addTrick(name, pts){
+  comboStart();
+  const mult = special.on ? 2 : 1;
+  const p = Math.round(pts*mult);
+  combo.tricks.push({name: special.on ? "✦"+name : name, pts:p});
+  combo.base += p;
+  stokeAdd(T.stokePerTrick);
+  sfx.trick();
+  updateCombo();
+}
+function comboValue(){ return combo.base * Math.max(1, combo.tricks.length); }
+function bankCombo(){
+  if(!combo.active) return;
+  const v = comboValue();
+  if(v>0){ state.score += v; if(v>state.bestCombo) state.bestCombo=v; sfx.bank(); flashText((v).toLocaleString()+" BANKED"); }
+  combo.active=false; combo.tricks=[]; combo.base=0; updateCombo(); refreshGoals();
+}
+function loseCombo(){ combo.active=false; combo.tricks=[]; combo.base=0; updateCombo(); }
+
+/* ------- special (stoke) ------- */
+const special = { meter:0, on:false, t:0 };
+function stokeAdd(n){
+  if(special.on) return;
+  special.meter = Math.min(1, special.meter+n);
+  if(special.meter>=1){ special.on=true; special.t=1; special.meter=1; document.getElementById("stokeWrap").classList.add("hot"); flashText("STOKED! 2×"); }
+}
+
+/* ------- game state ------- */
+const state = { phase:"ready", score:0, bestCombo:0, time:RUN_TIME };
+function startGame(){
+  audioInit(); audioResume();
+  feats=[]; letters=[]; genX=0; cam=0; lettersOrder=["S","K","A","T","E"]; lettersDone=0;
+  generate(2200);
+  resetSkater(); loseCombo();
+  special.meter=0; special.on=false; special.t=0; document.getElementById("stokeWrap").classList.remove("hot");
+  state.phase="playing"; state.score=0; state.bestCombo=0; state.time=RUN_TIME;
+  document.getElementById("start").classList.add("hide");
+  document.getElementById("over").classList.add("hide");
+  document.querySelectorAll("#letters span").forEach(s=>s.classList.remove("got"));
+  refreshGoals(); updateCombo();
+}
+document.getElementById("startBtn").onclick = startGame;
+document.getElementById("againBtn").onclick = startGame;
+
+/* ------- helpers to find a rail under the skater ------- */
+function railAt(x){
+  for(const f of feats){ if(f.type==="rail" && x>=f.x && x<=f.x+f.len) return f; }
+  return null;
+}
+function kickerAt(x){
+  for(const f of feats){ if((f.type==="kicker"||f.type==="bump") && x>=f.x && x<=f.x+f.w) return f; }
+  return null;
+}
+
+/* ============================ STEP ============================ */
+function step(dt){
+  state.time -= dt;
+  if(state.time<=0){ state.time=0; endGame(); return; }
+
+  // special timer
+  if(special.on){ special.t -= dt*T.stokeDrain; if(special.t<=0){ special.on=false; special.meter=0; document.getElementById("stokeWrap").classList.remove("hot"); } }
+
+  const consumed = new Set(edges); edges.clear();
+
+  // forward motion
+  sk.speed = (sk.state==="grind"? T.roll*T.grindBoost : T.roll);
+  if(sk.state!=="bail") sk.x += sk.speed*dt; else sk.x += sk.speed*0.35*dt;
+  generate(sk.x + VW*1.6);
+
+  // rolling audio pitch
+  if(rollGain){ rollGain.gain.value = (state.phase==="playing" && sk.state!=="bail")?0.05:0.0;
+    rollOsc.frequency.value = 55 + (sk.state==="air"?0:70); }
+  if(grindGain) grindGain.gain.value = (sk.state==="grind")?0.06:0.0;
+
+  switch(sk.state){
+    case "roll": {
+      sk.y=GROUND; sk.rot=0;
+      // settle -> bank
+      if(combo.active){ sk.grace-=dt; if(sk.grace<=0) bankCombo(); }
+      // ollie (charge while held handled on release/edge — simple: pop on press, boost if kicker)
+      if(consumed.has("ollie") || held.ollie){ startOllie(); }
+      else if(held.manual && combo.active){ enterManual(); }
+      break;
+    }
+    case "air": {
+      sk.vy += T.gravity*dt;      // +y is downward, so gravity increases vy
+      sk.y += sk.vy*dt;
+      // spin
+      if(held.spinL){ sk.rot -= T.spinRate*dt; sk.spin += T.spinRate*dt; sk.spinDir=-1; }
+      if(held.spinR){ sk.rot += T.spinRate*dt; sk.spin += T.spinRate*dt; sk.spinDir=1; }
+      // flips / grabs
+      if(consumed.has("trick")){ doAirTrick(); }
+      // land onto rail?
+      const rail = railAt(sk.x);
+      if(sk.vy>0 && rail && Math.abs(sk.y - (GROUND-rail.h)) < T.railSnap && sk.y >= GROUND-rail.h-2){
+        enterGrind(rail); break;
+      }
+      // land on ground
+      if(sk.y >= GROUND){ landOnGround(); }
+      break;
+    }
+    case "grind": {
+      sk.y = GROUND - sk.railRef.h; sk.rot = 0;
+      addGrindPoints(dt);
+      driftBalance(dt, consumed);   // gentle tip you correct with spin L/R
+      if(consumed.has("trick")) changeGrind();
+      if(consumed.has("ollie")||held.ollie){ startOllie(true); break; }
+      if(sk.x > sk.railRef.x + sk.railRef.len){ sk.state="air"; sk.vy=0; } // ran off the end
+      break;
+    }
+    case "manual": {
+      sk.y=GROUND; sk.rot=0;
+      addManualPoints(dt);
+      driftBalance(dt, consumed);
+      if(consumed.has("ollie")||held.ollie){ startOllie(); break; }
+      if(!held.manual){ sk.state="roll"; sk.grace=T.comboGrace; }
+      break;
+    }
+    case "bail": {
+      sk.y=GROUND; sk.bailT-=dt; sk.rot += dt*4;
+      if(sk.bailT<=0){ sk.state="roll"; sk.rot=0; }
+      break;
+    }
+  }
+
+  // collect letters
+  for(const L of letters){
+    if(!L.got && Math.abs(L.x-sk.x)<26 && Math.abs(L.y - (sk.y-24))<40){
+      L.got=true; lettersDone++; sfx.letter(); addScoreFloat(L.x,L.y,"+500");
+      state.score+=500;
+      const idx = ["S","K","A","T","E"].indexOf(L.ch);
+      if(idx>=0) document.querySelectorAll("#letters span")[idx].classList.add("got");
+      refreshGoals();
+    }
+  }
+  cam = sk.x - VW*0.32;
+  updateHUD();
+  updateParticles(dt);
+}
+
+function startOllie(fromRail){
+  let pop = T.ollie;
+  const k = kickerAt(sk.x);
+  if(k && !fromRail) pop += (k.type==="kicker"? T.ollieCharge*1.2 : T.ollieCharge*0.7);
+  sk.vy = -pop; sk.state="air"; sk.spin=0; sk.spinDir=0;
+  comboStart(); sfx.ollie(); spawnDust(sk.x, GROUND);
+}
+function doAirTrick(){
+  // alternate flip / grab for variety
+  sk._flipToggle = !sk._flipToggle;
+  if(sk._flipToggle){ addTrick(FLIPS[(Math.random()*FLIPS.length)|0], 140); }
+  else { addTrick(GRABS[(Math.random()*GRABS.length)|0], 160); }
+}
+function enterGrind(rail){
+  sk.state="grind"; sk.railRef=rail; sk.vy=0; sk.balance=0;
+  sk.grindType = GRINDS[(Math.random()*GRINDS.length)|0];
+  addTrick(sk.grindType, 220);
+}
+function changeGrind(){
+  sk.grindType = GRINDS[(Math.random()*GRINDS.length)|0];
+  addTrick(sk.grindType, 120);
+}
+let grindAcc=0;
+function addGrindPoints(dt){ grindAcc+=dt; if(grindAcc>=0.35){ grindAcc=0; combo.base+=Math.round(40*(special.on?2:1)); updateCombo(); } }
+let manualAcc=0;
+function addManualPoints(dt){ manualAcc+=dt; if(manualAcc>=0.4){ manualAcc=0; combo.base+=Math.round(22*(special.on?2:1)); updateCombo(); } }
+function enterManual(){ sk.state="manual"; sk.balance=0; comboStart(); if(!combo.tricks.length) addTrick("Manual",80); }
+
+function driftBalance(dt, consumed){
+  // tips toward a side; nudge back with spin buttons
+  sk.balance += (sk._tip||(sk._tip=(Math.random()<.5?-1:1))) * T.balanceDrift*dt*0.6;
+  if(held.spinL) sk.balance -= T.balanceFix*dt;
+  if(held.spinR) sk.balance += T.balanceFix*dt;
+  if(consumed.has("spinL")) sk.balance -= 0.15;
+  if(consumed.has("spinR")) sk.balance += 0.15;
+  if(Math.abs(sk.balance) > 1){ bail(); }
+}
+function landOnGround(){
+  sk.y=GROUND; sk.vy=0;
+  // must land near upright (multiple of 2π) if you spun
+  const twoPi = Math.PI*2;
+  const near = Math.round(sk.rot/twoPi)*twoPi;
+  if(Math.abs(sk.rot - near) > T.landTol){ bail(); return; }
+  // award spin points for full rotations completed (landing already verified upright)
+  const spins = Math.round(Math.abs(sk.rot) / (Math.PI*2));
+  if(spins>=1){ addTrick((spins*360)+"° Spin", 150*spins); }
+  sk.rot=0; sk.spin=0; sk.spinDir=0; sk._tip=0;
+  sfx.land(Math.max(1,combo.tricks.length)); spawnDust(sk.x,GROUND);
+  if(held.manual){ enterManual(); }
+  else { sk.state="roll"; sk.grace=T.comboGrace; }   // auto-revert grace links the chain
+}
+function bail(){
+  sfx.bail(); flashText("BAIL!", true);
+  loseCombo(); sk.state="bail"; sk.bailT=T.bailLock; sk.vy=0; sk._tip=0;
+  spawnStars(sk.x, GROUND-20);
+}
+
+/* ------- particles ------- */
+let parts=[];
+function spawnDust(x,y){ for(let i=0;i<8;i++) parts.push({x,y,vx:(Math.random()-.5)*80-40,vy:-Math.random()*90,life:.5,g:200,c:"rgba(255,217,138,",r:3+Math.random()*3}); }
+function spawnStars(x,y){ for(let i=0;i<14;i++) parts.push({x,y,vx:(Math.random()-.5)*260,vy:-Math.random()*260,life:.7,g:520,c:"rgba(255,122,61,",r:2+Math.random()*3}); }
+let floats=[];
+function addScoreFloat(x,y,txt){ floats.push({x,y,txt,life:1}); }
+function updateParticles(dt){
+  for(const p of parts){ p.vy+=p.g*dt; p.x+=p.vx*dt; p.y+=p.vy*dt; p.life-=dt; }
+  parts = parts.filter(p=>p.life>0);
+  for(const f of floats){ f.y-=40*dt; f.life-=dt; }
+  floats = floats.filter(f=>f.life>0);
+}
+
+/* ============================ RENDER ============================ */
+function render(){
+  ctx.save();
+  ctx.scale(dpr*scale, dpr*scale);
+  // ---- sky ----
+  const g = ctx.createLinearGradient(0,0,0,VH);
+  g.addColorStop(0,"#2A1A4A"); g.addColorStop(.42,"#7A3B8F"); g.addColorStop(.72,"#E8613C"); g.addColorStop(1,"#FFB067");
+  ctx.fillStyle=g; ctx.fillRect(0,0,VW,VH);
+  // ---- sun ----
+  const sunx = VW*0.72 - cam*0.04, suny = GROUND-90;
+  const sg = ctx.createRadialGradient(sunx,suny,4,sunx,suny,120);
+  sg.addColorStop(0,"rgba(255,236,176,1)"); sg.addColorStop(.5,"rgba(255,205,120,.85)"); sg.addColorStop(1,"rgba(255,180,103,0)");
+  ctx.fillStyle=sg; ctx.beginPath(); ctx.arc(sunx,suny,120,0,7); ctx.fill();
+  ctx.fillStyle="#FFE39A"; ctx.beginPath(); ctx.arc(sunx,suny,46,0,7); ctx.fill();
+  // sun bands
+  ctx.fillStyle="rgba(232,97,60,.55)";
+  for(let i=0;i<5;i++){ ctx.fillRect(sunx-52, suny-6+i*14, 104, 5); }
+
+  // ---- parallax skyline ----
+  drawSkyline(0.18, GROUND-10, "#3a2350", 46, 70);
+  drawSkyline(0.4,  GROUND-4,  "#2c1a3f", 30, 52);
+
+  // ---- ground ----
+  ctx.fillStyle="#241826"; ctx.fillRect(0,GROUND, VW, VH-GROUND);
+  ctx.strokeStyle="rgba(255,122,61,.55)"; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(0,GROUND); ctx.lineTo(VW,GROUND); ctx.stroke();
+  // ground texture dashes scroll with camera
+  ctx.strokeStyle="rgba(255,122,61,.18)"; ctx.lineWidth=2;
+  const step=60, off = -(cam% step);
+  for(let x=off; x<VW; x+=step){ ctx.beginPath(); ctx.moveTo(x,GROUND+16); ctx.lineTo(x-14,VH); ctx.stroke(); }
+
+  ctx.translate(-cam,0);
+
+  // ---- features ----
+  for(const f of feats){
+    if(f.x+ (f.len||f.w||80) < cam-40 || f.x > cam+VW+40) continue;
+    if(f.type==="rail"){
+      const topY=GROUND-f.h;
+      if(f.ledge){ ctx.fillStyle="#3b2a4d"; ctx.fillRect(f.x, topY, f.len, f.h);
+        ctx.fillStyle="rgba(255,255,255,.08)"; ctx.fillRect(f.x, topY, f.len, 5); }
+      // posts
+      ctx.strokeStyle="#6a4a2f"; ctx.lineWidth=4;
+      ctx.beginPath(); ctx.moveTo(f.x+8,topY); ctx.lineTo(f.x+8,GROUND);
+      ctx.moveTo(f.x+f.len-8,topY); ctx.lineTo(f.x+f.len-8,GROUND); ctx.stroke();
+      // rail bar
+      ctx.strokeStyle="#FF7A3D"; ctx.lineWidth=6; ctx.lineCap="round";
+      ctx.beginPath(); ctx.moveTo(f.x,topY); ctx.lineTo(f.x+f.len,topY); ctx.stroke();
+      ctx.strokeStyle="rgba(255,255,255,.5)"; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(f.x,topY-2); ctx.lineTo(f.x+f.len,topY-2); ctx.stroke();
+    } else if(f.type==="kicker"){
+      ctx.fillStyle="#3b2a4d"; ctx.beginPath();
+      ctx.moveTo(f.x,GROUND); ctx.lineTo(f.x+f.w,GROUND); ctx.lineTo(f.x+f.w,GROUND-42); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle="#FF7A3D"; ctx.lineWidth=3; ctx.stroke();
+    } else if(f.type==="bump"){
+      ctx.fillStyle="#31203f"; ctx.beginPath();
+      ctx.moveTo(f.x,GROUND); ctx.quadraticCurveTo(f.x+f.w/2,GROUND-70,f.x+f.w,GROUND); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle="rgba(255,122,61,.5)"; ctx.lineWidth=3; ctx.stroke();
+    }
+  }
+
+  // ---- letters ----
+  for(const L of letters){
+    if(L.got || L.x<cam-40 || L.x>cam+VW+40) continue;
+    const bob = Math.sin(performance.now()/300 + L.x)*5;
+    ctx.save(); ctx.translate(L.x, L.y+bob);
+    ctx.shadowColor="rgba(255,217,138,.9)"; ctx.shadowBlur=16;
+    ctx.fillStyle="#FFD98A"; ctx.font="700 30px 'Arial Narrow',sans-serif"; ctx.textAlign="center"; ctx.textBaseline="middle";
+    ctx.fillText(L.ch,0,0); ctx.restore();
+  }
+
+  // ---- particles ----
+  for(const p of parts){ ctx.fillStyle=p.c+(Math.max(0,p.life))+")"; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,7); ctx.fill(); }
+  // ---- score floats ----
+  ctx.font="700 20px 'Arial Narrow',sans-serif"; ctx.textAlign="center";
+  for(const f of floats){ ctx.fillStyle="rgba(255,217,138,"+f.life+")"; ctx.fillText(f.txt,f.x,f.y); }
+
+  // ---- skater ----
+  drawSkater();
+
+  ctx.restore();
+}
+
+function drawSkyline(par, baseY, col, minH, maxH){
+  ctx.fillStyle=col;
+  const w=54, off = -((cam*par)% (w+18));
+  for(let x=off-20; x<VW+40; x+=w+18){
+    const h = minH + ((Math.sin(x*12.9898)*43758.5453)%1+1)%1 * (maxH-minH);
+    ctx.fillRect(x, baseY-h, w, h);
+  }
+}
+
+function drawSkater(){
+  const x=sk.x, y=sk.y;
+  const wob = (sk.state==="grind"||sk.state==="manual") ? sk.balance*0.35 : 0;
+  ctx.save();
+  ctx.translate(x,y);
+  const rot = sk.rot + wob + (sk.state==="manual"?-0.22:0);
+  ctx.rotate(rot);
+  // board
+  ctx.fillStyle="#20141c";
+  roundRect(-22,-4,44,7,3); ctx.fill();
+  ctx.fillStyle="#FF3E8A"; roundRect(-22,-4,44,3,2); ctx.fill();
+  // wheels
+  ctx.fillStyle="#FFD98A"; ctx.beginPath(); ctx.arc(-14,4,3.4,0,7); ctx.arc(14,4,3.4,0,7); ctx.fill();
+  // body
+  ctx.strokeStyle="#0e0a14"; ctx.lineWidth=6; ctx.lineCap="round";
+  ctx.beginPath(); ctx.moveTo(-4,-6); ctx.lineTo(2,-26); ctx.stroke();       // torso
+  ctx.strokeStyle="#34E0D8"; ctx.lineWidth=5;
+  ctx.beginPath(); ctx.moveTo(-4,-6); ctx.lineTo(2,-26); ctx.stroke();
+  // legs
+  ctx.strokeStyle="#5a3ea8"; ctx.lineWidth=5;
+  ctx.beginPath(); ctx.moveTo(2,-26); ctx.lineTo(-12,-6); ctx.moveTo(2,-26); ctx.lineTo(14,-6); ctx.stroke();
+  // arms
+  ctx.strokeStyle="#34E0D8"; ctx.lineWidth=4;
+  const arm = sk.state==="air" ? Math.sin(performance.now()/90)*6 : 0;
+  ctx.beginPath(); ctx.moveTo(0,-20); ctx.lineTo(-14,-26+arm); ctx.moveTo(0,-20); ctx.lineTo(16,-24-arm); ctx.stroke();
+  // head
+  ctx.fillStyle="#FDEFE6"; ctx.beginPath(); ctx.arc(2,-30,6,0,7); ctx.fill();
+  ctx.restore();
+}
+function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+/* ============================ HUD ============================ */
+const el = id=>document.getElementById(id);
+function updateHUD(){
+  el("scoreV").textContent = Math.round(state.score).toLocaleString();
+  const t=Math.max(0,Math.ceil(state.time)); el("timeV").textContent = Math.floor(t/60)+":"+String(t%60).padStart(2,"0");
+  el("stoke").style.width = (special.on? special.t*100 : special.meter*100)+"%";
+}
+function updateCombo(){
+  const c=el("combo");
+  if(!combo.active || combo.tricks.length===0){ c.classList.remove("on"); return; }
+  c.classList.add("on");
+  el("comboTricks").innerHTML = combo.tricks.map(t=>`<b>${t.name}</b>`).join("  +  ");
+  el("comboTotal").innerHTML = comboValue().toLocaleString() + `  <em>×${combo.tricks.length}</em>`;
+}
+let flashTO=null;
+function flashText(txt, bail){
+  const f=el("flash"); f.textContent=txt; f.classList.toggle("bail",!!bail);
+  f.animate([{opacity:0,transform:"translate(-50%,-50%) scale(.7)"},
+             {opacity:1,transform:"translate(-50%,-50%) scale(1.05)"},
+             {opacity:0,transform:"translate(-50%,-50%) scale(1.1)"}],{duration:900,easing:"ease-out"});
+}
+function refreshGoals(){
+  const gl=el("goalList");
+  gl.querySelector('[data-g="score"]').classList.toggle("done", state.score>=10000);
+  gl.querySelector('[data-g="combo"]').classList.toggle("done", state.bestCombo>=5000);
+  gl.querySelector('[data-g="letters"]').classList.toggle("done", lettersDone>=5);
+}
+
+/* ============================ END ============================ */
+function endGame(){
+  if(combo.active) bankCombo();
+  state.phase="over";
+  el("fScore").textContent = Math.round(state.score).toLocaleString();
+  el("fCombo").textContent = Math.round(state.bestCombo).toLocaleString();
+  el("fLetters").textContent = lettersDone+"/5";
+  const goals=[];
+  if(state.score>=10000) goals.push("hit 10k");
+  if(state.bestCombo>=5000) goals.push("a 5k combo");
+  if(lettersDone>=5) goals.push("all of S-K-A-T-E");
+  el("goalSummary").innerHTML = goals.length
+    ? "Landed: <b>"+goals.join("</b>, <b>")+"</b>. Go bigger?"
+    : "No goals cleared yet — chain a grind into a manual into a spin and watch the multiplier climb.";
+  el("over").classList.remove("hide");
+  if(rollGain) rollGain.gain.value=0; if(grindGain) grindGain.gain.value=0;
+}
+
+/* ============================ LOOP ============================ */
+let last=performance.now(), acc=0; const DT=1/120;
+function frame(now){
+  let f=(now-last)/1000; last=now; if(f>0.2) f=0.2; acc+=f;
+  while(acc>=DT){ if(state.phase==="playing") step(DT); acc-=DT; }
+  render();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
