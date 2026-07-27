@@ -336,10 +336,6 @@ let matSkin, matTop, matBottom, matHair, hairGroup, capBrim;
 const CHARACTERS=[
   {id:'lowpoly-woman',  style:'Low-poly',  name:'Nova', skin:0x6E4A34, hair:0x241712, top:0x9B3FE0, bottom:0x2FBFA8, hairScale:1.20},
   {id:'lowpoly-man',    style:'Low-poly',  name:'Rio',  skin:0x8A5A3C, hair:0x1E1712, top:0x2FA6C8, bottom:0x6B6350, hairScale:0.82},
-  {id:'synthwave-woman',style:'Synthwave', name:'Vela', skin:0xB07A55, hair:0x1A1220, top:0x6B3FA0, bottom:0x24202E, hairScale:1.12},
-  {id:'synthwave-man',  style:'Synthwave', name:'Dex',  skin:0x7A5236, hair:0x161018, top:0x4A3A8A, bottom:0x262030, hairScale:0.86},
-  {id:'street90s-woman',style:'90s Street',name:'Mika', skin:0xB88A60, hair:0x2A1C14, top:0xE0603A, bottom:0x5A6E9A, hairScale:0.98},
-  {id:'street90s-man',  style:'90s Street',name:'Cole', skin:0x9A6B45, hair:0x2E2018, top:0x4E5E38, bottom:0x4A3A2A, hairScale:1.02},
 ];
 let SELECTED=0;
 function applyCharacter(i){
@@ -3113,15 +3109,17 @@ function charRim(mat, strength, hex){
   return addFog(mat);
 }
 function buildSkater(){
-  const cloth=charRim(new THREE.MeshStandardMaterial({color:P.mint,roughness:0.9,metalness:0.0}),0.55);
+  /* CHUNKY LOW-POLY MASCOT — flat-shaded so the low segment counts read as
+     deliberate facets (concept-lowpoly.png) instead of cheap round primitives. */
+  const cloth=charRim(new THREE.MeshStandardMaterial({color:P.mint,roughness:0.85,metalness:0.0,flatShading:true}),0.55);
   /* pants lifted well clear of the deck's 0x2A2233 so the legs stop fusing into
      the board; shoes warmed off chalk so they stop reading as detached white blocks */
-  const pants=charRim(new THREE.MeshStandardMaterial({color:0x6E7A93,roughness:0.9,metalness:0.0}),0.55);
-  const shoe =charRim(new THREE.MeshStandardMaterial({color:0xE0CBB4,roughness:0.6,metalness:0.0}),0.45);
-  const sole =new THREE.MeshStandardMaterial({color:P.black,roughness:0.95,metalness:0.0});
-  const skin =charRim(new THREE.MeshStandardMaterial({color:P.rust,roughness:0.85,metalness:0.0}),0.6);
-  const cap  =charRim(new THREE.MeshStandardMaterial({color:P.orange,roughness:0.75,metalness:0.0}),0.5);
-  const dark =new THREE.MeshStandardMaterial({color:P.black,roughness:0.9,metalness:0.0});
+  const pants=charRim(new THREE.MeshStandardMaterial({color:0x6E7A93,roughness:0.85,metalness:0.0,flatShading:true}),0.55);
+  const shoe =charRim(new THREE.MeshStandardMaterial({color:0xE0CBB4,roughness:0.55,metalness:0.0,flatShading:true}),0.45);
+  const sole =new THREE.MeshStandardMaterial({color:P.black,roughness:0.95,metalness:0.0,flatShading:true});
+  const skin =charRim(new THREE.MeshStandardMaterial({color:P.rust,roughness:0.8,metalness:0.0,flatShading:true}),0.6);
+  const cap  =charRim(new THREE.MeshStandardMaterial({color:P.orange,roughness:0.7,metalness:0.0,flatShading:true}),0.5);
+  const dark =new THREE.MeshStandardMaterial({color:P.black,roughness:0.9,metalness:0.0,flatShading:true});
   matTop=cloth; matBottom=pants; matSkin=skin; matHair=cap;
 
   skater=new THREE.Group();
@@ -3133,7 +3131,7 @@ function buildSkater(){
 
   hips=new THREE.Group(); hips.position.y=1.26; rig.add(hips);
 
-  const pelvis=new THREE.Mesh(new THREE.BoxGeometry(0.50,0.20,0.34),pants);
+  const pelvis=new THREE.Mesh(chamferBox(0.58,0.24,0.40,0.05),pants);
   pelvis.castShadow=true; hips.add(pelvis);
 
   /* SQUARE STANCE WAS THE PROBLEM: hips, torso and shoulders all faced the same
@@ -3142,73 +3140,86 @@ function buildSkater(){
      that makes a 40px silhouette read as a skater. */
   hips.rotation.y = HIPYAW;
   torso=new THREE.Group(); torso.rotation.y=-0.40; hips.add(torso);
-  /* restyled for 40px readability: narrower/shorter torso under a bigger head and
-     wider shoulders, so the shape is a wedge instead of a sausage */
-  /* A CAPSULE IS A SAUSAGE. The torso is now a lathed profile that actually
-     tapers — 0.245 across the chest down to 0.165 at the waist — so the wedge
-     the whole silhouette depends on exists in the geometry instead of being
-     asserted in a comment. */
+  /* MASCOT HOODIE TORSO — a chunkier lathed profile (wider, fewer radial
+     segments so the facets show), plus a hood bump behind the neck and a
+     kangaroo-pocket slab on the front so the shape reads as a hoodie, not a
+     tube. Front-to-back flattening kept so the wedge silhouette survives. */
   { const prof=[];
-    const keys=[[0.00,0.150],[0.10,0.185],[0.22,0.165],[0.34,0.185],
-                [0.48,0.225],[0.60,0.245],[0.66,0.222],[0.70,0.120],[0.712,0.0]];
+    const keys=[[0.00,0.195],[0.10,0.235],[0.22,0.215],[0.34,0.250],
+                [0.48,0.300],[0.60,0.330],[0.66,0.300],[0.70,0.170],[0.712,0.0]];
     for(const [y,r] of keys) prof.push(new THREE.Vector2(Math.max(0.001,r), y));
-    const tg=new THREE.LatheGeometry(prof, 12);
-    tg.scale(1.0,1.0,0.78);                       /* front-to-back flattening */
+    const tg=new THREE.LatheGeometry(prof, 8);
+    tg.scale(1.0,1.0,0.84);                       /* front-to-back flattening */
     const tm=new THREE.Mesh(tg,cloth); tm.castShadow=true; tm.receiveShadow=true; torso.add(tm);
   }
-  /* broad shoulders */
-  const sh=new THREE.Mesh(new THREE.BoxGeometry(0.68,0.16,0.30),cloth); sh.position.y=0.60; sh.castShadow=true; torso.add(sh);
+  /* broad, chunky shoulder slab */
+  const sh=new THREE.Mesh(chamferBox(0.80,0.20,0.38,0.06),cloth); sh.position.y=0.62; sh.castShadow=true; torso.add(sh);
+  /* HOOD — a rounded bump laid flat behind the neck, the single shape that
+     flips the read from "sweater" to "hoodie". */
+  { const hood=new THREE.Mesh(chamferBox(0.36,0.28,0.24,0.07),cloth);
+    hood.position.set(0,0.64,-0.20); hood.rotation.x=0.40; hood.castShadow=true; torso.add(hood); }
+  /* kangaroo pocket — a flat slab on the front lower torso */
+  { const pocket=new THREE.Mesh(chamferBox(0.34,0.19,0.07,0.02),cloth);
+    pocket.position.set(0,0.27,0.185); pocket.castShadow=true; torso.add(pocket); }
   /* NECK — the head used to float on a visible gap above the shoulder slab */
-  { const nk=new THREE.Mesh(new THREE.CapsuleGeometry(0.075,0.09,3,8),skin);
+  { const nk=new THREE.Mesh(new THREE.CapsuleGeometry(0.10,0.05,3,8),skin);
     nk.position.y=0.66; nk.castShadow=true; torso.add(nk); }
 
   head=new THREE.Group(); head.position.y=0.72; torso.add(head);
-  const hm=new THREE.Mesh(new THREE.SphereGeometry(0.235,12,10),skin); hm.position.y=0.20; hm.castShadow=true; head.add(hm);
-  const capM=new THREE.Mesh(new THREE.SphereGeometry(0.243,12,8,0,6.283,0,1.0),cap); capM.position.y=0.20; capM.castShadow=true; head.add(capM);
-  const brim=new THREE.Mesh(new THREE.BoxGeometry(0.44,0.045,0.26),cap); brim.position.set(0.0,0.193,0.21); brim.castShadow=true; head.add(brim);
+  /* BIG ROUNDED MASCOT HEAD — raised substantially off the old 0.235 so the
+     head reads as the dominant shape, low-neck / overlapping the hood like
+     concept-lowpoly.png rather than perched on a visible neck. */
+  const hm=new THREE.Mesh(new THREE.SphereGeometry(0.34,10,8),skin); hm.position.y=0.27; hm.castShadow=true; head.add(hm);
+  const capM=new THREE.Mesh(new THREE.SphereGeometry(0.348,10,7,0,6.283,0,1.05),cap); capM.position.y=0.27; capM.castShadow=true; head.add(capM);
+  const brim=new THREE.Mesh(chamferBox(0.56,0.06,0.32,0.02),cap); brim.position.set(0.0,0.25,0.28); brim.castShadow=true; head.add(brim);
   capBrim=brim;
-  const visor=new THREE.Mesh(new THREE.BoxGeometry(0.38,0.12,0.10),dark);  /* faceless: dark visor block */
-  visor.position.set(0,0.162,0.17); head.add(visor);
-  /* curly hair cluster — a cap-material puff so applyCharacter's hair colour
-     covers it too. Reads as a voluminous afro/curl cluster from the chase cam
-     (behind + above), not a helmet: spheres wrap the crown, sides and back. */
+  const visor=new THREE.Mesh(chamferBox(0.44,0.15,0.10,0.02),dark);  /* faceless: dark visor block */
+  visor.position.set(0,0.22,0.30); head.add(visor);
+  /* BIG curly hair cluster — a cap-material puff so applyCharacter's hair colour
+     covers it too. Bigger, more numerous puffs so it reads as a voluminous
+     afro/curl cluster rather than a helmet from the chase cam. */
   hairGroup=new THREE.Group(); hairGroup.position.y=0.30; head.add(hairGroup);
   const hairPuffs=[
-    [0.000,0.075,0.010,0.150],  [-0.120,0.045,-0.030,0.120], [0.120,0.045,-0.030,0.120],
-    [-0.130,0.010,0.100,0.110], [0.130,0.010,0.100,0.110],
-    [0.000,0.030,-0.170,0.140], [0.000,0.130,-0.070,0.115],
+    [0.000,0.130,0.020,0.220],
+    [-0.180,0.080,-0.040,0.175], [0.180,0.080,-0.040,0.175],
+    [-0.195,0.020,0.140,0.160],  [0.195,0.020,0.140,0.160],
+    [0.000,0.050,-0.240,0.200],  [0.000,0.200,-0.090,0.170],
+    [-0.100,0.190,0.130,0.150],  [0.100,0.190,0.130,0.150],
   ];
   for(const [x,y,z,r] of hairPuffs){
-    const puff=new THREE.Mesh(new THREE.SphereGeometry(r,8,7),cap);
+    const puff=new THREE.Mesh(new THREE.SphereGeometry(r,7,6),cap);
     puff.position.set(x,y,z); puff.castShadow=true; hairGroup.add(puff);
   }
 
   shoulderL=new THREE.Group(); shoulderL.position.set(0.0,0.60,0.30); torso.add(shoulderL);
   shoulderR=new THREE.Group(); shoulderR.position.set(0.0,0.60,-0.30); torso.add(shoulderR);
-  armLU=limb(0.34,0.075,0.068,cloth); shoulderL.add(armLU);
-  armRU=limb(0.34,0.075,0.068,cloth); shoulderR.add(armRU);
+  /* CHUNKY rounded arms — thick truncated cones (never capsules — a bent
+     capsule viewed down its own axis reads as a stack of beads), radii nearly
+     doubled off the old thin-limb values. */
+  armLU=limb(0.34,0.115,0.100,cloth); shoulderL.add(armLU);
+  armRU=limb(0.34,0.115,0.100,cloth); shoulderR.add(armRU);
   /* deltoid caps: the truncated-cone arms need their top end hidden */
   for(const s of [shoulderL,shoulderR]){
-    const d=new THREE.Mesh(new THREE.SphereGeometry(0.088,8,6),cloth); d.castShadow=true; s.add(d);
+    const d=new THREE.Mesh(new THREE.SphereGeometry(0.135,8,6),cloth); d.castShadow=true; s.add(d);
   }
-  const foreL=limb(0.30,0.065,0.06,skin); foreL.position.y=-0.34; armLU.add(foreL);
-  const foreR=limb(0.30,0.065,0.06,skin); foreR.position.y=-0.34; armRU.add(foreR);
+  const foreL=limb(0.30,0.095,0.088,skin); foreL.position.y=-0.34; armLU.add(foreL);
+  const foreR=limb(0.30,0.095,0.088,skin); foreR.position.y=-0.34; armRU.add(foreR);
   /* WELD THE LIMBS. Bare capsules butted end to end left a visible gap at every
      joint, which is what made the rig read as disconnected parts. */
   for(const a of [armLU,armRU]){
-    const e=new THREE.Mesh(new THREE.SphereGeometry(0.078,8,6),cloth);
+    const e=new THREE.Mesh(new THREE.SphereGeometry(0.115,8,6),cloth);
     e.position.y=-0.34; e.castShadow=true; a.add(e);
   }
   /* HANDS — the forearms ended in bare stubs with a box stuck on the end. A wrist
      sphere welds the joint, and a thumb is the single detail that makes an
      oversized hand read as a hand at 40px instead of a mitten. */
   const mkHand=(fore,sgn)=>{
-    const wr=new THREE.Mesh(new THREE.SphereGeometry(0.062,8,6),skin);
+    const wr=new THREE.Mesh(new THREE.SphereGeometry(0.088,8,6),skin);
     wr.position.y=-0.30; wr.castShadow=true; fore.add(wr);
-    const h=new THREE.Mesh(chamferBox(0.10,0.05,0.13,0.015),skin);
+    const h=new THREE.Mesh(chamferBox(0.145,0.075,0.175,0.02),skin);
     h.position.set(0,-0.365,0.012); h.castShadow=true; fore.add(h);
-    const th=new THREE.Mesh(new THREE.CapsuleGeometry(0.022,0.035,3,6),skin);
-    th.position.set(sgn*0.055,-0.345,0.045); th.rotation.z=sgn*0.7; th.castShadow=true; fore.add(th);
+    const th=new THREE.Mesh(new THREE.CapsuleGeometry(0.032,0.045,3,6),skin);
+    th.position.set(sgn*0.075,-0.345,0.055); th.rotation.z=sgn*0.7; th.castShadow=true; fore.add(th);
     return h;
   };
   const handL=mkHand(foreL,1), handR=mkHand(foreR,-1);
@@ -3236,24 +3247,30 @@ function buildSkater(){
        leg that reads and a leg that is a vertical line pointing at the lens. */
     hip.rotation.y = -HIPYAW - Math.PI/2 + (fx>0 ? 0.62 : -0.62);
     /* hip cap — the thigh used to start inside thin air under the pelvis */
-    const cap0=new THREE.Mesh(new THREE.SphereGeometry(0.150,10,8),pants);
+    const cap0=new THREE.Mesh(new THREE.SphereGeometry(0.205,10,8),pants);
     cap0.castShadow=true; hip.add(cap0);
-    const thigh=limb(0.38,0.138,0.115,pants); hip.add(thigh);
-    const knee=new THREE.Mesh(new THREE.SphereGeometry(0.128,10,8),pants);
+    /* CHUNKY legs — thigh/shin radii raised well off the old thin-limb values;
+       the limb LENGTHS (0.38 / 0.36) and every joint offset below are untouched
+       because the two-bone IK (LEG1/LEG2) and SOLE_DROP depend on them. */
+    const thigh=limb(0.38,0.185,0.160,pants); hip.add(thigh);
+    const knee=new THREE.Mesh(new THREE.SphereGeometry(0.175,10,8),pants);
     knee.position.y=-0.35; knee.castShadow=true; thigh.add(knee);   /* 0.92 of thigh */
-    const shin=limb(0.36,0.115,0.078,pants); shin.position.y=-0.38; thigh.add(shin);
+    const shin=limb(0.36,0.155,0.115,pants); shin.position.y=-0.38; thigh.add(shin);
     /* a REAL ANKLE, so the shoe can be levelled against the deck every frame */
     const ankle=new THREE.Group(); ankle.position.y=-0.435; shin.add(ankle);
     const foot=new THREE.Group(); foot.rotation.y=footYaw; ankle.add(foot);
-    const shoeM=new THREE.Mesh(chamferBox(0.30,0.085,0.42,0.02),shoe);
-    shoeM.position.y=-0.055; shoeM.castShadow=true; foot.add(shoeM);
-    const toe=new THREE.Mesh(chamferBox(0.255,0.070,0.14,0.018),shoe);
-    toe.position.set(0,-0.052,0.245); toe.rotation.x=-0.22; toe.castShadow=true; foot.add(toe);
-    const heel=new THREE.Mesh(new THREE.SphereGeometry(0.082,8,6),shoe);
-    heel.position.set(0,-0.040,-0.185); heel.scale.set(1,0.78,1); heel.castShadow=true; foot.add(heel);
+    /* CHUNKY sneaker — footprint (width/length) grown well past the old block;
+       height/y-offsets kept close to the original so the ankle-to-sole drop
+       still matches SOLE_DROP and the foot doesn't float or sink into the deck. */
+    const shoeM=new THREE.Mesh(chamferBox(0.40,0.10,0.52,0.03),shoe);
+    shoeM.position.y=-0.058; shoeM.castShadow=true; foot.add(shoeM);
+    const toe=new THREE.Mesh(chamferBox(0.34,0.085,0.18,0.025),shoe);
+    toe.position.set(0,-0.055,0.300); toe.rotation.x=-0.22; toe.castShadow=true; foot.add(toe);
+    const heel=new THREE.Mesh(new THREE.SphereGeometry(0.100,8,6),shoe);
+    heel.position.set(0,-0.045,-0.225); heel.scale.set(1,0.78,1); heel.castShadow=true; foot.add(heel);
     /* black sole slab: the hard value break that separates shoe from griptape */
-    const sl=new THREE.Mesh(chamferBox(0.315,0.032,0.46,0.012),sole);
-    sl.position.y=-0.098; sl.castShadow=true; foot.add(sl);
+    const sl=new THREE.Mesh(chamferBox(0.42,0.036,0.56,0.014),sole);
+    sl.position.y=-0.099; sl.castShadow=true; foot.add(sl);
     return {hip,thigh,shin,ankle};
   };
   /* front foot angled over the bolts, back foot cocked square on the tail */
