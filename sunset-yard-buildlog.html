@@ -1,0 +1,198 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sunset Yard — How far can the models go?</title>
+<style>
+  :root{
+    --ink:#FDEFE6; --dim:#CDB4AE; --faint:#9A8AA0;
+    --mag:#FF3E8A; --cyan:#34E0D8; --gold:#FFD98A; --orange:#F0562A;
+    --bg:#160E22; --panel:#1e1430; --line:rgba(255,122,61,.22);
+    --disp:"Arial Narrow","Helvetica Neue",system-ui,sans-serif;
+    --body:ui-sans-serif,system-ui,"Helvetica Neue",sans-serif;
+    --num:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg);color:var(--ink);font-family:var(--body);line-height:1.6;
+    -webkit-font-smoothing:antialiased;overflow-x:hidden;}
+  .wrap{max-width:860px;margin:0 auto;padding:0 20px;}
+  a{color:var(--cyan);text-decoration:none;} a:hover{text-decoration:underline;}
+
+  /* hero */
+  .hero{position:relative;padding:74px 20px 54px;text-align:center;overflow:hidden;
+    background:radial-gradient(120% 90% at 50% 0%, #3a1f5c 0%, #7A3B8F 40%, #E8613C 78%, #FFB067 100%);}
+  .hero .eyebrow{font-family:var(--disp);letter-spacing:.34em;text-transform:uppercase;font-size:13px;color:#2a1330;font-weight:700;}
+  .hero h1{font-family:var(--disp);font-weight:800;text-transform:uppercase;line-height:.9;
+    font-size:min(13vw,84px);letter-spacing:.01em;margin:10px 0 4px;
+    color:#fff;text-shadow:0 3px 0 rgba(0,0,0,.18);}
+  .hero .lede{max-width:620px;margin:14px auto 0;font-size:18px;color:#2a1330;font-weight:500;}
+  .hero .by{margin-top:16px;font-family:var(--num);font-size:12px;color:#3a1330;letter-spacing:.04em;}
+  .cta-row{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:22px;}
+  .btn{font-family:var(--disp);font-weight:800;text-transform:uppercase;letter-spacing:.1em;font-size:15px;
+    padding:12px 26px;border-radius:99px;border:2px solid #2a1330;color:#2a1330;background:rgba(255,255,255,.85);}
+  .btn.p{background:#160E22;color:var(--gold);border-color:#160E22;}
+
+  section{padding:52px 0;border-top:1px solid rgba(255,255,255,.06);}
+  h2{font-family:var(--disp);font-weight:800;text-transform:uppercase;letter-spacing:.04em;font-size:min(8vw,34px);
+    margin-bottom:6px;}
+  h2 .n{color:var(--orange);margin-right:12px;font-family:var(--num);font-size:.62em;vertical-align:super;}
+  .kicker{font-family:var(--disp);letter-spacing:.24em;text-transform:uppercase;font-size:12px;color:var(--gold);margin-bottom:22px;}
+  p{margin:0 0 16px;color:var(--dim);} p strong{color:var(--ink);font-weight:600;}
+  .big{font-size:19px;color:var(--ink);}
+
+  /* timeline */
+  .step{display:grid;grid-template-columns:64px 1fr;gap:18px;margin-bottom:26px;}
+  .step .dot{font-family:var(--num);font-weight:700;font-size:13px;color:#160E22;background:var(--gold);
+    width:46px;height:46px;border-radius:50%;display:grid;place-items:center;}
+  .step h3{font-family:var(--disp);text-transform:uppercase;letter-spacing:.06em;font-size:19px;margin-bottom:4px;}
+  .step .t{font-family:var(--num);font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.1em;}
+
+  figure{margin:24px 0;} figure img{width:100%;border-radius:12px;border:1px solid var(--line);display:block;background:#0c0814;}
+  figcaption{font-size:13px;color:var(--faint);margin-top:8px;text-align:center;}
+  .duo{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  @media(max-width:600px){.duo{grid-template-columns:1fr;}}
+  .strip{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+  @media(max-width:600px){.strip{grid-template-columns:1fr 1fr;}}
+  .strip img{width:100%;border-radius:10px;border:1px solid var(--line);display:block;}
+
+  table{width:100%;border-collapse:collapse;font-size:15px;margin:8px 0 4px;}
+  th,td{text-align:left;padding:11px 10px;border-bottom:1px solid rgba(255,255,255,.08);vertical-align:top;}
+  th{font-family:var(--disp);text-transform:uppercase;letter-spacing:.12em;font-size:12px;color:var(--gold);}
+  td .m{font-family:var(--num);color:var(--cyan);font-size:13px;}
+  td.role{color:var(--dim);}
+
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:8px 0;}
+  @media(max-width:600px){.stats{grid-template-columns:1fr 1fr;}}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;}
+  .stat .v{font-family:var(--num);font-weight:700;font-size:26px;color:var(--gold);line-height:1;}
+  .stat .l{font-size:12px;color:var(--faint);text-transform:uppercase;letter-spacing:.1em;margin-top:6px;}
+
+  ul.take{list-style:none;} ul.take li{padding:12px 0 12px 30px;position:relative;border-bottom:1px solid rgba(255,255,255,.06);color:var(--dim);}
+  ul.take li::before{content:"→";position:absolute;left:0;color:var(--mag);font-weight:700;}
+  ul.take li b{color:var(--ink);}
+
+  footer{padding:40px 20px 70px;text-align:center;color:var(--faint);font-size:13px;}
+  .honest{background:rgba(240,86,42,.08);border:1px solid rgba(240,86,42,.3);border-radius:12px;padding:16px 18px;margin:18px 0;font-size:15px;color:var(--dim);}
+  .honest b{color:var(--ink);}
+</style>
+
+<div class="hero">
+  <div class="eyebrow">A build log</div>
+  <h1>Sunset Yard</h1>
+  <div class="lede">An original 3D browser skate game — built conversationally with a fleet of AI models. This is the honest record of how far they got, what each one did, and where they hit walls.</div>
+  <div class="by">One session · Claude Code driving · Opus 5 · Sonnet · Codex · Gemini · Fable</div>
+  <div class="cta-row">
+    <a class="btn p" href="./sunset-yard-3d.html">▶ Play it</a>
+    <a class="btn" href="#models">See the models</a>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <section id="premise">
+    <div class="kicker">The premise</div>
+    <h2><span class="n">01</span>An experiment, disguised as a game</h2>
+    <p class="big">The question wasn't "can an AI write a game." It was <strong>how far can today's models go when you let them orchestrate each other</strong> — design, build, generate art, critique their own output, and verify on a real device — with a human only steering.</p>
+    <p>The spark was a demo making the rounds: an FPS "built from a single prompt." The honest reality behind it was more interesting than the headline — that one prompt kicked off a large <strong>multi-agent orchestration</strong>: agents fanned out by subsystem, looped until a <strong>harsh critic agent</strong> was satisfied, and screenshot-diffed their work against a target. The "prompt" was a spark; the machinery was the story.</p>
+    <p>So we set out to build our own — an original arcade skater (no cloning anyone's IP), and to use every trick that machinery allows.</p>
+  </section>
+
+  <section id="journey">
+    <div class="kicker">The journey</div>
+    <h2><span class="n">02</span>Six versions, one afternoon-and-change</h2>
+
+    <div class="step"><div class="dot">2D</div><div>
+      <h3>Start with the constraint</h3>
+      <div class="t">v1 · Canvas 2D</div>
+      <p>The first sandbox blocked external libraries (no Three.js), so v1 was a self-contained <strong>2D side-view combo skater</strong> — grinds, manuals, tricks, one long multiplier chain. Honest but not what "Tony Hawk in the browser" pictures.</p>
+    </div></div>
+
+    <div class="step"><div class="dot">3D</div><div>
+      <h3>Move the walls, get real 3D</h3>
+      <div class="t">v2 · Three.js, self-hosted</div>
+      <p>Re-hosting on our own server removed the library restriction, so we went to a hand-built <strong>3D low-poly skatepark</strong>. Better — but flat, empty, a stick figure on a neon grid. Clearly a prototype.</p>
+    </div></div>
+
+    <div class="step"><div class="dot">▲</div><div>
+      <h3>The glow-up: agents grading agents</h3>
+      <div class="t">v3 · multi-agent "ultracode" workflow · ~7.7 hrs</div>
+      <p>The big swing. A workflow: three art directors proposed visual identities → a judge picked one "art bible" → then <strong>seven rounds</strong> of the loop that actually matters — <strong>render the game headless → a harsh 3-critic panel literally looks at the screenshots and scores them → a builder rewrites toward the fixes → re-render.</strong> <strong>47 agents, zero errors, ~2.7M tokens.</strong> The result was a night-and-day leap: a real skater, ramps, rails, chain-link fencing, power lines, dusk lighting, bloom.</p>
+      <div class="honest"><b>Kept honest:</b> the critics — being stringent — still scored it ~4–5/10 against a AAA bar. That matches the reference demo's own ceiling. Impressive, not magic.</div>
+    </div></div>
+
+    <div class="step"><div class="dot">✦</div><div>
+      <h3>AI-generated characters</h3>
+      <div class="t">v4 · image model + 3D wiring</div>
+      <p>A separate image model generated original concept art and a full <strong>character roster</strong> — women and men, varied skin tones, all curly-haired — plus usable textures (a skateboard deck graphic, an outfit sheet). Those drove an in-game <strong>character-select screen</strong> and got wired into the 3D model's skin / hair / outfit.</p>
+      <div class="strip">
+        <img src="./sunset-yard-assets/concept-lowpoly.png" alt="concept">
+        <img src="./sunset-yard-assets/lowpoly-woman.png" alt="roster">
+        <img src="./sunset-yard-assets/deck.png" alt="deck texture">
+      </div>
+      <figcaption>Generated art: a low-poly concept, a roster character, and a deck texture that's mapped onto the in-game board.</figcaption>
+    </div></div>
+
+    <div class="step"><div class="dot">⚙</div><div>
+      <h3>Make it actually playable</h3>
+      <div class="t">v5 · controls, physics, real-device QA</div>
+      <p>The unglamorous, decisive part. Fixed unreadable buttons, a nasty touch <strong>dead-lock</strong> (a dropped release event permanently killed a button), orientation cut-off, and added <strong>tilt-to-steer</strong>. A <strong>real mobile browser</strong> (driven by a different model on Browserbase) verified it — confirming the game plays, and pinpointing collision as the true remaining gap. Then a <strong>solid-collision layer</strong>: ride onto ledges, get blocked by walls.</p>
+    </div></div>
+
+    <div class="step"><div class="dot">◧</div><div>
+      <h3>Taste is a loop too</h3>
+      <div class="t">v6 · character restyle</div>
+      <p>The first character remodel over-corrected into a fussy "mascot" that read weird. One more pass took it to a <strong>clean, simple blocky avatar</strong> — the look that actually landed.</p>
+      <div class="duo">
+        <figure style="margin:0"><img src="./sunset-yard-assets/nova-after.png" alt="mascot"><figcaption>Was — over-detailed mascot</figcaption></figure>
+        <figure style="margin:0"><img src="./sunset-yard-assets/nova-blocky.png" alt="blocky"><figcaption>Now — clean blocky figure</figcaption></figure>
+      </div>
+    </div></div>
+  </section>
+
+  <section id="models">
+    <div class="kicker">The cast</div>
+    <h2><span class="n">03</span>Five models, matched to the job</h2>
+    <p>No single model did this. The interesting part is the <strong>routing</strong> — frontier judgment where it mattered, cheap or free execution everywhere else.</p>
+    <table>
+      <tr><th>Model</th><th>Role</th></tr>
+      <tr><td><span class="m">Claude Opus 5</span></td><td class="role">The orchestrator + the multi-agent visual "glow-up" workflow (47 agents). The judgment layer.</td></tr>
+      <tr><td><span class="m">Claude Sonnet</span></td><td class="role">The implementation agents — character-select, collision, and both character remodels. Well-specified builds, done cheaply.</td></tr>
+      <tr><td><span class="m">Codex / GPT</span></td><td class="role">Real-browser QA on a live mobile Chromium, and the GitHub plumbing. Zero Claude quota.</td></tr>
+      <tr><td><span class="m">Gemini 3.1 Flash Image</span></td><td class="role">Every piece of character &amp; texture art — concepts, the roster, deck &amp; outfit sheets.</td></tr>
+      <tr><td><span class="m">Claude Fable 5</span></td><td class="role">The always-on assistant that brokered the cross-model errands (image gen, fetches, repo, QA hand-offs).</td></tr>
+    </table>
+  </section>
+
+  <section id="stats">
+    <div class="kicker">By the numbers</div>
+    <h2><span class="n">04</span>What it cost</h2>
+    <div class="stats">
+      <div class="stat"><div class="v">47</div><div class="l">agents in the glow-up</div></div>
+      <div class="stat"><div class="v">~2.7M</div><div class="l">tokens · that workflow</div></div>
+      <div class="stat"><div class="v">7.7h</div><div class="l">it ran in background</div></div>
+      <div class="stat"><div class="v">5</div><div class="l">distinct AI models</div></div>
+      <div class="stat"><div class="v">6</div><div class="l">playable versions</div></div>
+      <div class="stat"><div class="v">0</div><div class="l">agent errors, glow-up</div></div>
+      <div class="stat"><div class="v">~1.3k</div><div class="l">tool calls, glow-up</div></div>
+      <div class="stat"><div class="v">100%</div><div class="l">original assets</div></div>
+    </div>
+    <p style="margin-top:18px">The follow-on build agents were an order of magnitude cheaper: character-select ~92k tokens (~7 min), collision ~149k (~22 min), the two restyles ~161k and ~82k tokens. The heavy spend was the one workflow where agents critiqued rendered frames on repeat.</p>
+  </section>
+
+  <section id="takeaways">
+    <div class="kicker">If you take five things</div>
+    <h2><span class="n">05</span>For fellow PMs</h2>
+    <ul class="take">
+      <li><b>"One prompt" is marketing.</b> The leverage is orchestration — fan-out, loops, and adversarial critic agents. The prompt just starts the machine.</li>
+      <li><b>Models can now grade their own visuals.</b> A screenshot → harsh-critic → rebuild loop moved a flat prototype to a real-looking game. Vision-in-the-loop is the unlock, not just code generation.</li>
+      <li><b>Route by difficulty, not by default.</b> Opus for judgment, Sonnet for specified builds, Codex/Gemini for free execution. Same result, a fraction of the premium spend.</li>
+      <li><b>Verification beats vibes.</b> A real mobile browser, driven by a model, caught the touch dead-lock and the true collision gap that "looks fine" screenshots hid.</li>
+      <li><b>The walls are real.</b> Matching a concept render, tuning physics feel, and taste still take iteration and a human in the loop. The models go far — not all the way, alone.</li>
+    </ul>
+  </section>
+
+</div>
+
+<footer>
+  Built conversationally in a single Claude Code session · original game, original art ·
+  <a href="./sunset-yard-3d.html">play Sunset Yard</a>
+</footer>

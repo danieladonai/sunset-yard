@@ -1,43 +1,33 @@
 # Sunset Yard
 
-An original, browser-playable arcade skateboarding game — chain one long trick
-combo (ollie → spin/flip → grind → manual) before the 2-minute run ends. Built
-with Claude Code. Fully original: no real brands, skaters, licensed music, or
-copied level layouts.
+An original 3D browser skateboarding game — and a record of building it end-to-end
+with a fleet of AI models orchestrating each other (design, code, generate art,
+critique their own rendered output, and verify on a real device), with a human only
+steering.
 
-Two versions live in this repo:
+**▶ Play:** `sunset-yard-3d.html` &nbsp;·&nbsp; **📖 The build story:** `sunset-yard-buildlog.html`
 
+Everything here is original — no cloned game IP, no third-party art.
+
+## What's in here
 | File | What it is |
 |------|-----------|
-| `sunset-yard.html` | 2D side-view combo skater (pure Canvas, zero dependencies). |
-| `sunset-yard-3d.html` | 3D low-poly skatepark (Three.js from CDN), third-person. |
-
-Both are single self-contained files — open in a browser or host as static files.
-The 3D version loads Three.js from a CDN, so it needs network access.
+| `sunset-yard-3d.html` | The game — Three.js 3D low-poly skatepark, character select, combos, mobile + desktop. |
+| `sunset-yard.html` | The earlier 2D canvas version (fully standalone). |
+| `sunset-yard-buildlog.html` | The case study: the journey, the models, the numbers, the honest limits. |
+| `sunset-yard-concepts.html` / `sunset-yard-before-after.html` | Art concepts and character-style comparisons. |
+| `sunset-yard-assets/` | Generated art (character concepts, roster, textures) + screenshots. |
+| `tools/` | The headless screenshot harness and image-generation driver used during the build. |
+| `PROMPT.md` | The generation prompt + notes on the multi-agent technique. |
 
 ## Controls
-Same mapping on desktop keys and on-screen mobile buttons:
+Same on keyboard and on-screen mobile buttons:
+- **Steer / spin** — ← / → &nbsp;·&nbsp; **Ollie** — Space &nbsp;·&nbsp; **Flip** — J &nbsp;·&nbsp; **Grab** — K &nbsp;·&nbsp; **Manual** — S
+- Roll into a kicker to launch, land on a rail to grind, hold manual to link the combo. Collect the S-K-A-T-E letters.
 
-- **Steer / spin** — ← / → (arrows steer on the ground, spin in the air)
-- **Ollie** — Space
-- **Flip** — J  ·  **Grab** — K
-- **Manual** — S (hold on landing to link the combo across flat ground)
-
-Roll into a kicker to launch, land on a rail to grind, and **finish your flips
-before you land or you bail.** The multiplier climbs while the combo is alive and
-banks a beat after you settle; a bail loses it. Collect the five S-K-A-T-E letters.
-
-## Tuning
-Feel constants live in the `T = { ... }` object near the top of each file
-(pop height, gravity, roll speed, spin/flip rate, landing tolerance, balance
-decay, score curve). Tweak those first.
-
-## Running / hosting
-`sunset-yard.html` (2D) is fully standalone — just open it.
-
-`sunset-yard-3d.html` loads Three.js r160 from a local `sunset-yard-vendor/`
-folder (same-origin = fast, reliable, offline). That folder is gitignored;
-regenerate it once with:
+## Running it
+The 2D file is standalone — just open it. The 3D file loads Three.js r160 from a local
+`sunset-yard-vendor/` folder (kept out of git). Regenerate it once:
 
 ```
 npm install three@0.160.0
@@ -48,10 +38,14 @@ cp -r node_modules/three/examples/jsm/* sunset-yard-vendor/addons/
 
 Then serve the folder over HTTP (ES modules need http/https, not `file://`).
 
-## Status
-Early arcade builds. The 3D build went through a multi-agent screenshot-critic
-"glow-up" pass (see `PROMPT.md`) — much richer than the first cut, but still
-arcade, not AAA. `tools/shot.js` is the headless screenshot harness used by that
-loop.
+## How it was built (short version)
+- **2D → 3D → a multi-agent visual "glow-up"** (47 agents, ~2.7M tokens, agents rendering the
+  game headless and a harsh critic panel scoring the screenshots on repeat) → **AI-generated
+  characters** → **real-browser QA** → collision → character restyle.
+- **Models, matched to the job:** frontier judgment on one tier, well-specified builds on a
+  cheaper tier, browser QA + repo plumbing on a third, and all the art on an image model.
+- Full story, numbers, and honest limits in `sunset-yard-buildlog.html`.
 
-🤖 Built with [Claude Code](https://claude.com/claude-code)
+## Tuning
+Feel constants live in the `T = { … }` object near the top of each game file (pop height,
+gravity, speed, spin/flip rate, landing tolerance, balance decay, score curve).
