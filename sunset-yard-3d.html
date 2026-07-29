@@ -247,7 +247,7 @@
     <div class="help" id="kbHelp"><b>Touch:</b> ◀ ▶ steer/spin · OLLIE · TRICK · MANUAL &nbsp;&nbsp;<b>Keys:</b> ←/→ steer · Space ollie · J/K trick · S manual</div>
     <div style="display:flex;gap:22px;flex-wrap:wrap;align-items:center;justify-content:center;">
     <label class="help" style="display:flex;gap:9px;align-items:center;justify-content:center;cursor:pointer;user-select:none;margin:0;"><input type="checkbox" id="tiltChk" style="width:18px;height:18px;accent-color:var(--orange);"> Tilt phone to steer <span style="opacity:.55">(beta)</span></label>
-    <label class="help" style="display:flex;gap:9px;align-items:center;justify-content:center;cursor:pointer;user-select:none;margin:0;"><input type="checkbox" id="musicChk" checked style="width:18px;height:18px;accent-color:var(--orange);"> Music</label>
+    <label class="help" style="display:flex;gap:9px;align-items:center;justify-content:center;cursor:pointer;user-select:none;margin:0;"><input type="checkbox" id="musicChk" checked style="width:18px;height:18px;accent-color:var(--orange);"> Sound</label>
     </div>
     <div id="roster">
       <div id="rosterLabel">Choose your skater</div>
@@ -3748,7 +3748,7 @@ function audioInit(){ if(AC)return; try{AC=new(window.AudioContext||window.webki
   /* iOS 16.4+: route Web Audio to the playback category so the hardware
      ring/silent switch does NOT mute the game (the classic "no sound on iPhone"). */
   try{ if(navigator.audioSession) navigator.audioSession.type="playback"; }catch(e){}
-  master=AC.createGain();master.gain.value=0.5;master.connect(AC.destination);
+  master=AC.createGain();master.gain.value=muted?0:0.5;master.connect(AC.destination);
   musicGain=AC.createGain();musicGain.gain.value=0;musicGain.connect(master);
   rollOsc=AC.createOscillator();rollOsc.type="sawtooth";rollOsc.frequency.value=58;
   const f=AC.createBiquadFilter();f.type="lowpass";f.frequency.value=420; rollGain=AC.createGain();rollGain.gain.value=0;
@@ -3770,63 +3770,72 @@ const sfx={ ollie(){ if(!AC)return;const o=AC.createOscillator(),g=AC.createGain
   bank(){blip(660,.1,"square",.26);setTimeout(()=>blip(990,.14,"square",.24),90);} };
 
 /* ---- BACKGROUND MUSIC ----------------------------------------------------
-   A procedural sunset-synthwave loop, no audio files: 4 bars of Am-F-C-G with a
-   four-on-the-floor kick, offbeat hats, a pulsing bass, a warm pad and a
-   syncopated arp. It rides the same AudioContext as the SFX, so it unlocks on
-   the first touch and survives iOS/Android autoplay locks. ---------------- */
-let musicOn=false, musicMuted=false, _mStep=0, _mTime=0, _mTimer=null, _noiseBuf=null;
-try{ musicMuted = localStorage.getItem("sy_music")==="off"; }catch(e){}
-const MUS_VOL=0.28, BPM=112, SPB=60/BPM, STEP16=(60/112)/4;
+   A procedural UPBEAT synthwave loop, no audio files: 4 bars of Am-F-C-G at
+   126 BPM with four-on-the-floor kick, backbeat claps, 8th hats, a bouncy bass
+   and a running 16th arp. Rides the same AudioContext as the SFX, so it unlocks
+   on first touch and survives iOS/Android autoplay locks. The 🔊/🔇 toggle
+   mutes MASTER, so it silences the music AND every sound effect. ----------- */
+let musicOn=false, muted=false, _mStep=0, _mTime=0, _mTimer=null, _noiseBuf=null;
+try{ muted = localStorage.getItem("sy_mute")==="on"; }catch(e){}
+const MUS_VOL=0.30, BPM=126, SPB=60/126, STEP16=(60/126)/4;
 const MUS=[
-  {bass:110.00, pad:[220.00,261.63,329.63], arp:[220.00,261.63,329.63,440.00]}, /* Am */
-  {bass:87.31,  pad:[174.61,220.00,261.63], arp:[174.61,220.00,261.63,349.23]}, /* F  */
-  {bass:130.81, pad:[261.63,329.63,392.00], arp:[261.63,329.63,392.00,523.25]}, /* C  */
-  {bass:98.00,  pad:[196.00,246.94,293.66], arp:[196.00,246.94,293.66,392.00]}, /* G  */
+  {bass:110.00, pad:[220.00,261.63,329.63], arp:[220.00,261.63,329.63,440.00,523.25,440.00,329.63,261.63]}, /* Am */
+  {bass:87.31,  pad:[174.61,220.00,261.63], arp:[174.61,220.00,261.63,349.23,440.00,349.23,261.63,220.00]}, /* F  */
+  {bass:130.81, pad:[261.63,329.63,392.00], arp:[261.63,329.63,392.00,523.25,659.25,523.25,392.00,329.63]}, /* C  */
+  {bass:98.00,  pad:[196.00,246.94,293.66], arp:[196.00,246.94,293.66,392.00,493.88,392.00,293.66,246.94]}, /* G  */
 ];
-function _mNoise(){ if(_noiseBuf)return _noiseBuf; const n=(AC.sampleRate*0.2)|0,b=AC.createBuffer(1,n,AC.sampleRate),d=b.getChannelData(0);
+function _mNoise(){ if(_noiseBuf)return _noiseBuf; const n=(AC.sampleRate*0.3)|0,b=AC.createBuffer(1,n,AC.sampleRate),d=b.getChannelData(0);
   for(let i=0;i<n;i++)d[i]=Math.random()*2-1; _noiseBuf=b; return b; }
-function _mBass(f,t){ const o=AC.createOscillator(),g=AC.createGain(),lp=AC.createBiquadFilter();
-  o.type="sawtooth";o.frequency.value=f; lp.type="lowpass";lp.frequency.value=340;
-  g.gain.setValueAtTime(1e-4,t); g.gain.exponentialRampToValueAtTime(0.55,t+0.012); g.gain.exponentialRampToValueAtTime(1e-4,t+SPB*0.92);
-  o.connect(lp);lp.connect(g);g.connect(musicGain); o.start(t);o.stop(t+SPB); }
+function _mBass(f,t,dur){ const o=AC.createOscillator(),o2=AC.createOscillator(),g=AC.createGain(),lp=AC.createBiquadFilter();
+  o.type="sawtooth";o.frequency.value=f; o2.type="square";o2.frequency.value=f;o2.detune.value=-6; lp.type="lowpass";lp.frequency.value=380;
+  g.gain.setValueAtTime(1e-4,t); g.gain.exponentialRampToValueAtTime(0.5,t+0.008); g.gain.exponentialRampToValueAtTime(1e-4,t+dur);
+  o.connect(lp);o2.connect(lp);lp.connect(g);g.connect(musicGain); o.start(t);o2.start(t);o.stop(t+dur+0.02);o2.stop(t+dur+0.02); }
 function _mPad(freqs,t,dur){ freqs.forEach((f,i)=>{ const o=AC.createOscillator(),g=AC.createGain(),lp=AC.createBiquadFilter();
-  o.type="sawtooth";o.frequency.value=f; o.detune.value=(i-1)*5+(i?6:-6); lp.type="lowpass";lp.frequency.value=1100;
-  g.gain.setValueAtTime(1e-4,t); g.gain.linearRampToValueAtTime(0.15,t+0.10); g.gain.setValueAtTime(0.15,t+dur*0.72); g.gain.exponentialRampToValueAtTime(1e-4,t+dur);
+  o.type="sawtooth";o.frequency.value=f; o.detune.value=(i-1)*5+(i?6:-6); lp.type="lowpass";lp.frequency.value=1400;
+  g.gain.setValueAtTime(1e-4,t); g.gain.linearRampToValueAtTime(0.11,t+0.08); g.gain.setValueAtTime(0.11,t+dur*0.7); g.gain.exponentialRampToValueAtTime(1e-4,t+dur);
   o.connect(lp);lp.connect(g);g.connect(musicGain); o.start(t);o.stop(t+dur+0.05); }); }
-function _mArp(f,t){ const o=AC.createOscillator(),g=AC.createGain();
-  o.type="triangle";o.frequency.value=f;
-  g.gain.setValueAtTime(1e-4,t); g.gain.exponentialRampToValueAtTime(0.24,t+0.008); g.gain.exponentialRampToValueAtTime(1e-4,t+0.19);
-  o.connect(g);g.connect(musicGain); o.start(t);o.stop(t+0.22); }
+function _mArp(f,t){ const o=AC.createOscillator(),g=AC.createGain(),lp=AC.createBiquadFilter();
+  o.type="square";o.frequency.value=f; lp.type="lowpass";lp.frequency.value=3200;
+  g.gain.setValueAtTime(1e-4,t); g.gain.exponentialRampToValueAtTime(0.15,t+0.006); g.gain.exponentialRampToValueAtTime(1e-4,t+0.12);
+  o.connect(lp);lp.connect(g);g.connect(musicGain); o.start(t);o.stop(t+0.15); }
 function _mKick(t){ const o=AC.createOscillator(),g=AC.createGain();
-  o.type="sine";o.frequency.setValueAtTime(125,t);o.frequency.exponentialRampToValueAtTime(46,t+0.11);
-  g.gain.setValueAtTime(0.85,t); g.gain.exponentialRampToValueAtTime(1e-4,t+0.19);
-  o.connect(g);g.connect(musicGain); o.start(t);o.stop(t+0.22); }
+  o.type="sine";o.frequency.setValueAtTime(140,t);o.frequency.exponentialRampToValueAtTime(45,t+0.10);
+  g.gain.setValueAtTime(0.95,t); g.gain.exponentialRampToValueAtTime(1e-4,t+0.18);
+  o.connect(g);g.connect(musicGain); o.start(t);o.stop(t+0.2); }
 function _mHat(t,accent){ const s=AC.createBufferSource(),hp=AC.createBiquadFilter(),g=AC.createGain();
-  s.buffer=_mNoise(); hp.type="highpass";hp.frequency.value=7200;
-  g.gain.setValueAtTime(accent?0.20:0.09,t); g.gain.exponentialRampToValueAtTime(1e-4,t+(accent?0.06:0.035));
-  s.connect(hp);hp.connect(g);g.connect(musicGain); s.start(t);s.stop(t+0.09); }
+  s.buffer=_mNoise(); hp.type="highpass";hp.frequency.value=7600;
+  g.gain.setValueAtTime(accent?0.16:0.07,t); g.gain.exponentialRampToValueAtTime(1e-4,t+(accent?0.05:0.028));
+  s.connect(hp);hp.connect(g);g.connect(musicGain); s.start(t);s.stop(t+0.07); }
+function _mClap(t){ for(let k=0;k<3;k++){ const s=AC.createBufferSource(),bp=AC.createBiquadFilter(),g=AC.createGain(),tt=t+k*0.007;
+  s.buffer=_mNoise(); bp.type="bandpass";bp.frequency.value=1700;bp.Q.value=0.9;
+  g.gain.setValueAtTime(1e-4,tt); g.gain.exponentialRampToValueAtTime(0.22,tt+0.002); g.gain.exponentialRampToValueAtTime(1e-4,tt+0.10);
+  s.connect(bp);bp.connect(g);g.connect(musicGain); s.start(tt);s.stop(tt+0.13); } }
 function _mStepPlay(step,t){ const bar=(step>>4)&3, beat=step&15, ch=MUS[bar];
   if(beat===0) _mPad(ch.pad,t,SPB*4*0.98);
-  if((beat&3)===0) _mKick(t);
-  if((beat&1)===0) _mHat(t,(beat&3)===2);
-  if((beat&1)===0) _mBass(ch.bass*(((beat&7)===4)?2:1),t);
-  if((beat&1)===1) _mArp(ch.arp[(step>>1)%ch.arp.length],t); }
+  if((beat&3)===0) _mKick(t);                                    /* four-on-the-floor */
+  if(beat===14) _mKick(t);                                       /* pickup into the 1 */
+  if(beat===4||beat===12) _mClap(t);                             /* backbeat clap */
+  if((beat&1)===0) _mHat(t,(beat&3)===2);                        /* 8th hats, accent offbeat */
+  if((beat&1)===0) _mBass(ch.bass*((beat===8)?2:1),t,SPB*0.46);  /* bouncy 8th bass */
+  if(beat===7||beat===15) _mBass(ch.bass,t,SPB*0.22);            /* 16th push into the next chord */
+  _mArp(ch.arp[step%ch.arp.length],t); }                         /* running 16th arp */
 function _mLoop(){ if(!musicOn||!AC)return;
   while(_mTime < AC.currentTime + 0.14){ _mStepPlay(_mStep,_mTime); _mStep=(_mStep+1)&63; _mTime+=STEP16; }
   _mTimer=setTimeout(_mLoop,25); }
 function startMusic(){ if(!AC||musicOn||!musicGain)return; musicOn=true; _mStep=0; _mTime=AC.currentTime+0.08;
-  musicGain.gain.cancelScheduledValues(AC.currentTime); musicGain.gain.setValueAtTime(musicGain.gain.value,AC.currentTime);
-  musicGain.gain.linearRampToValueAtTime(musicMuted?0:MUS_VOL, AC.currentTime+1.4); _mLoop(); }
-function setMusicMuted(m){ musicMuted=m; try{localStorage.setItem("sy_music",m?"off":"on");}catch(e){}
-  if(AC&&musicGain){ musicGain.gain.cancelScheduledValues(AC.currentTime); musicGain.gain.setValueAtTime(musicGain.gain.value,AC.currentTime);
-    musicGain.gain.linearRampToValueAtTime(m?0:MUS_VOL, AC.currentTime+0.18); } }
-function updateMuteBtn(){ const b=el("muteBtn"); if(b){ b.textContent=musicMuted?"🔇":"🔊"; b.classList.toggle("muted",musicMuted); } }
-{ const mc=document.getElementById("musicChk"); if(mc) mc.checked=!musicMuted; }
+  musicGain.gain.cancelScheduledValues(AC.currentTime); musicGain.gain.setValueAtTime(1e-4,AC.currentTime);
+  musicGain.gain.linearRampToValueAtTime(MUS_VOL, AC.currentTime+1.0); _mLoop(); }
+/* The mute gates MASTER, so it silences the music AND every sound effect. */
+function setMuted(m){ muted=m; try{localStorage.setItem("sy_mute",m?"on":"off");}catch(e){}
+  if(AC&&master){ master.gain.cancelScheduledValues(AC.currentTime); master.gain.setValueAtTime(master.gain.value,AC.currentTime);
+    master.gain.linearRampToValueAtTime(m?0:0.5, AC.currentTime+0.12); } }
+function updateMuteBtn(){ const b=el("muteBtn"); if(b){ b.textContent=muted?"🔇":"🔊"; b.classList.toggle("muted",muted); } }
+{ const mc=document.getElementById("musicChk"); if(mc) mc.checked=!muted; }
 updateMuteBtn();
-document.addEventListener("change", e=>{ if(e.target && e.target.id==="musicChk"){ setMusicMuted(!e.target.checked); updateMuteBtn(); } });
+document.addEventListener("change", e=>{ if(e.target && e.target.id==="musicChk"){ setMuted(!e.target.checked); updateMuteBtn(); } });
 { const mb=document.getElementById("muteBtn"); if(mb) mb.addEventListener("click", ()=>{
   audioInit(); resumeAudio(); if(!musicOn) startMusic();
-  setMusicMuted(!musicMuted); const mc=document.getElementById("musicChk"); if(mc) mc.checked=!musicMuted; updateMuteBtn(); }); }
+  setMuted(!muted); const mc=document.getElementById("musicChk"); if(mc) mc.checked=!muted; updateMuteBtn(); }); }
 
 /* iOS/Android lock every AudioContext until a real gesture. Unlock on the first
    touch or key ANYWHERE (not only Drop In): resume the context and prime it with
@@ -3868,7 +3877,7 @@ function stokeAdd(n){ if(special.on)return; special.meter=Math.min(1,special.met
   if(special.meter>=1){ special.on=true;special.t=1;el("stokeWrap").classList.add("hot"); flash("STOKED! 2×"); } }
 
 function startGame(){ audioInit();resumeAudio();
-  { const mc=document.getElementById("musicChk"); if(mc) setMusicMuted(!mc.checked); } startMusic(); updateMuteBtn();
+  { const mc=document.getElementById("musicChk"); if(mc) setMuted(!mc.checked); } startMusic(); updateMuteBtn();
   applyCharacter(SELECTED);
   { const __tc=document.getElementById("tiltChk"); if(__tc&&__tc.checked) enableTilt(); }
   resetSkater();loseCombo();
