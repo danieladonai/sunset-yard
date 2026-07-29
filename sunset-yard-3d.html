@@ -235,7 +235,10 @@
       you land or you bail), ride the orange edges to <b>grind</b>, hold <b>MANUAL</b> to link tricks across
       flat ground. Keep one combo alive — the multiplier climbs.</div>
     <div class="help" id="kbHelp"><b>Touch:</b> ◀ ▶ steer/spin · OLLIE · TRICK · MANUAL &nbsp;&nbsp;<b>Keys:</b> ←/→ steer · Space ollie · J/K trick · S manual</div>
-    <label class="help" style="display:flex;gap:9px;align-items:center;justify-content:center;cursor:pointer;user-select:none;"><input type="checkbox" id="tiltChk" style="width:18px;height:18px;accent-color:var(--orange);"> Tilt phone to steer <span style="opacity:.55">(beta)</span></label>
+    <div style="display:flex;gap:22px;flex-wrap:wrap;align-items:center;justify-content:center;">
+    <label class="help" style="display:flex;gap:9px;align-items:center;justify-content:center;cursor:pointer;user-select:none;margin:0;"><input type="checkbox" id="tiltChk" style="width:18px;height:18px;accent-color:var(--orange);"> Tilt phone to steer <span style="opacity:.55">(beta)</span></label>
+    <label class="help" style="display:flex;gap:9px;align-items:center;justify-content:center;cursor:pointer;user-select:none;margin:0;"><input type="checkbox" id="musicChk" checked style="width:18px;height:18px;accent-color:var(--orange);"> Music</label>
+    </div>
     <div id="roster">
       <div id="rosterLabel">Choose your skater</div>
       <div id="rosterRow"></div>
@@ -3730,9 +3733,10 @@ function bindTouch(){ document.querySelectorAll("#touch .btn").forEach(b=>{const
 if(matchMedia("(pointer:coarse)").matches){ document.getElementById("touch").classList.add("show");
   document.getElementById("kbHelp").innerHTML="<b>Touch</b> — steer/spin (left) · ollie, trick, manual (right)"; }
 
-let AC=null,master=null,rollGain=null,rollOsc=null,grindGain=null;
+let AC=null,master=null,rollGain=null,rollOsc=null,grindGain=null,musicGain=null;
 function audioInit(){ if(AC)return; try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){return;}
   master=AC.createGain();master.gain.value=0.5;master.connect(AC.destination);
+  musicGain=AC.createGain();musicGain.gain.value=0;musicGain.connect(master);
   rollOsc=AC.createOscillator();rollOsc.type="sawtooth";rollOsc.frequency.value=58;
   const f=AC.createBiquadFilter();f.type="lowpass";f.frequency.value=420; rollGain=AC.createGain();rollGain.gain.value=0;
   rollOsc.connect(f);f.connect(rollGain);rollGain.connect(master);rollOsc.start();
@@ -3751,6 +3755,69 @@ const sfx={ ollie(){ if(!AC)return;const o=AC.createOscillator(),g=AC.createGain
     o.frequency.setValueAtTime(180,AC.currentTime);o.frequency.exponentialRampToValueAtTime(50,AC.currentTime+.35);
     g.gain.value=.38;g.gain.exponentialRampToValueAtTime(1e-4,AC.currentTime+.4);o.connect(g);g.connect(master);o.start();o.stop(AC.currentTime+.4);},
   bank(){blip(660,.1,"square",.26);setTimeout(()=>blip(990,.14,"square",.24),90);} };
+
+/* ---- BACKGROUND MUSIC ----------------------------------------------------
+   A procedural sunset-synthwave loop, no audio files: 4 bars of Am-F-C-G with a
+   four-on-the-floor kick, offbeat hats, a pulsing bass, a warm pad and a
+   syncopated arp. It rides the same AudioContext as the SFX, so it unlocks on
+   the first touch and survives iOS/Android autoplay locks. ---------------- */
+let musicOn=false, musicMuted=false, _mStep=0, _mTime=0, _mTimer=null, _noiseBuf=null;
+try{ musicMuted = localStorage.getItem("sy_music")==="off"; }catch(e){}
+const MUS_VOL=0.28, BPM=112, SPB=60/BPM, STEP16=(60/112)/4;
+const MUS=[
+  {bass:110.00, pad:[220.00,261.63,329.63], arp:[220.00,261.63,329.63,440.00]}, /* Am */
+  {bass:87.31,  pad:[174.61,220.00,261.63], arp:[174.61,220.00,261.63,349.23]}, /* F  */
+  {bass:130.81, pad:[261.63,329.63,392.00], arp:[261.63,329.63,392.00,523.25]}, /* C  */
+  {bass:98.00,  pad:[196.00,246.94,293.66], arp:[196.00,246.94,293.66,392.00]}, /* G  */
+];
+function _mNoise(){ if(_noiseBuf)return _noiseBuf; const n=(AC.sampleRate*0.2)|0,b=AC.createBuffer(1,n,AC.sampleRate),d=b.getChannelData(0);
+  for(let i=0;i<n;i++)d[i]=Math.random()*2-1; _noiseBuf=b; return b; }
+function _mBass(f,t){ const o=AC.createOscillator(),g=AC.createGain(),lp=AC.createBiquadFilter();
+  o.type="sawtooth";o.frequency.value=f; lp.type="lowpass";lp.frequency.value=340;
+  g.gain.setValueAtTime(1e-4,t); g.gain.exponentialRampToValueAtTime(0.55,t+0.012); g.gain.exponentialRampToValueAtTime(1e-4,t+SPB*0.92);
+  o.connect(lp);lp.connect(g);g.connect(musicGain); o.start(t);o.stop(t+SPB); }
+function _mPad(freqs,t,dur){ freqs.forEach((f,i)=>{ const o=AC.createOscillator(),g=AC.createGain(),lp=AC.createBiquadFilter();
+  o.type="sawtooth";o.frequency.value=f; o.detune.value=(i-1)*5+(i?6:-6); lp.type="lowpass";lp.frequency.value=1100;
+  g.gain.setValueAtTime(1e-4,t); g.gain.linearRampToValueAtTime(0.15,t+0.10); g.gain.setValueAtTime(0.15,t+dur*0.72); g.gain.exponentialRampToValueAtTime(1e-4,t+dur);
+  o.connect(lp);lp.connect(g);g.connect(musicGain); o.start(t);o.stop(t+dur+0.05); }); }
+function _mArp(f,t){ const o=AC.createOscillator(),g=AC.createGain();
+  o.type="triangle";o.frequency.value=f;
+  g.gain.setValueAtTime(1e-4,t); g.gain.exponentialRampToValueAtTime(0.24,t+0.008); g.gain.exponentialRampToValueAtTime(1e-4,t+0.19);
+  o.connect(g);g.connect(musicGain); o.start(t);o.stop(t+0.22); }
+function _mKick(t){ const o=AC.createOscillator(),g=AC.createGain();
+  o.type="sine";o.frequency.setValueAtTime(125,t);o.frequency.exponentialRampToValueAtTime(46,t+0.11);
+  g.gain.setValueAtTime(0.85,t); g.gain.exponentialRampToValueAtTime(1e-4,t+0.19);
+  o.connect(g);g.connect(musicGain); o.start(t);o.stop(t+0.22); }
+function _mHat(t,accent){ const s=AC.createBufferSource(),hp=AC.createBiquadFilter(),g=AC.createGain();
+  s.buffer=_mNoise(); hp.type="highpass";hp.frequency.value=7200;
+  g.gain.setValueAtTime(accent?0.20:0.09,t); g.gain.exponentialRampToValueAtTime(1e-4,t+(accent?0.06:0.035));
+  s.connect(hp);hp.connect(g);g.connect(musicGain); s.start(t);s.stop(t+0.09); }
+function _mStepPlay(step,t){ const bar=(step>>4)&3, beat=step&15, ch=MUS[bar];
+  if(beat===0) _mPad(ch.pad,t,SPB*4*0.98);
+  if((beat&3)===0) _mKick(t);
+  if((beat&1)===0) _mHat(t,(beat&3)===2);
+  if((beat&1)===0) _mBass(ch.bass*(((beat&7)===4)?2:1),t);
+  if((beat&1)===1) _mArp(ch.arp[(step>>1)%ch.arp.length],t); }
+function _mLoop(){ if(!musicOn||!AC)return;
+  while(_mTime < AC.currentTime + 0.14){ _mStepPlay(_mStep,_mTime); _mStep=(_mStep+1)&63; _mTime+=STEP16; }
+  _mTimer=setTimeout(_mLoop,25); }
+function startMusic(){ if(!AC||musicOn||!musicGain)return; musicOn=true; _mStep=0; _mTime=AC.currentTime+0.08;
+  musicGain.gain.cancelScheduledValues(AC.currentTime); musicGain.gain.setValueAtTime(musicGain.gain.value,AC.currentTime);
+  musicGain.gain.linearRampToValueAtTime(musicMuted?0:MUS_VOL, AC.currentTime+1.4); _mLoop(); }
+function setMusicMuted(m){ musicMuted=m; try{localStorage.setItem("sy_music",m?"off":"on");}catch(e){}
+  if(AC&&musicGain){ musicGain.gain.cancelScheduledValues(AC.currentTime); musicGain.gain.setValueAtTime(musicGain.gain.value,AC.currentTime);
+    musicGain.gain.linearRampToValueAtTime(m?0:MUS_VOL, AC.currentTime+0.18); } }
+{ const mc=document.getElementById("musicChk"); if(mc) mc.checked=!musicMuted; }
+document.addEventListener("change", e=>{ if(e.target && e.target.id==="musicChk") setMusicMuted(!e.target.checked); });
+
+/* iOS/Android lock every AudioContext until a real gesture. Unlock on the first
+   touch or key ANYWHERE (not only Drop In): resume the context and prime it with
+   a one-sample silent buffer so audio is running before anything asks to play. */
+let _audioUnlocked=false;
+function unlockAudio(){ audioInit(); if(!AC)return; resumeAudio();
+  if(!_audioUnlocked){ _audioUnlocked=true; try{ const b=AC.createBufferSource(); b.buffer=AC.createBuffer(1,1,AC.sampleRate); b.connect(AC.destination); b.start(0); }catch(e){} } }
+["pointerdown","touchend","keydown"].forEach(ev=>document.addEventListener(ev,unlockAudio,{passive:true}));
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden) resumeAudio(); });
 
 const sk={};
 function resetSkater(){ sk.pos=new THREE.Vector3(0,groundH(0,-40),-40); sk.yaw=0; sk.vy=0; sk.speed=T.cruise; sk.state="roll";
@@ -3780,6 +3847,7 @@ function stokeAdd(n){ if(special.on)return; special.meter=Math.min(1,special.met
   if(special.meter>=1){ special.on=true;special.t=1;el("stokeWrap").classList.add("hot"); flash("STOKED! 2×"); } }
 
 function startGame(){ audioInit();resumeAudio();
+  { const mc=document.getElementById("musicChk"); if(mc) setMusicMuted(!mc.checked); } startMusic();
   applyCharacter(SELECTED);
   { const __tc=document.getElementById("tiltChk"); if(__tc&&__tc.checked) enableTilt(); }
   resetSkater();loseCombo();
