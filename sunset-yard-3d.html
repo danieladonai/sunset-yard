@@ -97,6 +97,15 @@
   }
   @media (pointer:coarse){ #goals{bottom:calc(104px + env(safe-area-inset-bottom,0))!important;} }
   #goals{position:absolute;left:14px;bottom:calc(14px + env(safe-area-inset-bottom,0));display:flex;flex-direction:column;gap:7px;font-size:11px;}
+  /* in-game music toggle — top-right, below the topbar, clear of stoke/combo/pad */
+  #muteBtn{position:absolute;pointer-events:auto;top:calc(62px + env(safe-area-inset-top,0));right:14px;
+    width:40px;height:40px;border-radius:50%;border:1px solid rgba(207,195,174,.5);
+    background:rgba(36,30,51,.62);color:var(--chalk);font-size:17px;line-height:1;
+    display:grid;place-items:center;cursor:pointer;z-index:6;padding:0;
+    -webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);}
+  #muteBtn:active{transform:scale(.93);}
+  #muteBtn.muted{color:var(--conc);border-color:rgba(207,195,174,.28);opacity:.72;}
+  @media (pointer:coarse){ #muteBtn{top:calc(104px + env(safe-area-inset-top,0));width:44px;height:44px;} }
   #letters{display:flex;gap:5px;}
   #letters span{font-weight:700;font-size:15px;width:20px;height:20px;display:grid;place-items:center;
     color:var(--conc);background:rgba(36,30,51,.55);border:1px solid rgba(207,195,174,.35);}
@@ -215,6 +224,7 @@
       </div>
     </div>
     <div class="flash" id="flash"></div>
+    <button id="muteBtn" type="button" aria-label="Toggle music">🔊</button>
   </div>
   <div id="touch">
     <div class="pad left">
@@ -3810,8 +3820,13 @@ function startMusic(){ if(!AC||musicOn||!musicGain)return; musicOn=true; _mStep=
 function setMusicMuted(m){ musicMuted=m; try{localStorage.setItem("sy_music",m?"off":"on");}catch(e){}
   if(AC&&musicGain){ musicGain.gain.cancelScheduledValues(AC.currentTime); musicGain.gain.setValueAtTime(musicGain.gain.value,AC.currentTime);
     musicGain.gain.linearRampToValueAtTime(m?0:MUS_VOL, AC.currentTime+0.18); } }
+function updateMuteBtn(){ const b=el("muteBtn"); if(b){ b.textContent=musicMuted?"🔇":"🔊"; b.classList.toggle("muted",musicMuted); } }
 { const mc=document.getElementById("musicChk"); if(mc) mc.checked=!musicMuted; }
-document.addEventListener("change", e=>{ if(e.target && e.target.id==="musicChk") setMusicMuted(!e.target.checked); });
+updateMuteBtn();
+document.addEventListener("change", e=>{ if(e.target && e.target.id==="musicChk"){ setMusicMuted(!e.target.checked); updateMuteBtn(); } });
+{ const mb=document.getElementById("muteBtn"); if(mb) mb.addEventListener("click", ()=>{
+  audioInit(); resumeAudio(); if(!musicOn) startMusic();
+  setMusicMuted(!musicMuted); const mc=document.getElementById("musicChk"); if(mc) mc.checked=!musicMuted; updateMuteBtn(); }); }
 
 /* iOS/Android lock every AudioContext until a real gesture. Unlock on the first
    touch or key ANYWHERE (not only Drop In): resume the context and prime it with
@@ -3853,7 +3868,7 @@ function stokeAdd(n){ if(special.on)return; special.meter=Math.min(1,special.met
   if(special.meter>=1){ special.on=true;special.t=1;el("stokeWrap").classList.add("hot"); flash("STOKED! 2×"); } }
 
 function startGame(){ audioInit();resumeAudio();
-  { const mc=document.getElementById("musicChk"); if(mc) setMusicMuted(!mc.checked); } startMusic();
+  { const mc=document.getElementById("musicChk"); if(mc) setMusicMuted(!mc.checked); } startMusic(); updateMuteBtn();
   applyCharacter(SELECTED);
   { const __tc=document.getElementById("tiltChk"); if(__tc&&__tc.checked) enableTilt(); }
   resetSkater();loseCombo();
