@@ -3735,6 +3735,9 @@ if(matchMedia("(pointer:coarse)").matches){ document.getElementById("touch").cla
 
 let AC=null,master=null,rollGain=null,rollOsc=null,grindGain=null,musicGain=null;
 function audioInit(){ if(AC)return; try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){return;}
+  /* iOS 16.4+: route Web Audio to the playback category so the hardware
+     ring/silent switch does NOT mute the game (the classic "no sound on iPhone"). */
+  try{ if(navigator.audioSession) navigator.audioSession.type="playback"; }catch(e){}
   master=AC.createGain();master.gain.value=0.5;master.connect(AC.destination);
   musicGain=AC.createGain();musicGain.gain.value=0;musicGain.connect(master);
   rollOsc=AC.createOscillator();rollOsc.type="sawtooth";rollOsc.frequency.value=58;
@@ -3813,8 +3816,11 @@ document.addEventListener("change", e=>{ if(e.target && e.target.id==="musicChk"
 /* iOS/Android lock every AudioContext until a real gesture. Unlock on the first
    touch or key ANYWHERE (not only Drop In): resume the context and prime it with
    a one-sample silent buffer so audio is running before anything asks to play. */
-let _audioUnlocked=false;
-function unlockAudio(){ audioInit(); if(!AC)return; resumeAudio();
+let _audioUnlocked=false, _silEl=null;
+const SILENT_WAV="data:audio/wav;base64,UklGRrQBAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YZABAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA";
+function _silentUnlock(){ if(_silEl)return; try{ _silEl=new Audio(SILENT_WAV); _silEl.loop=true; _silEl.volume=0;
+  _silEl.setAttribute("playsinline",""); const pr=_silEl.play(); if(pr&&pr.catch)pr.catch(()=>{}); }catch(e){} }
+function unlockAudio(){ audioInit(); _silentUnlock(); if(!AC)return; resumeAudio();
   if(!_audioUnlocked){ _audioUnlocked=true; try{ const b=AC.createBufferSource(); b.buffer=AC.createBuffer(1,1,AC.sampleRate); b.connect(AC.destination); b.start(0); }catch(e){} } }
 ["pointerdown","touchend","keydown"].forEach(ev=>document.addEventListener(ev,unlockAudio,{passive:true}));
 document.addEventListener("visibilitychange",()=>{ if(!document.hidden) resumeAudio(); });
