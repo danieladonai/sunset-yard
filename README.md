@@ -5,7 +5,7 @@ with a fleet of AI models orchestrating each other (design, code, generate art,
 critique their own rendered output, and verify on a real device), with a human only
 steering.
 
-**▶ Play:** `sunset-yard-3d.html` &nbsp;·&nbsp; **📖 The build story:** `sunset-yard-buildlog.html`
+**▶ Play:** `sunset-yard-3d.html` &nbsp;·&nbsp; **📖 The build story:** `sunset-yard-buildlog.html` &nbsp;·&nbsp; **v3 changes:** `CHANGELOG-v3.md`
 
 Everything here is original — no cloned game IP, no third-party art.
 
@@ -19,11 +19,14 @@ Everything here is original — no cloned game IP, no third-party art.
 | `sunset-yard-assets/` | Generated art (character concepts, roster, textures) + screenshots. |
 | `tools/` | The headless screenshot harness and image-generation driver used during the build. |
 | `PROMPT.md` | The generation prompt + notes on the multi-agent technique. |
+| `CHANGELOG-v3.md` | The Opus 5.5 gauntlet: six passes, what was wrong, what changed. |
+| `versions/` | The Sep 25 Opus 4.6 rebuild, kept for side-by-side comparison. |
+| `tools/v3/` | Headless harness that drives the real game: physics scenarios, pose sheets, fps smoke test. |
 
 ## Controls
-Same on keyboard and on-screen mobile buttons:
-- **Steer / spin** — ← / → &nbsp;·&nbsp; **Ollie** — Space &nbsp;·&nbsp; **Flip** — J &nbsp;·&nbsp; **Grab** — K &nbsp;·&nbsp; **Manual** — S
-- Roll into a kicker to launch, land on a rail to grind, hold manual to link the combo. Collect the S-K-A-T-E letters.
+Same on keyboard and on-screen mobile buttons (v3):
+- **Steer / spin** — ← / → &nbsp;·&nbsp; **Ollie** — hold & release Space &nbsp;·&nbsp; **Flip** — J (hold ←/→ to pick; tap again to double) &nbsp;·&nbsp; **Grab / Manual** — K or S (grab in the air, manual on the ground)
+- Ride up any ramp to launch off the coping; hold ollie into the lip for more air (or into the spine to transfer). Land on a rail to grind — your angle picks the grind. Collect S-K-A-T-E, clear goals across runs.
 
 ## Running it
 The 2D file is standalone — just open it. The 3D file loads Three.js r160 from a local

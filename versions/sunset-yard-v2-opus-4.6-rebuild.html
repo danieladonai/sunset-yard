@@ -1,0 +1,2219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+<title>Sunset Yard</title>
+<style>
+/* ───────────────────── RESET & BASE ───────────────────── */
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#1a0a2e;font-family:'Segoe UI',system-ui,sans-serif;touch-action:none;user-select:none;-webkit-user-select:none}
+canvas{display:block;width:100%;height:100%}
+
+/* ───────────────────── SCREENS ───────────────────── */
+.screen{position:absolute;top:0;left:0;width:100%;height:100%;display:none;z-index:10;flex-direction:column;align-items:center;justify-content:center}
+.screen.active{display:flex}
+
+/* TITLE SCREEN */
+#title-screen{background:linear-gradient(180deg,#1a0a2e 0%,#2d1b69 30%,#e8451c 70%,#ff9a3c 100%)}
+#title-screen h1{font-size:clamp(3rem,10vw,7rem);font-weight:900;color:#fff;text-shadow:0 0 40px rgba(255,150,50,0.8),0 0 80px rgba(255,100,20,0.5),0 4px 0 #c43e15;letter-spacing:0.05em;text-align:center;line-height:1}
+#title-screen .tagline{font-size:clamp(0.7rem,2.5vw,1.1rem);color:rgba(255,220,180,0.85);margin-top:1rem;letter-spacing:0.3em;text-transform:uppercase;text-align:center}
+#title-screen .start-prompt{font-size:clamp(1rem,3vw,1.5rem);color:#fff;margin-top:3rem;animation:pulse 1.5s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+
+/* CHARACTER SELECT */
+#select-screen{background:linear-gradient(180deg,#1a0a2e 0%,#2d1b69 40%,#c43e15 100%)}
+#select-screen h2{font-size:clamp(1.5rem,5vw,2.5rem);color:#fff;margin-bottom:0.5rem;text-shadow:0 0 20px rgba(255,150,50,0.6)}
+.char-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(6px,1.5vw,12px);max-width:500px;width:90%;margin:0.8rem 0}
+.char-card{background:rgba(0,0,0,0.4);border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:clamp(8px,2vw,16px);text-align:center;cursor:pointer;transition:all 0.2s}
+.char-card:hover,.char-card.selected{border-color:#ff9a3c;background:rgba(255,154,60,0.2);transform:scale(1.05)}
+.char-card .swatch{width:clamp(30px,8vw,50px);height:clamp(30px,8vw,50px);border-radius:50%;margin:0 auto 6px;border:2px solid rgba(255,255,255,0.3)}
+.char-card .char-name{color:#fff;font-size:clamp(0.7rem,2vw,1rem);font-weight:700}
+#preview-container{width:clamp(120px,30vw,200px);height:clamp(120px,30vw,200px);margin:0.5rem 0}
+.controls-hint{color:rgba(255,220,180,0.7);font-size:clamp(0.55rem,1.5vw,0.75rem);text-align:center;max-width:400px;line-height:1.4;margin-top:0.3rem}
+#start-btn{background:linear-gradient(135deg,#ff6b1c,#ff9a3c);color:#fff;border:none;padding:clamp(10px,2.5vw,16px) clamp(30px,8vw,60px);font-size:clamp(1rem,3vw,1.4rem);font-weight:800;border-radius:50px;cursor:pointer;margin-top:0.6rem;text-transform:uppercase;letter-spacing:0.1em;box-shadow:0 4px 20px rgba(255,107,28,0.5);transition:transform 0.15s}
+#start-btn:hover{transform:scale(1.08)}
+
+/* GAMEPLAY HUD */
+#hud{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:5;display:none}
+#hud.active{display:block}
+#score-display{position:absolute;top:12px;left:16px;color:#fff;font-size:clamp(1.5rem,5vw,2.5rem);font-weight:900;text-shadow:0 2px 8px rgba(0,0,0,0.6)}
+#combo-display{position:absolute;top:clamp(40px,10vw,65px);left:16px;color:#ffcc44;font-size:clamp(0.65rem,2vw,1rem);font-weight:600;text-shadow:0 1px 4px rgba(0,0,0,0.8);max-width:50%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:text-shadow 0.3s}
+#timer-display{position:absolute;top:12px;right:16px;color:#fff;font-size:clamp(1.2rem,4vw,2rem);font-weight:800;text-shadow:0 2px 8px rgba(0,0,0,0.6)}
+#timer-display.warning{color:#ff4444;animation:pulse 0.5s ease-in-out infinite}
+#trick-flash{position:absolute;top:35%;left:50%;transform:translate(-50%,-50%);color:#fff;font-size:clamp(1.5rem,6vw,3rem);font-weight:900;text-shadow:0 0 20px rgba(255,150,50,0.8),0 0 40px rgba(255,100,20,0.5);opacity:0;transition:opacity 0.15s;pointer-events:none;text-align:center}
+#speed-bar{position:absolute;bottom:16px;left:16px;width:clamp(60px,15vw,120px);height:6px;background:rgba(0,0,0,0.4);border-radius:3px}
+#speed-fill{height:100%;background:linear-gradient(90deg,#44ff88,#ffcc44,#ff4444);border-radius:3px;width:50%;transition:width 0.2s}
+
+/* TOUCH CONTROLS */
+#touch-controls{position:absolute;bottom:0;right:0;width:50%;height:50%;pointer-events:auto;display:none;z-index:6}
+.touch-btn{position:absolute;width:clamp(50px,14vw,80px);height:clamp(50px,14vw,80px);border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:clamp(0.6rem,1.8vw,0.85rem);color:#fff;border:2px solid rgba(255,255,255,0.3);cursor:pointer;text-transform:uppercase}
+#btn-ollie{background:rgba(255,107,28,0.45);right:clamp(10px,3vw,30px);bottom:clamp(80px,22vw,140px)}
+#btn-trick{background:rgba(160,60,255,0.45);right:clamp(70px,20vw,130px);bottom:clamp(130px,35vw,210px)}
+#btn-manual{background:rgba(60,200,255,0.45);right:clamp(10px,3vw,30px);bottom:clamp(10px,3vw,20px)}
+#steer-zone{position:absolute;bottom:0;left:0;width:50%;height:50%;pointer-events:auto;display:none;z-index:6}
+.touch-btn:active{transform:scale(0.9);filter:brightness(1.4)}
+
+/* GAME OVER */
+#gameover-screen{background:rgba(10,5,30,0.92)}
+#gameover-screen h2{font-size:clamp(2.5rem,8vw,5rem);color:#ff9a3c;font-weight:900;text-shadow:0 0 30px rgba(255,150,50,0.6)}
+#gameover-screen .final-score{font-size:clamp(1.5rem,5vw,3rem);color:#fff;margin:0.5rem 0}
+#gameover-screen .high-score{font-size:clamp(0.8rem,2.5vw,1.2rem);color:#ffcc44;margin-bottom:0.5rem}
+#gameover-screen .trick-breakdown{color:rgba(255,255,255,0.7);font-size:clamp(0.6rem,1.8vw,0.85rem);margin-bottom:1rem;text-align:center;line-height:1.6}
+#replay-btn{background:linear-gradient(135deg,#ff6b1c,#ff9a3c);color:#fff;border:none;padding:clamp(10px,2.5vw,16px) clamp(30px,8vw,60px);font-size:clamp(1rem,3vw,1.4rem);font-weight:800;border-radius:50px;cursor:pointer;text-transform:uppercase;letter-spacing:0.1em;box-shadow:0 4px 20px rgba(255,107,28,0.5)}
+
+/* EDGE FLASH */
+#edge-flash{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:4;opacity:0;transition:opacity 0.1s;box-shadow:inset 0 0 80px 20px rgba(255,150,50,0.6)}
+</style>
+</head>
+<body>
+
+<!-- TITLE SCREEN -->
+<div id="title-screen" class="screen active">
+  <h1>SUNSET YARD</h1>
+  <div class="tagline">LATE SUN ON CONCRETE &mdash; TWO-MINUTE LINE</div>
+  <div class="start-prompt" id="start-prompt">PRESS ENTER / TAP TO START</div>
+</div>
+
+<!-- CHARACTER SELECT -->
+<div id="select-screen" class="screen">
+  <h2>CHOOSE YOUR SKATER</h2>
+  <div class="char-grid" id="char-grid"></div>
+  <div id="preview-container"><canvas id="preview-canvas"></canvas></div>
+  <div class="controls-hint">
+    KEYS: Arrows=Steer &middot; Space=Ollie &middot; J=Flip &middot; K=Grab &middot; S=Manual<br>
+    TOUCH: Left=Steer &middot; Right buttons=Ollie/Trick/Manual
+  </div>
+  <button id="start-btn">START</button>
+</div>
+
+<!-- GAMEPLAY HUD -->
+<div id="hud">
+  <div id="score-display">0</div>
+  <div id="combo-display"></div>
+  <div id="timer-display">2:00</div>
+  <div id="trick-flash"></div>
+  <div id="speed-bar"><div id="speed-fill"></div></div>
+</div>
+<div id="edge-flash"></div>
+
+<!-- TOUCH CONTROLS -->
+<div id="touch-controls">
+  <div class="touch-btn" id="btn-ollie">OLLIE</div>
+  <div class="touch-btn" id="btn-trick">TRICK</div>
+  <div class="touch-btn" id="btn-manual">MANUAL</div>
+</div>
+<div id="steer-zone"></div>
+
+<!-- GAME OVER -->
+<div id="gameover-screen" class="screen">
+  <h2>TIME!</h2>
+  <div class="final-score" id="final-score">0</div>
+  <div class="high-score" id="high-score">HIGH SCORE: 0</div>
+  <div class="trick-breakdown" id="trick-breakdown"></div>
+  <button id="replay-btn" onclick="restartGame()">PLAY AGAIN</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   SUNSET YARD — Complete 3D Skateboarding Game
+   ═══════════════════════════════════════════════════════════════ */
+
+// ───────────────────── CONSTANTS ─────────────────────
+const FORWARD_SPEED = 12;
+const GRAVITY = -30;
+const OLLIE_VEL = 15;
+const STEER_GROUND = 2.8;
+const STEER_AIR = 4.5;
+const STEER_LERP = 0.08;
+const GROUND_Y = 0.45;
+const GRIND_SNAP_DIST = 1.8;
+const GRIND_SCORE_PER_SEC = 50;
+const GAME_DURATION = 120;
+const SEGMENT_LENGTH = 80;
+const NUM_SEGMENTS = 6;
+const TOTAL_TRACK = SEGMENT_LENGTH * NUM_SEGMENTS;
+
+// ───────────────────── CHARACTERS ─────────────────────
+const CHARACTERS = [
+  { name:'Nova',   primary:0x00e5ff, secondary:0xffffff, accent:0x80f0ff },
+  { name:'Rio',    primary:0xff6b1c, secondary:0xff2222, accent:0xffaa44 },
+  { name:'Vela',   primary:0xbb44ff, secondary:0xff66aa, accent:0xdd88ff },
+  { name:'Dex',    primary:0x22dd44, secondary:0xaaff22, accent:0x66ff88 },
+  { name:'Kai',    primary:0xffd700, secondary:0xffee44, accent:0xffbb00 },
+  { name:'Zephyr', primary:0x4488ff, secondary:0xbbccdd, accent:0x88aaff }
+];
+
+// ───────────────────── TRICK DEFINITIONS ─────────────────────
+const TRICKS = {
+  kickflip:   { name:'KICKFLIP',    score:100, axis:'z', dir:1,  speed:8, type:'flip' },
+  heelflip:   { name:'HEELFLIP',    score:100, axis:'z', dir:-1, speed:8, type:'flip' },
+  shoveit:    { name:'SHOVE-IT',    score:150, axis:'y', dir:1,  speed:7, type:'flip' },
+  treflip:    { name:'TRE FLIP',    score:300, axis:'zy',dir:1,  speed:6, type:'flip' },
+  flip360:    { name:'360 FLIP',    score:350, axis:'zy',dir:-1, speed:5.5,type:'flip'},
+  indy:       { name:'INDY GRAB',   score:200, axis:'grab',dir:0,speed:0, type:'grab' },
+  melon:      { name:'MELON GRAB',  score:200, axis:'grab',dir:1,speed:0, type:'grab' },
+  christair:  { name:'CHRIST AIR',  score:400, axis:'grab',dir:2,speed:0, type:'grab' }
+};
+
+// ───────────────────── GAME STATE ─────────────────────
+let gameState = 'TITLE'; // TITLE, SELECT, PLAYING, GAMEOVER
+let selectedChar = 0;
+let score = 0;
+let comboScore = 0;
+let comboMultiplier = 0;
+let comboChain = [];
+let timer = GAME_DURATION;
+let highScore = parseInt(localStorage.getItem('sunsetyard_high') || '0');
+let trickCounts = {};
+let trickCycleFlip = 0, trickCycleGrab = 0;
+let bestCombo = 0;
+
+// Player state
+let player = {
+  x: 0, y: GROUND_Y, z: 0,
+  vx: 0, vy: 0, vz: 0,
+  rotation: 0, // yaw
+  tilt: 0, // visual lean
+  airborne: false,
+  grinding: false,
+  grindRail: null,
+  grindProgress: 0,
+  manualing: false,
+  manualTime: 0,
+  tricking: false,
+  currentTrick: null,
+  trickProgress: 0,
+  trickComplete: false,
+  bailing: false,
+  bailTimer: 0,
+  spinAngle: 0,
+  speedBoost: 0
+};
+
+// Input state
+let input = {
+  left: false, right: false,
+  ollie: false, ollieJustPressed: false,
+  trick: false, trickJ: false, trickK: false,
+  manual: false,
+  steerX: 0,
+  touchSteerX: 0,
+  touchActive: false
+};
+
+// Camera shake
+let cameraShake = { intensity: 0, decay: 0.9 };
+function triggerShake(intensity) { cameraShake.intensity = Math.max(cameraShake.intensity, intensity); }
+
+// ───────────────────── THREE.JS SETUP ─────────────────────
+let scene, camera, renderer, clock;
+let skaterGroup, boardMesh, bodyGroup;
+let sunMesh, groundMesh;
+let segments = [];
+let obstacles = [];
+let particles = [];
+let speedLines = [];
+let grindSparks = [];
+let dustParticles = [];
+let cloudMeshes = [];
+let buildingMeshes = [];
+let previewScene, previewCamera, previewRenderer, previewSkater;
+
+function initThree() {
+  scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x2d1b69, 0.008);
+
+  camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 500);
+  camera.position.set(0, 4, -7);
+  camera.lookAt(0, 1.5, 5);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = false;
+  renderer.setClearColor(0x1a0a2e);
+  document.body.insertBefore(renderer.domElement, document.body.firstChild);
+
+  clock = new THREE.Clock();
+
+  // Lighting
+  const ambientLight = new THREE.AmbientLight(0xffaa66, 0.5);
+  scene.add(ambientLight);
+  const dirLight = new THREE.DirectionalLight(0xff8844, 0.8);
+  dirLight.position.set(-10, 20, 30);
+  scene.add(dirLight);
+  const hemiLight = new THREE.HemisphereLight(0xff9944, 0x2d1b69, 0.4);
+  scene.add(hemiLight);
+
+  buildSky();
+  buildSun();
+  buildGround();
+  buildClouds();
+  buildBuildings();
+  buildSkater();
+  buildObstacleSegments();
+  buildSpeedLines();
+  buildAmbientParticles();
+}
+
+// ───────────────────── SKY ─────────────────────
+function buildSky() {
+  const skyGeo = new THREE.SphereGeometry(300, 32, 32);
+  const skyMat = new THREE.ShaderMaterial({
+    side: THREE.BackSide,
+    uniforms: {},
+    vertexShader: `
+      varying vec3 vWorldPos;
+      void main(){
+        vWorldPos = (modelMatrix * vec4(position,1.0)).xyz;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+      }
+    `,
+    fragmentShader: `
+      varying vec3 vWorldPos;
+      void main(){
+        float h = normalize(vWorldPos).y;
+        vec3 bottom = vec3(1.0, 0.55, 0.2);
+        vec3 mid = vec3(0.9, 0.3, 0.15);
+        vec3 midHigh = vec3(0.45, 0.15, 0.5);
+        vec3 top = vec3(0.1, 0.04, 0.18);
+        vec3 col;
+        if(h < 0.0) col = bottom;
+        else if(h < 0.15) col = mix(bottom, mid, h / 0.15);
+        else if(h < 0.4) col = mix(mid, midHigh, (h - 0.15) / 0.25);
+        else col = mix(midHigh, top, clamp((h - 0.4) / 0.6, 0.0, 1.0));
+        float star = step(0.997, fract(sin(dot(floor(vWorldPos.xz * 2.0), vec2(12.9898, 78.233))) * 43758.5453));
+        col += vec3(star) * smoothstep(0.3, 0.7, h) * 0.8;
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `
+  });
+  scene.add(new THREE.Mesh(skyGeo, skyMat));
+}
+
+// ───────────────────── SUN ─────────────────────
+function buildSun() {
+  // Main sun sphere
+  const sunGeo = new THREE.SphereGeometry(15, 32, 32);
+  const sunMat = new THREE.MeshBasicMaterial({ color: 0xff8822 });
+  sunMesh = new THREE.Mesh(sunGeo, sunMat);
+  sunMesh.position.set(40, 8, 250);
+  scene.add(sunMesh);
+
+  // Glow layers
+  for (let i = 0; i < 3; i++) {
+    const glowGeo = new THREE.SphereGeometry(18 + i * 8, 24, 24);
+    const glowMat = new THREE.MeshBasicMaterial({
+      color: i === 0 ? 0xffaa44 : (i === 1 ? 0xff6622 : 0xff4400),
+      transparent: true, opacity: 0.15 - i * 0.04
+    });
+    const glow = new THREE.Mesh(glowGeo, glowMat);
+    glow.position.copy(sunMesh.position);
+    scene.add(glow);
+  }
+
+  // God rays (flat planes)
+  for (let i = 0; i < 5; i++) {
+    const rayGeo = new THREE.PlaneGeometry(3, 120);
+    const rayMat = new THREE.MeshBasicMaterial({
+      color: 0xff9944, transparent: true, opacity: 0.03, side: THREE.DoubleSide
+    });
+    const ray = new THREE.Mesh(rayGeo, rayMat);
+    ray.position.copy(sunMesh.position);
+    ray.position.y -= 20;
+    ray.rotation.z = (i - 2) * 0.15;
+    ray.rotation.y = Math.random() * 0.5 - 0.25;
+    scene.add(ray);
+  }
+
+  // Lens flare sprites
+  const flareMat = new THREE.MeshBasicMaterial({
+    color: 0xffaa44, transparent: true, opacity: 0.08,
+    blending: THREE.AdditiveBlending, depthWrite: false
+  });
+  [{s:3,dx:-15,dy:-5},{s:2,dx:-25,dy:-8},{s:4,dx:-8,dy:-3},{s:1.5,dx:-35,dy:-12}].forEach(f => {
+    const fg = new THREE.CircleGeometry(f.s, 6);
+    const fm = new THREE.Mesh(fg, flareMat.clone());
+    fm.material.opacity = 0.04 + Math.random() * 0.04;
+    fm.position.set(sunMesh.position.x + f.dx, sunMesh.position.y + f.dy, sunMesh.position.z - 10);
+    scene.add(fm);
+  });
+}
+
+// ───────────────────── GROUND ─────────────────────
+function buildGround() {
+  const groundGeo = new THREE.PlaneGeometry(60, TOTAL_TRACK + 200, 30, (TOTAL_TRACK + 200) / 2);
+  const groundMat = new THREE.MeshLambertMaterial({ color: 0x666666 });
+  groundMesh = new THREE.Mesh(groundGeo, groundMat);
+  groundMesh.rotation.x = -Math.PI / 2;
+  groundMesh.position.set(0, 0, TOTAL_TRACK / 2);
+  scene.add(groundMesh);
+
+  // Grid lines
+  const gridMat = new THREE.LineBasicMaterial({ color: 0x555555, transparent: true, opacity: 0.3 });
+  for (let z = -20; z < TOTAL_TRACK + 100; z += 4) {
+    const geo = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-30, 0.01, z), new THREE.Vector3(30, 0.01, z)
+    ]);
+    scene.add(new THREE.Line(geo, gridMat));
+  }
+  for (let x = -30; x <= 30; x += 4) {
+    const geo = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(x, 0.01, -20), new THREE.Vector3(x, 0.01, TOTAL_TRACK + 100)
+    ]);
+    scene.add(new THREE.Line(geo, gridMat));
+  }
+}
+
+// ───────────────────── CLOUDS ─────────────────────
+function buildClouds() {
+  for (let i = 0; i < 15; i++) {
+    const group = new THREE.Group();
+    const numPuffs = 3 + Math.floor(Math.random() * 4);
+    for (let j = 0; j < numPuffs; j++) {
+      const s = 4 + Math.random() * 8;
+      const geo = new THREE.SphereGeometry(s, 8, 8);
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0xffccaa, transparent: true, opacity: 0.12 + Math.random() * 0.08
+      });
+      const puff = new THREE.Mesh(geo, mat);
+      puff.position.set(j * s * 0.6, Math.random() * 2, Math.random() * 3);
+      puff.scale.y = 0.4;
+      group.add(puff);
+    }
+    group.position.set(
+      (Math.random() - 0.5) * 200,
+      30 + Math.random() * 40,
+      Math.random() * 300
+    );
+    group.userData = { speed: 0.2 + Math.random() * 0.5, baseX: group.position.x };
+    scene.add(group);
+    cloudMeshes.push(group);
+  }
+}
+
+// ───────────────────── BUILDINGS ─────────────────────
+function buildBuildings() {
+  const colors = [0x1a1030, 0x150c28, 0x201040, 0x0f0820, 0x251550];
+  for (let i = 0; i < 40; i++) {
+    const w = 5 + Math.random() * 15;
+    const h = 10 + Math.random() * 50;
+    const d = 5 + Math.random() * 15;
+    const geo = new THREE.BoxGeometry(w, h, d);
+    const mat = new THREE.MeshLambertMaterial({
+      color: colors[Math.floor(Math.random() * colors.length)]
+    });
+    const bld = new THREE.Mesh(geo, mat);
+    const side = Math.random() > 0.5 ? 1 : -1;
+    bld.position.set(
+      side * (35 + Math.random() * 60),
+      h / 2,
+      Math.random() * (TOTAL_TRACK + 200) - 50
+    );
+    scene.add(bld);
+    buildingMeshes.push(bld);
+
+    // Window lights
+    if (Math.random() > 0.4) {
+      for (let wy = 0; wy < h - 3; wy += 3 + Math.random() * 2) {
+        if (Math.random() > 0.5) continue;
+        const winGeo = new THREE.PlaneGeometry(1, 1.2);
+        const winMat = new THREE.MeshBasicMaterial({
+          color: 0xffdd88, transparent: true, opacity: 0.3 + Math.random() * 0.4
+        });
+        const win = new THREE.Mesh(winGeo, winMat);
+        win.position.set(
+          bld.position.x + (side > 0 ? -w / 2 - 0.1 : w / 2 + 0.1),
+          wy + 2,
+          bld.position.z + (Math.random() - 0.5) * d * 0.6
+        );
+        win.rotation.y = side > 0 ? Math.PI / 2 : -Math.PI / 2;
+        scene.add(win);
+      }
+    }
+  }
+}
+
+// ───────────────────── SKATER MODEL ─────────────────────
+function buildSkater() {
+  skaterGroup = new THREE.Group();
+  bodyGroup = new THREE.Group();
+
+  const charColor = CHARACTERS[selectedChar].primary;
+  const secColor = CHARACTERS[selectedChar].secondary;
+
+  // Board
+  const boardGeo = new THREE.BoxGeometry(0.6, 0.08, 2.2);
+  const boardMat = new THREE.MeshLambertMaterial({ color: charColor });
+  boardMesh = new THREE.Mesh(boardGeo, boardMat);
+  boardMesh.position.y = 0;
+  skaterGroup.add(boardMesh);
+
+  // Board trucks (underside details)
+  const truckMat = new THREE.MeshLambertMaterial({ color: 0x888888 });
+  for (let tz of [-0.65, 0.65]) {
+    const truck = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.06, 0.15), truckMat);
+    truck.position.set(0, -0.04, tz);
+    boardMesh.add(truck);
+    // Wheels
+    const wheelMat = new THREE.MeshLambertMaterial({ color: 0xeeeeee });
+    for (let wx of [-0.28, 0.28]) {
+      const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.06, 8), wheelMat);
+      wheel.rotation.z = Math.PI / 2;
+      wheel.position.set(wx, -0.04, tz);
+      boardMesh.add(wheel);
+    }
+  }
+
+  // Body (torso)
+  const torsoGeo = new THREE.BoxGeometry(0.5, 0.7, 0.35);
+  const torsoMat = new THREE.MeshLambertMaterial({ color: charColor });
+  const torso = new THREE.Mesh(torsoGeo, torsoMat);
+  torso.position.y = 0.75;
+  bodyGroup.add(torso);
+
+  // Head
+  const headGeo = new THREE.SphereGeometry(0.2, 12, 12);
+  const headMat = new THREE.MeshLambertMaterial({ color: 0xffcc99 });
+  const head = new THREE.Mesh(headGeo, headMat);
+  head.position.y = 1.3;
+  bodyGroup.add(head);
+
+  // Helmet
+  const helmetGeo = new THREE.SphereGeometry(0.22, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.6);
+  const helmetMat = new THREE.MeshLambertMaterial({ color: secColor });
+  const helmet = new THREE.Mesh(helmetGeo, helmetMat);
+  helmet.position.y = 1.34;
+  bodyGroup.add(helmet);
+
+  // Arms
+  const armGeo = new THREE.BoxGeometry(0.12, 0.5, 0.12);
+  const armMat = new THREE.MeshLambertMaterial({ color: charColor });
+  const leftArm = new THREE.Mesh(armGeo, armMat);
+  leftArm.position.set(-0.36, 0.7, 0);
+  leftArm.rotation.z = 0.15;
+  leftArm.name = 'leftArm';
+  bodyGroup.add(leftArm);
+  const rightArm = new THREE.Mesh(armGeo, armMat);
+  rightArm.position.set(0.36, 0.7, 0);
+  rightArm.rotation.z = -0.15;
+  rightArm.name = 'rightArm';
+  bodyGroup.add(rightArm);
+
+  // Legs
+  const legGeo = new THREE.BoxGeometry(0.15, 0.5, 0.15);
+  const legMat = new THREE.MeshLambertMaterial({ color: 0x333355 });
+  const leftLeg = new THREE.Mesh(legGeo, legMat);
+  leftLeg.position.set(-0.13, 0.3, 0.15);
+  leftLeg.name = 'leftLeg';
+  bodyGroup.add(leftLeg);
+  const rightLeg = new THREE.Mesh(legGeo, legMat);
+  rightLeg.position.set(0.13, 0.3, -0.15);
+  rightLeg.name = 'rightLeg';
+  bodyGroup.add(rightLeg);
+
+  // Shoes
+  const shoeMat = new THREE.MeshLambertMaterial({ color: secColor });
+  const leftShoe = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.1, 0.25), shoeMat);
+  leftShoe.position.set(-0.13, 0.07, 0.2);
+  bodyGroup.add(leftShoe);
+  const rightShoe = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.1, 0.25), shoeMat);
+  rightShoe.position.set(0.13, 0.07, -0.1);
+  bodyGroup.add(rightShoe);
+
+  bodyGroup.position.y = 0.08;
+  skaterGroup.add(bodyGroup);
+  skaterGroup.position.set(0, GROUND_Y, 0);
+  scene.add(skaterGroup);
+}
+
+function updateSkaterColors() {
+  const c = CHARACTERS[selectedChar];
+  boardMesh.material.color.setHex(c.primary);
+  bodyGroup.children.forEach(child => {
+    if (child.name === 'leftLeg' || child.name === 'rightLeg') return;
+    if (child.geometry && child.geometry.type === 'SphereGeometry' && child.material.color.getHex() === 0xffcc99) return;
+    if (child.geometry && child.geometry.type === 'SphereGeometry' && child.geometry.parameters.thetaLength) {
+      child.material.color.setHex(c.secondary);
+    } else if (child.geometry && child.geometry.type === 'BoxGeometry') {
+      const params = child.geometry.parameters;
+      if (params.width === 0.5 && params.height === 0.7) child.material.color.setHex(c.primary);
+      if (params.width === 0.12) child.material.color.setHex(c.primary);
+      if (params.height === 0.1) child.material.color.setHex(c.secondary);
+    }
+  });
+}
+
+// ───────────────────── OBSTACLE GENERATION ─────────────────────
+function buildObstacleSegments() {
+  // Clear existing
+  obstacles.forEach(o => { if(o.mesh) scene.remove(o.mesh); if(o.group) scene.remove(o.group); });
+  obstacles = [];
+
+  for (let seg = 0; seg < NUM_SEGMENTS; seg++) {
+    const baseZ = seg * SEGMENT_LENGTH + 15;
+    const items = generateSegmentObstacles(baseZ, seg);
+    obstacles.push(...items);
+  }
+}
+
+function generateSegmentObstacles(baseZ, segIndex) {
+  const items = [];
+  // Pre-designed flow patterns
+  const patterns = [
+    ['ramp', 'rail', 'manual_pad'],
+    ['kicker', 'gap', 'funbox'],
+    ['halfpipe'],
+    ['kicker', 'rail', 'kicker', 'rail'],
+    ['ramp', 'gap', 'rail', 'manual_pad'],
+    ['funbox', 'kicker', 'funbox'],
+    ['manual_pad', 'ramp', 'rail', 'gap'],
+    ['halfpipe', 'kicker', 'rail']
+  ];
+  const pattern = patterns[(segIndex + Math.floor(Math.random() * patterns.length)) % patterns.length];
+  let z = baseZ;
+  for (const type of pattern) {
+    z += 8 + Math.random() * 6;
+    const xOffset = (Math.random() - 0.5) * 5;
+    let obs = null;
+    switch(type) {
+      case 'ramp': obs = createRamp(xOffset, z); break;
+      case 'rail': obs = createRail(xOffset, z); break;
+      case 'gap': obs = createGap(xOffset, z); break;
+      case 'funbox': obs = createFunbox(xOffset, z); break;
+      case 'manual_pad': obs = createManualPad(xOffset, z); break;
+      case 'halfpipe': obs = createHalfPipe(xOffset, z); break;
+      case 'kicker': obs = createKicker(xOffset, z); break;
+    }
+    if (obs) items.push(obs);
+  }
+  return items;
+}
+
+function createRamp(x, z) {
+  const group = new THREE.Group();
+  // Ramp body - wedge shape via scaled box
+  const geo = new THREE.BoxGeometry(3, 1.5, 3);
+  const vertices = geo.attributes.position;
+  // Adjust vertices to create wedge (lower back edge)
+  for (let i = 0; i < vertices.count; i++) {
+    const vz = vertices.getZ(i);
+    const vy = vertices.getY(i);
+    if (vz < 0 && vy > 0) {
+      vertices.setY(i, vy * 0.1);
+    }
+  }
+  vertices.needsUpdate = true;
+  geo.computeVertexNormals();
+  const mat = new THREE.MeshLambertMaterial({ color: 0x887766 });
+  const ramp = new THREE.Mesh(geo, mat);
+  ramp.position.set(x, 0.75, z);
+  group.add(ramp);
+  scene.add(group);
+
+  return {
+    type: 'ramp', group, mesh: ramp,
+    x, z, width: 3, length: 3, height: 1.5,
+    bounds: { minX: x - 1.5, maxX: x + 1.5, minZ: z - 1.5, maxZ: z + 1.5 }
+  };
+}
+
+function createKicker(x, z) {
+  const group = new THREE.Group();
+  const geo = new THREE.BoxGeometry(2.5, 1, 2);
+  const vertices = geo.attributes.position;
+  for (let i = 0; i < vertices.count; i++) {
+    const vz = vertices.getZ(i);
+    const vy = vertices.getY(i);
+    if (vz < 0 && vy > 0) {
+      vertices.setY(i, vy * 0.05);
+    }
+  }
+  vertices.needsUpdate = true;
+  geo.computeVertexNormals();
+  const mat = new THREE.MeshLambertMaterial({ color: 0x998877 });
+  const kicker = new THREE.Mesh(geo, mat);
+  kicker.position.set(x, 0.5, z);
+  group.add(kicker);
+  scene.add(group);
+
+  return {
+    type: 'ramp', group, mesh: kicker,
+    x, z, width: 2.5, length: 2, height: 1,
+    bounds: { minX: x - 1.25, maxX: x + 1.25, minZ: z - 1, maxZ: z + 1 }
+  };
+}
+
+function createRail(x, z) {
+  const length = 6 + Math.random() * 6;
+  const height = 0.8;
+  const group = new THREE.Group();
+
+  // Rail bar
+  const railGeo = new THREE.BoxGeometry(0.12, 0.12, length);
+  const railMat = new THREE.MeshLambertMaterial({ color: 0xff8800, emissive: 0x552200 });
+  const rail = new THREE.Mesh(railGeo, railMat);
+  rail.position.set(x, height, z + length / 2);
+  group.add(rail);
+
+  // Support posts
+  const postMat = new THREE.MeshLambertMaterial({ color: 0x666666 });
+  for (let pz = 0; pz < length; pz += length - 0.1) {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, height, 0.08), postMat);
+    post.position.set(x, height / 2, z + pz);
+    group.add(post);
+  }
+
+  scene.add(group);
+  return {
+    type: 'rail', group, mesh: rail,
+    x, z: z, length, height,
+    endZ: z + length,
+    bounds: { minX: x - 0.8, maxX: x + 0.8, minZ: z, maxZ: z + length }
+  };
+}
+
+function createGap(x, z) {
+  // Visual pit
+  const group = new THREE.Group();
+  const gapGeo = new THREE.BoxGeometry(4, 0.5, 3);
+  const gapMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
+  const gap = new THREE.Mesh(gapGeo, gapMat);
+  gap.position.set(x, -0.26, z);
+  group.add(gap);
+
+  // Warning stripes
+  const stripeMat = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
+  for (let s = -1; s <= 1; s += 2) {
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(4, 0.03, 0.15), stripeMat);
+    stripe.position.set(x, 0.01, z + s * 1.5);
+    group.add(stripe);
+  }
+  scene.add(group);
+
+  return {
+    type: 'gap', group, mesh: gap,
+    x, z, width: 4, length: 3,
+    bounds: { minX: x - 2, maxX: x + 2, minZ: z - 1.5, maxZ: z + 1.5 }
+  };
+}
+
+function createFunbox(x, z) {
+  const group = new THREE.Group();
+
+  // Low box
+  const boxGeo = new THREE.BoxGeometry(3, 0.6, 4);
+  const boxMat = new THREE.MeshLambertMaterial({ color: 0x776655 });
+  const box = new THREE.Mesh(boxGeo, boxMat);
+  box.position.set(x, 0.3, z);
+  group.add(box);
+
+  // Rail on top
+  const railGeo = new THREE.BoxGeometry(0.1, 0.1, 4.5);
+  const railMat = new THREE.MeshLambertMaterial({ color: 0xff8800, emissive: 0x552200 });
+  const rail = new THREE.Mesh(railGeo, railMat);
+  rail.position.set(x, 0.65, z);
+  group.add(rail);
+
+  scene.add(group);
+  return {
+    type: 'funbox', group, mesh: box,
+    x, z, width: 3, length: 4, height: 0.6,
+    hasRail: true, railHeight: 0.65, railLength: 4.5,
+    bounds: { minX: x - 1.5, maxX: x + 1.5, minZ: z - 2, maxZ: z + 2 }
+  };
+}
+
+function createManualPad(x, z) {
+  const group = new THREE.Group();
+  const padGeo = new THREE.BoxGeometry(3.5, 0.2, 5);
+  const padMat = new THREE.MeshLambertMaterial({ color: 0x888877 });
+  const pad = new THREE.Mesh(padGeo, padMat);
+  pad.position.set(x, 0.1, z);
+  group.add(pad);
+
+  // Edge marks
+  const edgeMat = new THREE.MeshBasicMaterial({ color: 0xaaaaaa });
+  for (let ez of [-2.5, 2.5]) {
+    const edge = new THREE.Mesh(new THREE.BoxGeometry(3.5, 0.22, 0.1), edgeMat);
+    edge.position.set(x, 0.11, z + ez);
+    group.add(edge);
+  }
+  scene.add(group);
+
+  return {
+    type: 'manual_pad', group, mesh: pad,
+    x, z, width: 3.5, length: 5,
+    bounds: { minX: x - 1.75, maxX: x + 1.75, minZ: z - 2.5, maxZ: z + 2.5 }
+  };
+}
+
+function createHalfPipe(x, z) {
+  const group = new THREE.Group();
+  const width = 8;
+  const height = 3;
+  const length = 10;
+
+  // Floor
+  const floorGeo = new THREE.BoxGeometry(width - 2, 0.2, length);
+  const floorMat = new THREE.MeshLambertMaterial({ color: 0x776655 });
+  const floor = new THREE.Mesh(floorGeo, floorMat);
+  floor.position.set(x, 0.1, z);
+  group.add(floor);
+
+  // Curved walls (approximated with angled boxes)
+  const wallMat = new THREE.MeshLambertMaterial({ color: 0x887766 });
+  for (let side of [-1, 1]) {
+    for (let i = 0; i < 4; i++) {
+      const angle = (i / 4) * Math.PI * 0.5;
+      const wallGeo = new THREE.BoxGeometry(0.3, height / 4, length);
+      const wall = new THREE.Mesh(wallGeo, wallMat);
+      const wx = x + side * (width / 2 - 1) * (1 - Math.cos(angle) * 0.5);
+      const wy = (i * height / 4) + height / 8;
+      wall.position.set(wx, wy, z);
+      wall.rotation.z = side * angle * 0.3;
+      group.add(wall);
+    }
+    // Coping (top edge rail)
+    const copingGeo = new THREE.CylinderGeometry(0.08, 0.08, length, 8);
+    const copingMat = new THREE.MeshLambertMaterial({ color: 0xff8800, emissive: 0x552200 });
+    const coping = new THREE.Mesh(copingGeo, copingMat);
+    coping.rotation.x = Math.PI / 2;
+    coping.position.set(x + side * (width / 2 - 0.5), height, z);
+    group.add(coping);
+  }
+
+  scene.add(group);
+  return {
+    type: 'halfpipe', group, mesh: floor,
+    x, z, width, length, height,
+    bounds: { minX: x - width / 2, maxX: x + width / 2, minZ: z - length / 2, maxZ: z + length / 2 }
+  };
+}
+
+// ───────────────────── SPEED LINES ─────────────────────
+function buildSpeedLines() {
+  const lineMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3 });
+  for (let i = 0; i < 20; i++) {
+    const geo = new THREE.BoxGeometry(0.02, 0.02, 1.5 + Math.random());
+    const line = new THREE.Mesh(geo, lineMat.clone());
+    line.visible = false;
+    line.userData = {
+      offsetX: (Math.random() - 0.5) * 8,
+      offsetY: Math.random() * 4 + 0.5,
+      phase: Math.random() * Math.PI * 2
+    };
+    scene.add(line);
+    speedLines.push(line);
+  }
+}
+
+// ───────────────────── AMBIENT PARTICLES ─────────────────────
+function buildAmbientParticles() {
+  const mat = new THREE.MeshBasicMaterial({ color: 0xffddaa, transparent: true, opacity: 0.4 });
+  for (let i = 0; i < 40; i++) {
+    const s = 0.03 + Math.random() * 0.05;
+    const geo = new THREE.SphereGeometry(s, 4, 4);
+    const p = new THREE.Mesh(geo, mat.clone());
+    p.userData = {
+      baseX: (Math.random() - 0.5) * 20,
+      baseY: 1 + Math.random() * 8,
+      phase: Math.random() * Math.PI * 2,
+      speed: 0.3 + Math.random() * 0.7
+    };
+    scene.add(p);
+    particles.push(p);
+  }
+}
+
+// ───────────────────── PREVIEW RENDERER ─────────────────────
+function initPreview() {
+  const canvas = document.getElementById('preview-canvas');
+  const size = Math.min(200, window.innerWidth * 0.3);
+  canvas.width = size;
+  canvas.height = size;
+
+  previewScene = new THREE.Scene();
+  previewScene.background = new THREE.Color(0x2d1b69);
+  previewCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+  previewCamera.position.set(2, 2, 3);
+  previewCamera.lookAt(0, 0.6, 0);
+
+  previewRenderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  previewRenderer.setSize(size, size);
+
+  const light1 = new THREE.DirectionalLight(0xff8844, 1);
+  light1.position.set(2, 3, 2);
+  previewScene.add(light1);
+  previewScene.add(new THREE.AmbientLight(0xffaa66, 0.5));
+
+  rebuildPreviewSkater();
+}
+
+function rebuildPreviewSkater() {
+  if (previewSkater) previewScene.remove(previewSkater);
+  previewSkater = new THREE.Group();
+  const c = CHARACTERS[selectedChar];
+
+  // Board
+  const boardGeo = new THREE.BoxGeometry(0.6, 0.08, 2.2);
+  previewSkater.add(new THREE.Mesh(boardGeo, new THREE.MeshLambertMaterial({ color: c.primary })));
+
+  // Body
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.35), new THREE.MeshLambertMaterial({ color: c.primary }));
+  torso.position.y = 0.75;
+  previewSkater.add(torso);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 12), new THREE.MeshLambertMaterial({ color: 0xffcc99 }));
+  head.position.y = 1.3;
+  previewSkater.add(head);
+
+  const helmet = new THREE.Mesh(
+    new THREE.SphereGeometry(0.22, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.6),
+    new THREE.MeshLambertMaterial({ color: c.secondary })
+  );
+  helmet.position.y = 1.34;
+  previewSkater.add(helmet);
+
+  const armMat = new THREE.MeshLambertMaterial({ color: c.primary });
+  const la = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.5, 0.12), armMat);
+  la.position.set(-0.36, 0.7, 0); la.rotation.z = 0.15;
+  previewSkater.add(la);
+  const ra = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.5, 0.12), armMat);
+  ra.position.set(0.36, 0.7, 0); ra.rotation.z = -0.15;
+  previewSkater.add(ra);
+
+  const legMat = new THREE.MeshLambertMaterial({ color: 0x333355 });
+  const ll = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.5, 0.15), legMat);
+  ll.position.set(-0.13, 0.3, 0.15);
+  previewSkater.add(ll);
+  const rl = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.5, 0.15), legMat);
+  rl.position.set(0.13, 0.3, -0.15);
+  previewSkater.add(rl);
+
+  const shoeMat = new THREE.MeshLambertMaterial({ color: c.secondary });
+  const ls = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.1, 0.25), shoeMat);
+  ls.position.set(-0.13, 0.07, 0.2);
+  previewSkater.add(ls);
+  const rs = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.1, 0.25), shoeMat);
+  rs.position.set(0.13, 0.07, -0.1);
+  previewSkater.add(rs);
+
+  previewScene.add(previewSkater);
+}
+
+// ───────────────────── AUDIO SYSTEM ─────────────────────
+let audioCtx = null;
+let masterGain = null;
+let musicPlaying = false;
+let rollSource = null;
+let grindSource = null;
+let manualSource = null;
+
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.35;
+  masterGain.connect(audioCtx.destination);
+}
+
+function playOlliePop() {
+  if (navigator.vibrate) navigator.vibrate(10);
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = 'highpass'; filter.frequency.value = 2000;
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(2400, audioCtx.currentTime + 0.03);
+  gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08);
+  osc.connect(filter); filter.connect(gain); gain.connect(masterGain);
+  osc.start(); osc.stop(audioCtx.currentTime + 0.08);
+
+  // Add noise click
+  const bufLen = audioCtx.sampleRate * 0.04;
+  const buf = audioCtx.createBuffer(1, bufLen, audioCtx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufLen; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufLen * 0.1));
+  const ns = audioCtx.createBufferSource();
+  ns.buffer = buf;
+  const ng = audioCtx.createGain();
+  ng.gain.value = 0.3;
+  ns.connect(ng); ng.connect(masterGain);
+  ns.start();
+}
+
+function playLanding() {
+  if (navigator.vibrate) navigator.vibrate(20);
+  triggerShake(0.3);
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(120, audioCtx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.15);
+  gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
+  osc.connect(gain); gain.connect(masterGain);
+  osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+}
+
+function playTrickComplete() {
+  if (navigator.vibrate) navigator.vibrate(15);
+  if (!audioCtx) return;
+  const notes = [523, 659, 784, 1047];
+  notes.forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0, audioCtx.currentTime + i * 0.06);
+    gain.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + i * 0.06 + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + i * 0.06 + 0.15);
+    osc.connect(gain); gain.connect(masterGain);
+    osc.start(audioCtx.currentTime + i * 0.06);
+    osc.stop(audioCtx.currentTime + i * 0.06 + 0.15);
+  });
+}
+
+function playBail() {
+  if (navigator.vibrate) navigator.vibrate(80);
+  if (!audioCtx) return;
+  // Crash noise
+  const bufLen = audioCtx.sampleRate * 0.4;
+  const buf = audioCtx.createBuffer(1, bufLen, audioCtx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufLen; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufLen * 0.15));
+  const ns = audioCtx.createBufferSource();
+  ns.buffer = buf;
+  const ng = audioCtx.createGain();
+  ng.gain.value = 0.5;
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = 'lowpass'; filter.frequency.value = 800;
+  ns.connect(filter); filter.connect(ng); ng.connect(masterGain);
+  ns.start();
+
+  // Low thud
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = 60;
+  gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+  osc.connect(gain); gain.connect(masterGain);
+  osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+}
+
+function playComboUp() {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(1760, audioCtx.currentTime + 0.1);
+  gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+  osc.connect(gain); gain.connect(masterGain);
+  osc.start(); osc.stop(audioCtx.currentTime + 0.15);
+}
+
+function playTimerBeep() {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'square';
+  osc.frequency.value = 1200;
+  gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+  osc.connect(gain); gain.connect(masterGain);
+  osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+}
+
+function startRollingSound() {
+  if (!audioCtx || rollSource) return;
+  const bufLen = audioCtx.sampleRate * 2;
+  const buf = audioCtx.createBuffer(1, bufLen, audioCtx.sampleRate);
+  const data = buf.getChannelData(0);
+  let v = 0;
+  for (let i = 0; i < bufLen; i++) {
+    v += (Math.random() * 2 - 1) * 0.1;
+    v *= 0.99;
+    data[i] = v;
+  }
+  rollSource = audioCtx.createBufferSource();
+  rollSource.buffer = buf;
+  rollSource.loop = true;
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = 'lowpass'; filter.frequency.value = 200;
+  const gain = audioCtx.createGain();
+  gain.gain.value = 0.15;
+  rollSource.connect(filter); filter.connect(gain); gain.connect(masterGain);
+  rollSource.start();
+  rollSource._filter = filter;
+  rollSource._gain = gain;
+}
+
+function updateRollingSound(speed, airborne) {
+  if (!rollSource) return;
+  rollSource._gain.gain.value = airborne ? 0 : 0.1 + speed * 0.005;
+  rollSource._filter.frequency.value = 100 + speed * 15;
+}
+
+function stopRollingSound() {
+  if (rollSource) { try { rollSource.stop(); } catch(e){} rollSource = null; }
+}
+
+function startGrindSound() {
+  if (!audioCtx || grindSource) return;
+  const bufLen = audioCtx.sampleRate * 2;
+  const buf = audioCtx.createBuffer(1, bufLen, audioCtx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufLen; i++) data[i] = Math.random() * 2 - 1;
+  grindSource = audioCtx.createBufferSource();
+  grindSource.buffer = buf;
+  grindSource.loop = true;
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = 'bandpass'; filter.frequency.value = 3000; filter.Q.value = 5;
+  const gain = audioCtx.createGain();
+  gain.gain.value = 0.12;
+  grindSource.connect(filter); filter.connect(gain); gain.connect(masterGain);
+  grindSource.start();
+  grindSource._gain = gain;
+}
+
+function stopGrindSound() {
+  if (grindSource) { try { grindSource.stop(); } catch(e){} grindSource = null; }
+}
+
+function startManualSound() {
+  if (!audioCtx || manualSource) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.value = 80;
+  gain.gain.value = 0.04;
+  osc.connect(gain); gain.connect(masterGain);
+  osc.start();
+  manualSource = osc;
+  manualSource._gain = gain;
+}
+
+function stopManualSound() {
+  if (manualSource) { try { manualSource.stop(); } catch(e){} manualSource = null; }
+}
+
+// Air whoosh sound
+let airSource = null;
+function startAirSound() {
+  if (!audioCtx || airSource) return;
+  const bufLen = audioCtx.sampleRate * 2;
+  const buf = audioCtx.createBuffer(1, bufLen, audioCtx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufLen; i++) data[i] = Math.random() * 2 - 1;
+  airSource = audioCtx.createBufferSource();
+  airSource.buffer = buf;
+  airSource.loop = true;
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = 'bandpass'; filter.frequency.value = 400; filter.Q.value = 0.5;
+  const gain = audioCtx.createGain();
+  gain.gain.value = 0;
+  airSource.connect(filter); filter.connect(gain); gain.connect(masterGain);
+  airSource.start();
+  airSource._gain = gain;
+  airSource._filter = filter;
+}
+function updateAirSound(vy) {
+  if (!airSource) return;
+  const vol = Math.min(0.12, Math.abs(vy) * 0.008);
+  airSource._gain.gain.value = vol;
+  airSource._filter.frequency.value = 300 + Math.abs(vy) * 30;
+}
+function stopAirSound() {
+  if (airSource) { try { airSource.stop(); } catch(e){} airSource = null; }
+}
+
+// Background music - synthwave beat
+let musicNodes = [];
+function startMusic() {
+  if (!audioCtx || musicPlaying) return;
+  musicPlaying = true;
+
+  // Kick drum pattern
+  function scheduleKick(time) {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(150, time);
+    osc.frequency.exponentialRampToValueAtTime(30, time + 0.1);
+    gain.gain.setValueAtTime(0.25, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.15);
+    osc.connect(gain); gain.connect(masterGain);
+    osc.start(time); osc.stop(time + 0.15);
+    musicNodes.push(osc);
+  }
+
+  // Hi-hat
+  function scheduleHat(time) {
+    const bufLen = audioCtx.sampleRate * 0.05;
+    const buf = audioCtx.createBuffer(1, bufLen, audioCtx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufLen; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufLen * 0.15));
+    const ns = audioCtx.createBufferSource();
+    ns.buffer = buf;
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'highpass'; filter.frequency.value = 8000;
+    const gain = audioCtx.createGain();
+    gain.gain.value = 0.08;
+    ns.connect(filter); filter.connect(gain); gain.connect(masterGain);
+    ns.start(time);
+    musicNodes.push(ns);
+  }
+
+  // Bass note
+  function scheduleBass(time, freq) {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.value = freq;
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'lowpass'; filter.frequency.value = 300;
+    gain.gain.setValueAtTime(0.08, time);
+    gain.gain.setValueAtTime(0.08, time + 0.2);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.35);
+    osc.connect(filter); filter.connect(gain); gain.connect(masterGain);
+    osc.start(time); osc.stop(time + 0.4);
+    musicNodes.push(osc);
+  }
+
+  const bpm = 110;
+  const beatTime = 60 / bpm;
+  const barTime = beatTime * 4;
+  const bassNotes = [55, 55, 73.4, 65.4]; // A1, A1, D2, C2
+
+  function scheduleBar(startTime, barIndex) {
+    const bassFreq = bassNotes[barIndex % 4];
+    for (let beat = 0; beat < 4; beat++) {
+      const t = startTime + beat * beatTime;
+      scheduleKick(t);
+      scheduleHat(t + beatTime * 0.5);
+      if (beat === 0 || beat === 2) scheduleBass(t, bassFreq);
+    }
+  }
+
+  let scheduleAhead = 0.5;
+  let nextBar = audioCtx.currentTime + 0.1;
+  let barCount = 0;
+
+  function scheduler() {
+    if (!musicPlaying) return;
+    while (nextBar < audioCtx.currentTime + scheduleAhead) {
+      scheduleBar(nextBar, barCount);
+      nextBar += barTime;
+      barCount++;
+    }
+    musicNodes = musicNodes.filter(n => {
+      try { return n.context.currentTime < (n._stopTime || Infinity); } catch(e) { return false; }
+    });
+    setTimeout(scheduler, 100);
+  }
+  scheduler();
+}
+
+function stopMusic() {
+  musicPlaying = false;
+  musicNodes.forEach(n => { try { n.stop(); } catch(e){} });
+  musicNodes = [];
+}
+
+// ───────────────────── INPUT HANDLING ─────────────────────
+const keys = {};
+document.addEventListener('keydown', e => {
+  if (e.repeat) return;
+  keys[e.code] = true;
+
+  if (gameState === 'TITLE' && (e.code === 'Enter' || e.code === 'Space')) {
+    initAudio();
+    switchScreen('SELECT');
+    e.preventDefault();
+  }
+  if (gameState === 'SELECT' && e.code === 'Enter') {
+    startGame();
+    e.preventDefault();
+  }
+  if (gameState === 'PLAYING') {
+    if (e.code === 'Space') { input.ollie = true; input.ollieJustPressed = true; }
+    if (e.code === 'KeyJ') { input.trickJ = true; input.trick = true; }
+    if (e.code === 'KeyK') { input.trickK = true; input.trick = true; }
+    if (e.code === 'KeyS') input.manual = true;
+    e.preventDefault();
+  }
+  if (gameState === 'GAMEOVER' && e.code === 'Enter') {
+    restartGame();
+    e.preventDefault();
+  }
+});
+
+document.addEventListener('keyup', e => {
+  keys[e.code] = false;
+  if (e.code === 'Space') input.ollie = false;
+  if (e.code === 'KeyJ') { input.trickJ = false; if (!input.trickK) input.trick = false; }
+  if (e.code === 'KeyK') { input.trickK = false; if (!input.trickJ) input.trick = false; }
+  if (e.code === 'KeyS') input.manual = false;
+});
+
+function updateKeyboardInput() {
+  input.left = keys['ArrowLeft'] || false;
+  input.right = keys['ArrowRight'] || false;
+  let kb = 0;
+  if (input.left) kb -= 1;
+  if (input.right) kb += 1;
+  // Blend keyboard and touch
+  input.steerX = input.touchActive ? input.touchSteerX : kb;
+}
+
+// Touch controls
+let touchSteerID = null;
+let touchSteerStartX = 0;
+
+document.getElementById('steer-zone').addEventListener('touchstart', e => {
+  e.preventDefault();
+  if (gameState === 'TITLE') { initAudio(); switchScreen('SELECT'); return; }
+  const t = e.changedTouches[0];
+  touchSteerID = t.identifier;
+  touchSteerStartX = t.clientX;
+  input.touchActive = true;
+}, { passive: false });
+
+document.getElementById('steer-zone').addEventListener('touchmove', e => {
+  e.preventDefault();
+  for (let t of e.changedTouches) {
+    if (t.identifier === touchSteerID) {
+      const dx = (t.clientX - touchSteerStartX) / 50;
+      input.touchSteerX = Math.max(-1, Math.min(1, dx));
+    }
+  }
+}, { passive: false });
+
+document.getElementById('steer-zone').addEventListener('touchend', e => {
+  for (let t of e.changedTouches) {
+    if (t.identifier === touchSteerID) {
+      touchSteerID = null;
+      input.touchSteerX = 0;
+      input.touchActive = false;
+    }
+  }
+});
+
+// Touch buttons
+function setupTouchButton(id, onDown, onUp) {
+  const el = document.getElementById(id);
+  el.addEventListener('touchstart', e => { e.preventDefault(); onDown(); }, { passive: false });
+  el.addEventListener('touchend', e => { e.preventDefault(); onUp(); }, { passive: false });
+  el.addEventListener('touchcancel', e => { onUp(); });
+}
+
+setupTouchButton('btn-ollie',
+  () => { input.ollie = true; input.ollieJustPressed = true; },
+  () => { input.ollie = false; }
+);
+setupTouchButton('btn-trick',
+  () => { input.trick = true; input.trickJ = true; },
+  () => { input.trick = false; input.trickJ = false; input.trickK = false; }
+);
+setupTouchButton('btn-manual',
+  () => { input.manual = true; },
+  () => { input.manual = false; }
+);
+
+// Title screen tap
+document.getElementById('title-screen').addEventListener('click', () => {
+  initAudio();
+  switchScreen('SELECT');
+});
+document.getElementById('title-screen').addEventListener('touchstart', e => {
+  e.preventDefault();
+  initAudio();
+  switchScreen('SELECT');
+}, { passive: false });
+
+// Tilt (device orientation)
+if (window.DeviceOrientationEvent) {
+  window.addEventListener('deviceorientation', e => {
+    if (gameState !== 'PLAYING') return;
+    if (e.gamma !== null) {
+      input.touchSteerX = Math.max(-1, Math.min(1, e.gamma / 30));
+      input.touchActive = true;
+    }
+  });
+}
+
+// ───────────────────── SCREEN MANAGEMENT ─────────────────────
+function switchScreen(state) {
+  gameState = state;
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('hud').classList.remove('active');
+  document.getElementById('touch-controls').style.display = 'none';
+  document.getElementById('steer-zone').style.display = 'none';
+
+  switch(state) {
+    case 'TITLE':
+      document.getElementById('title-screen').classList.add('active');
+      break;
+    case 'SELECT':
+      document.getElementById('select-screen').classList.add('active');
+      buildCharGrid();
+      break;
+    case 'PLAYING':
+      document.getElementById('hud').classList.add('active');
+      if ('ontouchstart' in window) {
+        document.getElementById('touch-controls').style.display = 'block';
+        document.getElementById('steer-zone').style.display = 'block';
+      }
+      break;
+    case 'GAMEOVER':
+      document.getElementById('gameover-screen').classList.add('active');
+      break;
+  }
+}
+
+// ───────────────────── CHARACTER GRID ─────────────────────
+function buildCharGrid() {
+  const grid = document.getElementById('char-grid');
+  grid.innerHTML = '';
+  CHARACTERS.forEach((c, i) => {
+    const card = document.createElement('div');
+    card.className = 'char-card' + (i === selectedChar ? ' selected' : '');
+    card.innerHTML = `<div class="swatch" style="background:linear-gradient(135deg,#${c.primary.toString(16).padStart(6,'0')},#${c.secondary.toString(16).padStart(6,'0')})"></div><div class="char-name">${c.name}</div>`;
+    card.addEventListener('click', () => {
+      selectedChar = i;
+      document.querySelectorAll('.char-card').forEach(cc => cc.classList.remove('selected'));
+      card.classList.add('selected');
+      rebuildPreviewSkater();
+    });
+    grid.appendChild(card);
+  });
+}
+
+document.getElementById('start-btn').addEventListener('click', startGame);
+
+// ───────────────────── GAME START / RESTART ─────────────────────
+function startGame() {
+  initAudio();
+  resetPlayer();
+  score = 0;
+  comboScore = 0;
+  comboMultiplier = 0;
+  comboChain = [];
+  timer = GAME_DURATION;
+  trickCounts = {};
+  bestCombo = 0;
+
+  updateSkaterColors();
+  switchScreen('PLAYING');
+  startRollingSound();
+  startAirSound();
+  startMusic();
+}
+
+function restartGame() {
+  stopMusic();
+  stopRollingSound();
+  stopGrindSound();
+  stopManualSound();
+  stopAirSound();
+  switchScreen('SELECT');
+}
+
+function resetPlayer() {
+  player.x = 0;
+  player.y = GROUND_Y;
+  player.z = 0;
+  player.vx = 0;
+  player.vy = 0;
+  player.vz = 0;
+  player.rotation = 0;
+  player.tilt = 0;
+  player.airborne = false;
+  player.grinding = false;
+  player.grindRail = null;
+  player.grindProgress = 0;
+  player.manualing = false;
+  player.manualTime = 0;
+  player.tricking = false;
+  player.currentTrick = null;
+  player.trickProgress = 0;
+  player.trickComplete = false;
+  player.bailing = false;
+  player.bailTimer = 0;
+  player.spinAngle = 0;
+  player.speedBoost = 0;
+}
+
+// ───────────────────── GAME OVER ─────────────────────
+function endGame() {
+  // Bank any remaining combo
+  if (comboMultiplier > 0) bankCombo();
+
+  stopMusic();
+  stopRollingSound();
+  stopGrindSound();
+  stopManualSound();
+  stopAirSound();
+
+  if (score > highScore) {
+    highScore = score;
+    localStorage.setItem('sunsetyard_high', String(highScore));
+  }
+
+  document.getElementById('final-score').textContent = score.toLocaleString();
+  document.getElementById('high-score').textContent = 'HIGH SCORE: ' + highScore.toLocaleString();
+
+  // Trick breakdown
+  let breakdown = '';
+  Object.keys(trickCounts).sort((a, b) => trickCounts[b] - trickCounts[a]).forEach(t => {
+    breakdown += `${t}: ${trickCounts[t]}x<br>`;
+  });
+  if (!breakdown) breakdown = 'No tricks landed!';
+  breakdown = 'Best Combo: ' + bestCombo.toLocaleString() + '<br><br>' + breakdown;
+  document.getElementById('trick-breakdown').innerHTML = breakdown;
+
+  switchScreen('GAMEOVER');
+}
+
+// ───────────────────── PHYSICS & GAMEPLAY UPDATE ─────────────────────
+let lastTimerBeep = -1;
+
+function updateGameplay(dt) {
+  if (gameState !== 'PLAYING') return;
+  if (player.bailing) {
+    player.bailTimer -= dt;
+    if (player.bailTimer <= 0) {
+      player.bailing = false;
+      player.y = GROUND_Y;
+      player.vy = 0;
+      player.airborne = false;
+      player.tricking = false;
+      player.currentTrick = null;
+    }
+    return;
+  }
+
+  updateKeyboardInput();
+
+  // Timer
+  timer -= dt;
+  if (timer <= 0) {
+    timer = 0;
+    endGame();
+    return;
+  }
+  // Timer beeps
+  const sec = Math.ceil(timer);
+  if (sec <= 10 && sec !== lastTimerBeep && sec > 0) {
+    lastTimerBeep = sec;
+    playTimerBeep();
+  }
+
+  // Forward movement
+  const speed = FORWARD_SPEED + player.speedBoost;
+  player.speedBoost *= 0.98;
+  player.z += speed * dt;
+
+  // Wrap obstacles when player passes them
+  // (endless: reposition far obstacles ahead)
+  obstacles.forEach(obs => {
+    if (obs.bounds && player.z - obs.z > 60) {
+      const shift = TOTAL_TRACK;
+      obs.z += shift;
+      if (obs.endZ) obs.endZ += shift;
+      obs.bounds.minZ += shift;
+      obs.bounds.maxZ += shift;
+      if (obs.group) obs.group.position.z += shift;
+      if (obs.mesh && !obs.group) obs.mesh.position.z += shift;
+    }
+  });
+
+  // Ground / building wrap
+  if (player.z > TOTAL_TRACK / 2) {
+    player.z -= TOTAL_TRACK / 2;
+    obstacles.forEach(obs => {
+      obs.z -= TOTAL_TRACK / 2;
+      if (obs.endZ) obs.endZ -= TOTAL_TRACK / 2;
+      obs.bounds.minZ -= TOTAL_TRACK / 2;
+      obs.bounds.maxZ -= TOTAL_TRACK / 2;
+      if (obs.group) obs.group.position.z -= TOTAL_TRACK / 2;
+      if (obs.mesh && !obs.group) obs.mesh.position.z -= TOTAL_TRACK / 2;
+    });
+  }
+
+  // Steering
+  const steerRate = player.airborne ? STEER_AIR : STEER_GROUND;
+  player.rotation += input.steerX * steerRate * dt;
+  player.tilt += (input.steerX * 0.3 - player.tilt) * 0.1;
+
+  // Lateral movement
+  player.x += Math.sin(player.rotation) * speed * dt * 0.3;
+  player.x = Math.max(-12, Math.min(12, player.x));
+
+  // Spin tracking in air
+  if (player.airborne && !player.grinding) {
+    player.spinAngle += input.steerX * steerRate * dt;
+  }
+
+  // Grind name variety
+  function randomGrindName() {
+    const grinds = ['50-50 GRIND', 'BOARDSLIDE', 'NOSEGRIND', 'FEEBLE', 'SMITH GRIND', 'CROOKED'];
+    return grinds[Math.floor(Math.random() * grinds.length)];
+  }
+
+  // GRINDING
+  if (player.grinding) {
+    const rail = player.grindRail;
+    player.grindProgress += speed * dt;
+    player.y = (rail.type === 'funbox' ? rail.railHeight : rail.height) + 0.45;
+    player.x = rail.x;
+
+    // Grind score
+    comboScore += GRIND_SCORE_PER_SEC * dt;
+
+    if (player.grindProgress >= (rail.type === 'funbox' ? rail.railLength : rail.length)) {
+      // End grind
+      player.grinding = false;
+      player.grindRail = null;
+      player.airborne = true;
+      player.vy = 4; // small pop off end
+      stopGrindSound();
+      addComboItem(randomGrindName());
+    }
+
+    // Can ollie off grind
+    if (input.ollieJustPressed) {
+      input.ollieJustPressed = false;
+      player.grinding = false;
+      player.grindRail = null;
+      player.vy = OLLIE_VEL * 0.7;
+      player.airborne = true;
+      stopGrindSound();
+      playOlliePop();
+      addComboItem(randomGrindName());
+    }
+    return;
+  }
+
+  // GRAVITY
+  if (player.airborne) {
+    player.vy += GRAVITY * dt;
+    player.y += player.vy * dt;
+
+    // Check grind rail proximity
+    obstacles.forEach(obs => {
+      if (obs.type === 'rail' || (obs.type === 'funbox' && obs.hasRail)) {
+        const railH = obs.type === 'funbox' ? obs.railHeight : obs.height;
+        const railLen = obs.type === 'funbox' ? obs.railLength : obs.length;
+        const railZ = obs.z;
+        const railEndZ = obs.type === 'funbox' ? obs.z + railLen / 2 : obs.z + railLen;
+        const railStartZ = obs.type === 'funbox' ? obs.z - railLen / 2 : obs.z;
+
+        if (Math.abs(player.x - obs.x) < GRIND_SNAP_DIST &&
+            player.z > railStartZ - 1 && player.z < railEndZ + 1 &&
+            player.y > railH - 0.5 && player.y < railH + 1.5 &&
+            player.vy <= 0) {
+          // Snap to grind
+          player.grinding = true;
+          player.grindRail = obs;
+          player.grindProgress = player.z - railStartZ;
+          player.vy = 0;
+          player.airborne = false;
+          player.x = obs.x;
+
+          // If tricking, must complete trick or bail
+          if (player.tricking && !player.trickComplete) {
+            doBail();
+            return;
+          }
+          if (player.tricking && player.trickComplete) {
+            landTrick();
+          }
+          player.tricking = false;
+          startGrindSound();
+        }
+      }
+    });
+
+    // Landing on ground
+    if (player.y <= GROUND_Y && player.vy < 0) {
+      player.y = GROUND_Y;
+      player.vy = 0;
+      player.airborne = false;
+
+      // Check trick completion
+      if (player.tricking) {
+        if (player.trickComplete) {
+          landTrick();
+        } else {
+          doBail();
+          return;
+        }
+      }
+
+      // Check spin bonus
+      const fullSpins = Math.floor(Math.abs(player.spinAngle) / (Math.PI));
+      if (fullSpins > 0) {
+        const spinBonus = fullSpins * 50;
+        comboScore += spinBonus;
+        flashTrick(fullSpins * 180 + '° SPIN +' + spinBonus);
+      }
+      player.spinAngle = 0;
+
+      // Bank combo if not manualing
+      if (!input.manual && comboMultiplier > 0) {
+        bankCombo();
+      }
+
+      playLanding();
+      spawnDust();
+
+      // Speed boost from landing
+      player.speedBoost += 1;
+    }
+
+    // Fell off map
+    if (player.y < -10) {
+      doBail();
+    }
+  }
+
+  // OLLIE
+  if (input.ollieJustPressed && !player.airborne) {
+    input.ollieJustPressed = false;
+    player.vy = OLLIE_VEL;
+    player.airborne = true;
+    player.spinAngle = 0;
+    playOlliePop();
+
+    // If on manual pad, bigger ollie
+    obstacles.forEach(obs => {
+      if (obs.type === 'manual_pad' &&
+          player.x > obs.bounds.minX && player.x < obs.bounds.maxX &&
+          player.z > obs.bounds.minZ && player.z < obs.bounds.maxZ) {
+        player.vy = OLLIE_VEL * 1.2;
+      }
+    });
+  }
+  input.ollieJustPressed = false;
+
+  // RAMP DETECTION (on ground)
+  if (!player.airborne) {
+    obstacles.forEach(obs => {
+      if (obs.type === 'ramp' &&
+          player.x > obs.bounds.minX && player.x < obs.bounds.maxX &&
+          player.z > obs.bounds.minZ && player.z < obs.bounds.maxZ) {
+        // Launch!
+        const rampProgress = (player.z - obs.bounds.minZ) / (obs.bounds.maxZ - obs.bounds.minZ);
+        if (rampProgress > 0.3) {
+          player.vy = OLLIE_VEL * (0.8 + obs.height * 0.3);
+          player.airborne = true;
+          player.spinAngle = 0;
+          playOlliePop();
+        }
+      }
+    });
+
+    // Halfpipe walls
+    obstacles.forEach(obs => {
+      if (obs.type === 'halfpipe' &&
+          player.z > obs.bounds.minZ && player.z < obs.bounds.maxZ) {
+        const relX = player.x - obs.x;
+        const wallDist = obs.width / 2 - 1;
+        if (Math.abs(relX) > wallDist * 0.6) {
+          const wallProgress = (Math.abs(relX) - wallDist * 0.6) / (wallDist * 0.4);
+          if (wallProgress > 0.2) {
+            player.vy = OLLIE_VEL * (1.0 + wallProgress * 0.5);
+            player.airborne = true;
+            player.spinAngle = 0;
+            player.x = obs.x + Math.sign(relX) * wallDist * 0.5;
+            playOlliePop();
+          }
+        }
+      }
+    });
+  }
+
+  // GAP DETECTION
+  if (!player.airborne) {
+    obstacles.forEach(obs => {
+      if (obs.type === 'gap' &&
+          player.x > obs.bounds.minX && player.x < obs.bounds.maxX &&
+          player.z > obs.bounds.minZ && player.z < obs.bounds.maxZ) {
+        player.airborne = true;
+        player.vy = 0;
+      }
+    });
+  }
+
+  // TRICK INPUT (airborne only)
+  if (player.airborne && !player.tricking && !player.grinding) {
+    if (input.trickJ) {
+      let trick;
+      if (Math.abs(input.steerX) > 0.3) {
+        trick = TRICKS.shoveit;
+      } else {
+        const flipOrder = [TRICKS.kickflip, TRICKS.heelflip, TRICKS.shoveit, TRICKS.treflip, TRICKS.flip360];
+        trick = flipOrder[trickCycleFlip++ % 5];
+      }
+      startTrick(trick);
+    } else if (input.trickK) {
+      let trick;
+      if (Math.abs(input.steerX) > 0.3) trick = TRICKS.melon;
+      else {
+        const grabOrder = [TRICKS.indy, TRICKS.melon, TRICKS.christair];
+        trick = grabOrder[trickCycleGrab++ % 3];
+      }
+      startTrick(trick);
+    }
+  }
+
+  // TRICK PROGRESS
+  if (player.tricking && player.currentTrick) {
+    const trick = player.currentTrick;
+    if (trick.type === 'flip') {
+      player.trickProgress += trick.speed * dt;
+      if (player.trickProgress >= 1.0) {
+        player.trickComplete = true;
+        player.trickProgress = 1.0;
+      }
+    } else if (trick.type === 'grab') {
+      player.trickProgress = Math.min(1, player.trickProgress + 4 * dt);
+      player.trickComplete = true; // Grabs are always completable
+    }
+  }
+
+  // MANUAL
+  if (!player.airborne && !player.grinding && input.manual) {
+    if (!player.manualing) {
+      player.manualing = true;
+      player.manualTime = 0;
+      startManualSound();
+      if (comboMultiplier === 0) comboMultiplier = 1;
+      addComboItem('MANUAL');
+    }
+    player.manualTime += dt;
+  } else if (player.manualing && (!input.manual || player.airborne)) {
+    player.manualing = false;
+    stopManualSound();
+    if (!player.airborne && comboMultiplier > 0) {
+      bankCombo();
+    }
+  }
+
+  // Update rolling sound
+  updateRollingSound(speed, player.airborne);
+  updateAirSound(player.airborne ? player.vy : 0);
+}
+
+// ───────────────────── TRICK SYSTEM ─────────────────────
+function startTrick(trick) {
+  player.tricking = true;
+  player.currentTrick = trick;
+  player.trickProgress = 0;
+  player.trickComplete = false;
+  flashTrick(trick.name);
+}
+
+function landTrick() {
+  triggerShake(0.15);
+  const trick = player.currentTrick;
+  if (!trick) return;
+  comboScore += trick.score;
+  addComboItem(trick.name);
+  trickCounts[trick.name] = (trickCounts[trick.name] || 0) + 1;
+  playTrickComplete();
+  edgeFlash();
+  player.speedBoost += 2;
+  player.tricking = false;
+  player.currentTrick = null;
+  player.trickProgress = 0;
+}
+
+function doBail() {
+  triggerShake(0.8);
+  player.bailing = true;
+  player.bailTimer = 1.2;
+  player.tricking = false;
+  player.currentTrick = null;
+  player.grinding = false;
+  player.manualing = false;
+  player.airborne = false;
+  player.vy = 0;
+  player.y = GROUND_Y;
+
+  // Lose combo
+  comboScore = 0;
+  comboMultiplier = 0;
+  comboChain = [];
+
+  playBail();
+  stopGrindSound();
+  stopManualSound();
+  updateComboDisplay();
+}
+
+// ───────────────────── COMBO SYSTEM ─────────────────────
+function addComboItem(name) {
+  if (comboMultiplier === 0) comboMultiplier = 1;
+  else comboMultiplier++;
+  comboChain.push(name);
+  playComboUp();
+  updateComboDisplay();
+}
+
+function bankCombo() {
+  if (comboMultiplier <= 0) return;
+  const total = Math.floor(comboScore * comboMultiplier);
+  if (total > bestCombo) bestCombo = total;
+  score += total;
+  if (total > 0) flashTrick('+' + total.toLocaleString() + ' (x' + comboMultiplier + ')');
+  comboScore = 0;
+  comboMultiplier = 0;
+  comboChain = [];
+  updateComboDisplay();
+}
+
+function updateComboDisplay() {
+  const el = document.getElementById('combo-display');
+  if (comboMultiplier <= 0) {
+    el.textContent = '';
+    el.style.textShadow = '0 1px 4px rgba(0,0,0,0.8)';
+    return;
+  }
+  const chain = comboChain.slice(-5).join(' + ');
+  el.textContent = chain + ' -> x' + comboMultiplier + ' (' + Math.floor(comboScore * comboMultiplier) + ')';
+  const glow = Math.min(comboMultiplier * 3, 20);
+  el.style.textShadow = `0 0 ${glow}px rgba(255,204,68,0.8), 0 1px 4px rgba(0,0,0,0.8)`;
+}
+
+// ───────────────────── HUD UPDATES ─────────────────────
+let trickFlashTimer = 0;
+
+function flashTrick(text) {
+  const el = document.getElementById('trick-flash');
+  el.textContent = text;
+  el.style.opacity = '1';
+  trickFlashTimer = 1.5;
+}
+
+function edgeFlash() {
+  const el = document.getElementById('edge-flash');
+  el.style.opacity = '1';
+  setTimeout(() => el.style.opacity = '0', 150);
+}
+
+function spawnDust() {
+  for (let i = 0; i < 8; i++) {
+    const geo = new THREE.SphereGeometry(0.05, 4, 4);
+    const mat = new THREE.MeshBasicMaterial({ color: 0xccbb99, transparent: true, opacity: 0.6 });
+    const p = new THREE.Mesh(geo, mat);
+    p.position.set(
+      player.x + (Math.random() - 0.5) * 0.6,
+      GROUND_Y + Math.random() * 0.2,
+      player.z + (Math.random() - 0.5) * 0.6
+    );
+    p.userData = {
+      vy: 1 + Math.random() * 2,
+      vx: (Math.random() - 0.5) * 2,
+      life: 0.5 + Math.random() * 0.3
+    };
+    scene.add(p);
+    dustParticles.push(p);
+  }
+}
+
+function spawnGrindSparks() {
+  for (let i = 0; i < 3; i++) {
+    const geo = new THREE.BoxGeometry(0.03, 0.03, 0.08);
+    const mat = new THREE.MeshBasicMaterial({ color: 0xff8800, transparent: true, opacity: 0.9 });
+    const p = new THREE.Mesh(geo, mat);
+    p.position.set(
+      player.x + (Math.random() - 0.5) * 0.3,
+      player.y - 0.3,
+      player.z - 0.5 - Math.random() * 0.5
+    );
+    p.userData = {
+      vy: -2 + Math.random() * 4,
+      vx: (Math.random() - 0.5) * 3,
+      life: 0.2 + Math.random() * 0.15
+    };
+    scene.add(p);
+    grindSparks.push(p);
+  }
+}
+
+function updateHUD(dt) {
+  document.getElementById('score-display').textContent = score.toLocaleString();
+  if (comboMultiplier > 1) {
+    document.getElementById('score-display').textContent = score.toLocaleString() + '  x' + comboMultiplier;
+  }
+
+  // Timer
+  const mins = Math.floor(timer / 60);
+  const secs = Math.floor(timer % 60);
+  const timerEl = document.getElementById('timer-display');
+  timerEl.textContent = mins + ':' + String(secs).padStart(2, '0');
+  timerEl.className = timer <= 10 ? 'warning' : '';
+
+  // Trick flash fade
+  if (trickFlashTimer > 0) {
+    trickFlashTimer -= dt;
+    if (trickFlashTimer <= 0) {
+      document.getElementById('trick-flash').style.opacity = '0';
+    }
+  }
+
+  // Speed bar
+  const speedPct = Math.min(100, ((FORWARD_SPEED + player.speedBoost) / 20) * 100);
+  document.getElementById('speed-fill').style.width = speedPct + '%';
+}
+
+// ───────────────────── RENDER UPDATE ─────────────────────
+let grindSparkTimer = 0;
+
+function updateVisuals(dt) {
+  if (!skaterGroup) return;
+
+  // Position skater
+  skaterGroup.position.x = player.x;
+  skaterGroup.position.y = player.y;
+  skaterGroup.position.z = player.z;
+  skaterGroup.rotation.y = player.rotation;
+
+  // Board tilt
+  boardMesh.rotation.z = player.tilt;
+  boardMesh.rotation.x = 0;
+  bodyGroup.rotation.x = 0;
+  bodyGroup.rotation.z = 0;
+  boardMesh.position.y = 0;
+
+  // Trick animations
+  if (player.tricking && player.currentTrick) {
+    const trick = player.currentTrick;
+    const p = player.trickProgress;
+
+    if (trick.axis === 'z') {
+      // Kickflip/heelflip
+      boardMesh.rotation.z = trick.dir * p * Math.PI * 2;
+    } else if (trick.axis === 'y') {
+      // Shove-it
+      boardMesh.rotation.y = trick.dir * p * Math.PI * 2;
+    } else if (trick.axis === 'zy') {
+      // Tre flip / 360 flip
+      boardMesh.rotation.z = trick.dir * p * Math.PI * 2;
+      boardMesh.rotation.y = trick.dir * p * Math.PI * 2;
+    } else if (trick.axis === 'grab') {
+      // Grab tricks
+      const grabAmt = Math.sin(p * Math.PI) * 0.5;
+      bodyGroup.rotation.x = grabAmt * 0.3;
+      // Tuck
+      bodyGroup.children.forEach(child => {
+        if (child.name === 'leftLeg' || child.name === 'rightLeg') {
+          child.rotation.x = grabAmt * 0.8;
+        }
+        if (child.name === 'leftArm') {
+          if (trick.dir === 0) child.rotation.z = 0.15 + grabAmt * 1.0; // Indy
+          else if (trick.dir === 2) child.rotation.z = 0.15 + grabAmt * 2.0; // Christ air
+          else child.rotation.z = 0.15 - grabAmt * 0.5; // Melon
+        }
+        if (child.name === 'rightArm') {
+          if (trick.dir === 0) child.rotation.z = -0.15 - grabAmt * 1.0;
+          else if (trick.dir === 2) child.rotation.z = -0.15 - grabAmt * 2.0;
+          else child.rotation.z = -0.15 + grabAmt * 0.5;
+        }
+      });
+      if (trick.dir === 2) {
+        // Christ air - raise board
+        boardMesh.position.y = -grabAmt * 0.5;
+      }
+    }
+  } else {
+    // Reset arms/legs
+    bodyGroup.children.forEach(child => {
+      if (child.name === 'leftArm') { child.rotation.z = 0.15; child.rotation.x = 0; }
+      if (child.name === 'rightArm') { child.rotation.z = -0.15; child.rotation.x = 0; }
+      if (child.name === 'leftLeg' || child.name === 'rightLeg') { child.rotation.x = 0; }
+    });
+  }
+
+  // Manual pose
+  if (player.manualing) {
+    bodyGroup.rotation.x = -0.25;
+    boardMesh.rotation.x = -0.15;
+  }
+
+  // Bail animation
+  if (player.bailing) {
+    const bailT = 1 - player.bailTimer / 1.2;
+    skaterGroup.rotation.x = bailT * Math.PI * 2;
+    skaterGroup.rotation.z = bailT * Math.PI;
+    skaterGroup.position.y = GROUND_Y + Math.sin(bailT * Math.PI) * 1.5;
+  } else {
+    skaterGroup.rotation.x = 0;
+    skaterGroup.rotation.z = 0;
+  }
+
+  // Grind sparks
+  if (player.grinding) {
+    grindSparkTimer -= dt;
+    if (grindSparkTimer <= 0) {
+      spawnGrindSparks();
+      grindSparkTimer = 0.05;
+    }
+  }
+
+  // Camera follow
+  const camTargetX = player.x * 0.6;
+  const camTargetY = Math.max(3.5, player.y + 3);
+  const camTargetZ = player.z - 6;
+  camera.position.x += (camTargetX - camera.position.x) * 0.06;
+  camera.position.y += (camTargetY - camera.position.y) * 0.04;
+  camera.position.z += (camTargetZ - camera.position.z) * 0.08;
+
+  const lookTarget = new THREE.Vector3(player.x * 0.3, player.y + 1, player.z + 8);
+  camera.lookAt(lookTarget);
+
+  // Camera shake
+  if (cameraShake.intensity > 0.01) {
+    camera.position.x += (Math.random() - 0.5) * cameraShake.intensity;
+    camera.position.y += (Math.random() - 0.5) * cameraShake.intensity * 0.5;
+    cameraShake.intensity *= cameraShake.decay;
+  }
+
+  // Ambient particles
+  const t = clock.getElapsedTime();
+  particles.forEach(p => {
+    const d = p.userData;
+    p.position.x = player.x + d.baseX + Math.sin(t * d.speed + d.phase) * 2;
+    p.position.y = d.baseY + Math.sin(t * d.speed * 0.7 + d.phase) * 1;
+    p.position.z = player.z + Math.cos(t * d.speed * 0.5 + d.phase) * 5 + 5;
+    p.material.opacity = 0.2 + Math.sin(t * 2 + d.phase) * 0.15;
+  });
+
+  // Speed lines
+  const showSpeed = FORWARD_SPEED + player.speedBoost;
+  speedLines.forEach((line, i) => {
+    const d = line.userData;
+    if (showSpeed > 10) {
+      line.visible = true;
+      const phase = (t * 3 + d.phase) % 1;
+      line.position.x = player.x + d.offsetX;
+      line.position.y = d.offsetY;
+      line.position.z = player.z + 10 - phase * 20;
+      line.material.opacity = (1 - phase) * 0.2 * Math.min(1, (showSpeed - 10) / 5);
+    } else {
+      line.visible = false;
+    }
+  });
+
+  // Dust particles update
+  for (let i = dustParticles.length - 1; i >= 0; i--) {
+    const p = dustParticles[i];
+    p.userData.life -= dt;
+    if (p.userData.life <= 0) {
+      scene.remove(p);
+      dustParticles.splice(i, 1);
+    } else {
+      p.position.y += p.userData.vy * dt;
+      p.position.x += p.userData.vx * dt;
+      p.userData.vy -= 3 * dt;
+      p.material.opacity = p.userData.life * 1.2;
+    }
+  }
+
+  // Grind sparks update
+  for (let i = grindSparks.length - 1; i >= 0; i--) {
+    const p = grindSparks[i];
+    p.userData.life -= dt;
+    if (p.userData.life <= 0) {
+      scene.remove(p);
+      grindSparks.splice(i, 1);
+    } else {
+      p.position.y += p.userData.vy * dt;
+      p.position.x += p.userData.vx * dt;
+      p.position.z -= FORWARD_SPEED * dt * 0.5;
+      p.userData.vy -= 10 * dt;
+      p.material.opacity = p.userData.life * 4;
+    }
+  }
+
+  // Clouds drift
+  cloudMeshes.forEach(cloud => {
+    cloud.position.x = cloud.userData.baseX + Math.sin(t * cloud.userData.speed * 0.1) * 20;
+    cloud.position.z = player.z + 100 + ((cloud.position.z - player.z - 100) % 300 + 300) % 300 - 100;
+  });
+
+  // Move sun with player (keep it in front)
+  sunMesh.position.z = player.z + 250;
+}
+
+// ───────────────────── MAIN LOOP ─────────────────────
+function gameLoop() {
+  requestAnimationFrame(gameLoop);
+  const dt = Math.min(clock.getDelta(), 0.05);
+
+  if (gameState === 'PLAYING') {
+    updateGameplay(dt);
+    updateVisuals(dt);
+    updateHUD(dt);
+    renderer.render(scene, camera);
+  } else if (gameState === 'SELECT') {
+    // Rotate preview
+    if (previewSkater) {
+      previewSkater.rotation.y += dt * 1.5;
+      previewRenderer.render(previewScene, previewCamera);
+    }
+    // Still render main scene in background (less visible)
+    if (scene && camera) renderer.render(scene, camera);
+  } else if (gameState === 'TITLE' || gameState === 'GAMEOVER') {
+    if (scene && camera) {
+      // Gentle camera movement
+      const t = clock.getElapsedTime();
+      camera.position.x = Math.sin(t * 0.3) * 5;
+      camera.position.z = t * 2;
+      camera.position.y = 4 + Math.sin(t * 0.5) * 1;
+      camera.lookAt(camera.position.x, 2, camera.position.z + 20);
+      renderer.render(scene, camera);
+    }
+  }
+}
+
+// ───────────────────── RESIZE ─────────────────────
+window.addEventListener('resize', () => {
+  if (renderer) {
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+  }
+});
+
+// Prevent scroll/zoom on mobile
+document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+
+// ───────────────────── INIT ─────────────────────
+function init() {
+  try {
+    initThree();
+    initPreview();
+    gameLoop();
+  } catch(e) {
+    console.error('WebGL init failed:', e);
+    document.body.innerHTML = '<div style="color:#fff;text-align:center;padding:40px;font-size:1.5rem">WebGL is required to play Sunset Yard.<br>Please use a modern browser.</div>';
+  }
+}
+
+window.addEventListener('load', init);
+</script>
+</body>
+</html>
