@@ -3894,7 +3894,7 @@ function recolorOutfit(mesh, outfit){
   for(let i=0;i<n;i++){
     let best=-1, bw=-1; for(let k=0;k<4;k++){ const w=sw.getComponent(i,k); if(w>bw){ bw=w; best=si.getComponent(i,k); } }
     const nm=names[best]||"";
-    let cls = TOP.test(nm) ? shirt : (LEG.test(nm) ? pants : (/^Hips$/i.test(nm) ? (pos.getY(i)>hipY-0.15 ? shirt : pants) : null));
+    let cls = TOP.test(nm) ? shirt : (LEG.test(nm) ? pants : (/^Hips$/i.test(nm) ? (pos.getY(i)>hipY-0.22 ? shirt : pants) : null));
     if(cls){ out[i*4]=cls[0]; out[i*4+1]=cls[1]; out[i*4+2]=cls[2]; out[i*4+3]=cls[3]; }
   }
   g.setAttribute("aRecolor", new THREE.BufferAttribute(out,4));
@@ -4591,7 +4591,9 @@ function bindTouch(){ const own=new Map();                    /* pointerId -> ac
   if(pad) pad.style.touchAction="none"; }
 if(matchMedia("(pointer:coarse)").matches){ document.getElementById("touch").classList.add("show");
   document.getElementById("kbHelp").innerHTML="<b>Touch</b> — steer &amp; push on the left · flip, grab/grind/manual, ollie on the right";
-  { const h=document.getElementById("hint"); if(h) h.innerHTML="Hold <b>PUSH</b> to roll · hold &amp; release <b>OLLIE</b> to pop"; } }
+  { const h=document.getElementById("hint"); if(h) h.innerHTML="Hold <b>PUSH</b> to roll · hold &amp; release <b>OLLIE</b> to pop"; }
+  /* touch-specific wording: no SPACE/K/Esc on a phone */
+  document.querySelectorAll("#start .help").forEach(p=>{ p.innerHTML=p.innerHTML.replace("press SPACE or K, then steer ←/→ to balance","tap GRIND (or OLLIE alongside it), then steer ◀ ▶ to balance").replace("(no timer · Esc ends)","(no timer)"); }); }
 
 let AC=null,master=null,rollGain=null,rollOsc=null,grindGain=null,musicGain=null,sfxBus=null;
 /* ---- v3 SOUND ----
@@ -5112,7 +5114,7 @@ function step(dt){
      it's down. Letting go / popping mid-stroke lets the stroke FINISH its arc instead of
      resetting (that reset made the foot jump up to 0.6m in one frame). */
   { const S=sk.stroke||(sk.stroke={ph:"idle",t:0,d:0,gz0:0.3});
-    if(S.ph==="idle"){ if(wantPush){ if(sk.fakie){ sk.fakie=false; sk.yawEaseT=0.34; S.ph="turn"; S.t=0; } else { S.ph="reach"; S.t=0; S.first=(sk.pushW||0)<0.3; } } }
+    if(S.ph==="idle"){ if(wantPush){ if(sk.fakie){ sk.fakie=false; sk.yawEaseT=0.45; sk.slowEase=true; S.ph="turn"; S.t=0; } else { S.ph="reach"; S.t=0; S.first=(sk.pushW||0)<0.3; } } }
     else if(S.ph==="turn"){ S.t+=dt; if(S.t>=0.3){ S.ph=wantPush?"reach":"idle"; S.t=0; S.first=true; } }   /* you can't push fakie: the rider swings the board round */
     else if(S.ph==="reach"){ S.t+=dt; if(sk.state!=="roll"){ S.ph="swing"; S.t=0; S.gz0=0.30; }
       else if(S.t>=(S.first?0.24:0.12)){ S.first=false; S.ph="plant"; S.t=0; S.d=0;
@@ -5405,7 +5407,7 @@ function landGround(){
   if(sk.flipRem>T.landTol){ bail("Flip not finished"); return; }
   const boardYaw=sk.yaw+(sk.fakie?Math.PI:0);
   const ad=Math.abs(wrapA(boardYaw-dirYaw)), vl=v.length(), moving=vl>0.8;
-  if(vl>2.5 && ad>T.landAngle && ad<Math.PI-T.landAngle){ bail("Landed sideways"); return; }
+  if(vl>2.5 && ad>T.landAngle && ad<Math.PI-T.landAngle && !(sk.airFrom==="lip" && Math.abs(sk.spinNet)<0.5)){ bail("Landed sideways"); return; }   /* you didn't spin it: the rider lines it up */
   sk.fakieLand = moving && ad>=Math.PI/2;
   if(moving) sk.fakie = sk.fakieLand;      /* land backwards -> ride away fakie, no auto-turn */
   /* LANDING QUALITY — a skill read on every make, not just make/bail */
@@ -5447,6 +5449,21 @@ function bailBoardStart(){
   sk.bb={alive:true, x:bw.x, y:bw.y, z:bw.z, vx:tx*1.15+Math.cos(sk.yaw)*side, vz:tz*1.15-Math.sin(sk.yaw)*side, roll:0, spin:0, t:0};
   sk.fadeDone=false;
 }
+/* v3: you get up on CLEAR, FLAT ground facing open space — getting up at the exact crash
+   spot wedged riders into stair corners and ledge ends where no push could free them */
+function spotClear(x,z){ if(Math.abs(surfH(x,z)-groundH(x,z))>0.02) return false;
+  if(Math.hypot(gradAt(x,z,_g2).x,_g2.z)>0.15) return false;
+  for(let k=0;k<8;k++){ const a=k*Math.PI/4, px=x+Math.cos(a)*0.85, pz=z+Math.sin(a)*0.85; if(Math.abs(surfH(px,pz)-groundH(px,pz))>0.02) return false; }
+  return true; }
+function relocateAfterBail(){ const x0=sk.pos.x, z0=sk.pos.z; let bx=x0, bz=z0, found=spotClear(x0,z0);
+  for(let r=0.5; !found && r<=5; r+=0.5) for(let k=0;k<16 && !found;k++){ const a=k*Math.PI/8, x=x0+Math.cos(a)*r, z=z0+Math.sin(a)*r; if(spotClear(x,z)){ bx=x; bz=z; found=true; } }
+  if(found) sk.pos.set(bx, surfH(bx,bz), bz);
+  let best=sk.yaw, bestD=-1e9;
+  for(let k=0;k<16;k++){ const a=sk.yaw+k*Math.PI/8; let d=0; const h0=surfH(sk.pos.x,sk.pos.z);
+    for(let s=0.5;s<=6;s+=0.5){ const px=sk.pos.x+Math.sin(a)*s, pz=sk.pos.z+Math.cos(a)*s; if(Math.abs(surfH(px,pz)-h0)>0.15) break; d=s; }
+    const score=d-Math.min(k,16-k)*0.12; if(score>bestD){ bestD=score; best=a; } }
+  sk.yaw=best; sk.yawVis=best; camYaw=best; sk.fakie=false; sk.speed=0; sk.vel.set(0,0,0);
+  applyTransform(1/60); updateCamera(1); }
 function bailBoardStep(dt){
   const B=sk.bb; if(!B||!B.alive) return;
   B.t+=dt; const v=Math.hypot(B.vx,B.vz);
@@ -5458,7 +5475,7 @@ function bailBoardStep(dt){
      you're up, stopped, board under your feet */
   const f=el("fade");
   if(sk.bailT<0.26 && f && !f.classList.contains("on")) f.classList.add("on");
-  if(sk.bailT<0.12 && !sk.fadeDone){ sk.fadeDone=true; B.alive=false; sk.bailW=0; setTimeout(()=>{ const g=el("fade"); if(g) g.classList.remove("on"); },60); }
+  if(sk.bailT<0.12 && !sk.fadeDone){ sk.fadeDone=true; B.alive=false; sk.bailW=0; relocateAfterBail(); setTimeout(()=>{ const g=el("fade"); if(g) g.classList.remove("on"); },60); }
 }
 function bail(why){ bailBoardStart(); if(sk.state==="grind") endGrindStat(); else if(sk.state==="manual") endManualStat(); sk.grab=null; sk.lastRail=null; sk.flipN=0; if(state.stats) state.stats.bails++; sfx.bail(); flash(why?("BAIL · "+why):"BAIL!",true); loseCombo(); fxBail(sk.pos.x,sk.pos.y,sk.pos.z); sk.state="bail"; sk.bailT=T.bailLock; sk.vy=0; sk.flipRem=0; sk._tip=0;
   state.hitStop=0.09; state.shake=0.35; }
@@ -5477,7 +5494,8 @@ function applyTransform(dt){
      tracking spins 1:1. */
   { const h=dt||1/120, face=sk.yaw+(sk.fakie?Math.PI:0), d=wrapA(face-sk.yawVis);
     if(sk.yawEaseT>0) sk.yawEaseT-=h;
-    sk.yawVis = (Math.abs(d)>0.9 || sk.yawEaseT>0) ? sk.yawVis+d*Math.min(1,h*(sk.yawEaseT>0?16:11)) : face;
+    if(sk.yawEaseT<=0) sk.slowEase=false;
+    sk.yawVis = (Math.abs(d)>0.9 || sk.yawEaseT>0) ? sk.yawVis+d*Math.min(1,h*(sk.slowEase?7:(sk.yawEaseT>0?16:11))) : face;
     /* in the air the rider rights himself FAST (~0.15s) — carrying the wall's
        60-80deg lean into the air read as a physics failure, lying sideways mid-air */
     let tr=14;
@@ -5544,6 +5562,10 @@ const _cam=new THREE.Vector3(), _look=new THREE.Vector3(), _tmp=new THREE.Vector
       _lead=new THREE.Vector3(), _right=new THREE.Vector3(), _off=new THREE.Vector3();
 let camYaw=0, camOrbit=0, trickCam=0, camRoll=0, camSun=0, camOcc=0, fovKick=0, heroCam=0;
 function updateCamera(dt){
+  const gs=sk.gSnap&&sk.gSnap.t>0 ? sk.gSnap : null; let ox=0,oy=0,oz=0;
+  if(gs){ const u=gs.t/0.12, e=u*u*(3-2*u); ox=gs.x*e; oy=gs.y*e; oz=gs.z*e; sk.pos.x+=ox; sk.pos.y+=oy; sk.pos.z+=oz; }
+  try{ _updateCamera(dt); } finally { if(gs){ sk.pos.x-=ox; sk.pos.y-=oy; sk.pos.z-=oz; } } }
+function _updateCamera(dt){
   if(window.__freezeCam) return;
   /* v3: the rig follows the line you're TRAVELLING, not the way the board faces.
      In a vert air it holds (you're going straight up) so the transition stays in
@@ -5558,7 +5580,7 @@ function updateCamera(dt){
        carried it over the coping onto the deck, behind the lip. */
     const onRamp = sk.state!=="air" && Math.hypot(gradAt(sk.pos.x,sk.pos.z,_g2).x,_g2.z)>0.25;
     const rev = Math.abs(d)>1.2;
-    const rate = sk.state==="air" ? (rev?0:1.4) : (rev ? (onRamp?0:2.2) : (onRamp?3.5:7.0));
+    const rate = sk.state==="air" ? (rev?0.8:1.4) : (rev ? (onRamp?1.8:2.4) : (onRamp?3.5:7.0));
     camYaw += d*Math.min(1,dt*rate); }
   const fwd=new THREE.Vector3(Math.sin(camYaw),0,Math.cos(camYaw));
   _right.set(-Math.cos(camYaw),0,Math.sin(camYaw));
