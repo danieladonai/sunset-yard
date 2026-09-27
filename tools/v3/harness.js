@@ -98,6 +98,7 @@ const POSES = [
   ['push-5', `D.place(0,-5,0.6,5); H.push=true; D.step(122);`],
   ['push-6', `D.place(0,-5,0.6,5); H.push=true; D.step(131);`],
   ['push-7', `D.place(0,-5,0.6,5); H.push=true; D.step(140);`],
+  ['pushlow', `D.place(0,-5,0.6,3); H.push=true; D.step(50);`],
   ['vert-air', `D.place(-4,-15.2,-Math.PI/2,16); D.step(170);`],
 ];
 async function poses(out, only, camd = 2.3, camf = 1.2) {
