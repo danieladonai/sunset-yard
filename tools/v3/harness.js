@@ -27,10 +27,10 @@ async function boot(opts = {}) {
 }
 
 const PHYS = [
-  ['vert wall', -2, -15.2, -Math.PI / 2, 8.5, {}],
-  ['vert wall + ollie at lip', -2, -15.2, -Math.PI / 2, 8.5, { ollieHold: true }],
-  ['vert wall + 180', -2, -15.2, -Math.PI / 2, 8.5, { spin: 0.49 }],
-  ['vert wall + 90 (must bail)', -2, -15.2, -Math.PI / 2, 8.5, { spin: 0.25 }],
+  ['vert wall', 12, -15.2, -Math.PI / 2, 0, { runup: true, }],
+  ['vert wall + ollie at lip', 12, -15.2, -Math.PI / 2, 0, { runup: true,  ollieHold: true }],
+  ['vert wall + 180', 12, -15.2, -Math.PI / 2, 0, { runup: true,  spin: 0.49 }],
+  ['vert wall + 90 (must bail)', 12, -15.2, -Math.PI / 2, 0, { runup: true,  spin: 0.25 }],
   ['spine', 10, 14, Math.PI / 2, 8.5, {}],
   ['spine transfer (loaded ollie)', 10, 14, Math.PI / 2, 8.5, { ollieTill: 1.62 }],
   ['spine side-on (bonk, no launch)', 22, 2, 0, 8.5, {}],
@@ -39,7 +39,7 @@ const PHYS = [
   ['four stair (ollie off the pad)', -7.5, -9.2, Math.PI, 8.5, { ollieAt: 0.04, ollieHold: false }],
   ['rail 50-50 (press grind)', 'rail2', 0, 0, 7, { railOllie: true, grind: true }],
   ['rail, no press (must NOT grind)', 'rail2', 0, 0, 7, { railOllie: true }],
-  ['kicker ride-up launch', -4, -22, Math.PI, 8.5, {}],
+  ['kicker ride-up launch', -21, -34, Math.PI, 7, {}],
   ['idle: no input (must coast to a stop)', 0, -5, 0, 6, { idle: true }],
 ];
 
@@ -51,16 +51,17 @@ async function phys() {
       for (const k in H) H[k] = false; E.clear(); D.state().phase = 'playing'; D.state().time = 120;
       if (x === 'rail2') { const r = D.rails[2]; D.place(r.a.x + r.dir.x * 6, r.a.z + r.dir.z * 6, Math.atan2(r.dir.x, r.dir.z), sp); E.add('ollie'); }
       else D.place(x, z, yaw, sp);
-      const S = D.sk(); S.chargeT = 0; S.ollieWas = false; S.to = null; S.lastRail = null; S.railCoolT = 0;
-      if (o.ollieHold) H.ollie = true;
+      const S = D.sk(); S.chargeT = 0; S.fakie = false; S.ollieWas = false; S.to = null; S.lastRail = null; S.railCoolT = 0;
+      if (o.ollieHold && !o.runup) H.ollie = true;
       const ev = []; let last = S.state, peak = -9, spinT = 0;
-      for (let i = 0; i < 120 * 5; i++) {
+      for (let i = 0; i < 120 * (o.runup ? 9 : 5); i++) {
         const t = i / 120, s = D.sk();
         if (o.ollieTill != null) H.ollie = s.state !== 'air' && t < o.ollieTill;
         if (o.spin && s.state === 'air' && s.airFrom === 'lip') { if (spinT < o.spin) { H.left = true; spinT += 1 / 120; } else H.left = false; }
+        if (o.runup) { const onT = s.pos.x < -14.6; H.push = !onT; if (o.ollieHold) H.ollie = onT && s.state === 'roll'; }
         if (o.ollieAt != null && Math.abs(t - o.ollieAt) < 0.004) E.add('ollie');
         if (o.grind && s.state === 'air' && t > 0.15) H.manual = true;
-        if (s.state === 'grind') { H.manual = false; H.left = s.balance > 0.2; H.right = s.balance < -0.2; }
+        if (s.state === 'grind') { H.manual = false; H.left = s.balance > 0.2; H.right = s.balance < -0.2; } else if (!o.spin) { H.left = H.right = false; }
         D.step(1);
         if (s.state !== last) { ev.push(`${t.toFixed(2)}s ${last}->${s.state} y=${s.pos.y.toFixed(2)} spd=${s.speed.toFixed(1)} ${s.airFrom || ''}`); last = s.state; }
         if (s.state === 'air') peak = Math.max(peak, s.pos.y);

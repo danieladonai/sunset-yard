@@ -95,7 +95,8 @@
     #comboTricks{font-size:12px;letter-spacing:.12em;}
     #comboTotal{font-size:24px;}
   }
-  @media (pointer:coarse){ #goals{bottom:calc(150px + env(safe-area-inset-bottom,0))!important;} }
+  @media (pointer:coarse){ #goals{bottom:auto!important;top:calc(100px + env(safe-area-inset-top,0));font-size:9px;gap:4px;} #letters span{width:16px;height:16px;font-size:12px;} }
+  @media (pointer:coarse) and (max-height:500px){ #goalList{display:none;} }
   #goals{position:absolute;left:14px;bottom:calc(14px + env(safe-area-inset-bottom,0));display:flex;flex-direction:column;gap:7px;font-size:11px;}
   /* in-game music toggle — top-right, below the topbar, clear of stoke/combo/pad */
   #muteBtn{position:absolute;pointer-events:auto;top:calc(62px + env(safe-area-inset-top,0));right:14px;
@@ -279,7 +280,7 @@
   <div class="overlay hide" id="start">
     <div class="brand">Sunset<br><em>Yard</em></div>
     <div class="tag">Late sun on concrete · two-minute line</div>
-    <div class="help"><b>PUSH</b> to get rolling — stop pushing and you coast. <b>Steer</b> to carve; in the air steering <b>spins</b> you.
+    <div class="help"><b>PUSH</b> to get rolling — stop pushing and you coast; hold PUSH dropping down a ramp to <b>pump</b> speed. <b>Steer</b> to carve; in the air steering <b>spins</b> you.
       Hold <b>OLLIE</b> to load, let go to pop. Ride up a ramp and you launch off the coping. In the air, <b>FLIP</b>
       (hold ◀ or ▶ to pick which; tap again to double it) and hold <b>GRAB</b>. Press <b>GRIND</b> coming down onto an orange edge;
       <b>MANUAL</b> links tricks across the flat. Land straight, finish your flip, keep the combo alive.</div>
@@ -370,7 +371,7 @@ const T = {
      2.7m flat-ground ollie under 4.3x gravity: it read as a toy, not skating.
      Street speed is 20-30 km/h, a big ollie clears ~0.9m, and you PUSH to move. */
   cruise:8.5, accel:12, brake:5.5, turn:2.1,
-  pushMax:9.4, pushKick:1.9, rollFric:0.18,   /* urethane on smooth concrete, Crr ~0.02 */
+  pushMax:9.4, pushKick:2.5, rollFric:0.18,   /* urethane on smooth concrete, Crr ~0.02 */
   gravity:20, ollie:5.0, kicker:0,     /* full pop 0.62m, a tap 0.38m: a real street ollie, not a 0.9m hop */
   spin:6.2, flipSpeed:15, landTol:0.7,
   balanceDrift:0.8, balanceFix:2.0,
@@ -1645,7 +1646,7 @@ function buildPark(){
   addFunbox(-14,10); addFunbox(20,-18);
   /* rails sit ACROSS the sightline, never down the camera barrel */
   addRail(-5,3.2,20,1.02,0.42);   /* v3: shortened — its far end used to sit INSIDE the vert wall */ addRail(-30,-24,20,Math.PI/2,0.40); addRail(26,6,22,0.5,0.45);   /* v3: real flat-bar heights — 1.4m only worked with the old moon-jump */
-  addKicker(8,28,Math.PI); addKicker(-26,20,0); addKicker(30,-4,-Math.PI/2); addKicker(-4,-30,0);
+  addKicker(8,28,Math.PI); addKicker(-26,20,0); addKicker(30,-4,-Math.PI/2); addKicker(-21,-40,0);   /* v3: was built INTO the manual pad at (-6,-31) */
   addBank(46,-40,Math.PI/2-0.2,26); addBank(58,-40,-Math.PI/2-0.2,26);
   /* HERO LANDMARK, moved onto the opening straight and set just off the start
      line at the sun's own azimuth, so the default -Z chase camera opens on a 6m
@@ -3200,7 +3201,7 @@ function updateFX(dt){
   const spinning=(Math.abs(sk.spinRate||0)+Math.abs(sk.flipRate||0))>4.0;
   /* v3: only while the deck is genuinely whipping round, and faint — always-on in
      the air it drew a white plank from the board to the ground on every ollie */
-  let want=(live && spinning && sk.state==="air") ? 0.16 : 0;
+  let want=0;   /* v3: removed — any additive ribbon under an ollie reads as a pale plank */
   trailAlpha += (want-trailAlpha)*Math.min(1, dt*(want>trailAlpha?14:6));
   trail.material.opacity=trailAlpha;
   trail.visible=trailAlpha>0.01;
@@ -3526,7 +3527,7 @@ function spring(key, target, dt){
   return s.x;
 }
 /* ---- pose driver: crouch + stance asymmetry + a real push cycle ---- */
-const PUSH_T=0.72;   /* one push every 0.72s: a brisk street push */
+const PUSH_T=0.62;   /* one push every 0.72s: a brisk street push */
 /* ==========================================================================
    GENERATED CHARACTER (Genex/Meshy rigged GLB)
    --------------------------------------------------------------------------
@@ -3696,12 +3697,12 @@ function solveRider(dt){
     sp("pz", midz - 0.05 - crouch*0.07 + sk.lean*0.10*(1-pw) - (air?0.03:0), dt));
   const pel=RS.pel.copy(pel0).lerp(_t5.set(0, gY+0.13, 0.02), bw);
   /* pelvis rotation: hips open toward the nose, fold forward with the crouch */
-  const pYaw = 0.22 + pw*1.10, pPitch = (0.10 + crouch*0.40 + (air?0.12:0) + grabL*0.25)*(1-bw) - 0.55*bw, pRoll = -sk.lean*0.18*(1-bw);
+  const pYaw = 0.10 + pw*1.10, pPitch = (0.10 + crouch*0.40 + (air?0.12:0) + grabL*0.25)*(1-bw) - 0.55*bw, pRoll = -sk.lean*0.18*(1-bw);
   _eu.set(sp("pp",pPitch,dt), sp("pyaw",pYaw,dt), pRoll); const Rpel=_qa2.setFromEuler(_eu).clone();
   const q=RS.q, p=RS.p;
   q.Hips=(q.Hips||new THREE.Quaternion()).copy(Rpel).multiply(Q.Hips);
   /* spine: lean into the line, shoulders square toward the nose, head watches the path */
-  const chestYaw = 0.14 + pw*0.10 + (grind&&/slide/i.test(sk.lastTrick||"")?0.2:0);
+  const chestYaw = 0.06 + pw*0.10 + (grind&&/slide/i.test(sk.lastTrick||"")?0.2:0);
   const bend = (0.10 + crouch*0.22 + (air?0.18:0) + grabL*0.45 + ((grind||manual)?0.05:0))*(1-bw) + 0.30*bw;
   const sideB = (manual?0.10:0) - sk.lean*0.12 + wob*0.6;
   _eu.set(sp("sb",bend,dt)/3, sp("sy",chestYaw,dt)/3, sp("sr",sideB,dt)/3); const Rsp=_qb2.setFromEuler(_eu).clone();
@@ -3709,7 +3710,7 @@ function solveRider(dt){
   q.Spine02=(q.Spine02||new THREE.Quaternion()).copy(Rt0).multiply(Q.Spine02);
   q.Spine01=(q.Spine01||new THREE.Quaternion()).copy(Rt1).multiply(Q.Spine01);
   q.Spine=(q.Spine||new THREE.Quaternion()).copy(Rt2).multiply(Q.Spine);
-  const look = (air ? 0.55 : 0.95) - pw*0.9 - grabL*0.5 - chestYaw;
+  const look = (air ? 0.75 : 1.25) - pw*1.1 - grabL*0.6 - chestYaw;
   _eu.set(sp("hp",(air?0.35:0.12)+grabL*0.25-bend*0.35,dt)*0.5, sp("hy",look,dt)*0.5, 0); const Rn=_qc2.setFromEuler(_eu).clone();
   const Rneck=Rt2.clone().multiply(Rn), Rhead=Rneck.clone().multiply(Rn);
   q.neck=(q.neck||new THREE.Quaternion()).copy(Rneck).multiply(Q.neck);
@@ -4656,7 +4657,7 @@ function unlockAudio(){ audioInit(); _silentUnlock(); if(!AC)return; resumeAudio
 document.addEventListener("visibilitychange",()=>{ if(!document.hidden) resumeAudio(); });
 
 const sk={};
-function resetSkater(){ sk.pos=new THREE.Vector3(6,surfH(6,-40),-40); sk.yaw=0; sk.vy=0; sk.speed=0; sk.state="roll";
+function resetSkater(){ sk.pos=new THREE.Vector3(-2,surfH(-2,-46),-46); sk.yaw=0; sk.vy=0; sk.speed=0; sk.state="roll";
   sk.flip=0; sk.flipRem=0; sk.axis=FLIPAXIS.Kickflip; sk.spinAcc=0; sk.balance=0; sk.grace=0; sk.bailT=0;
   sk.rail=null; sk.railT=0; sk.railDir=1; sk._tip=0; sk._ft=false;
   sk.crouch=0; sk.crouchT=0; sk.lean=0;
@@ -4870,6 +4871,9 @@ function step(dt){
       const spinD=steer*T.spin*dt;
       sk.yaw += spinD; sk.spinNet += spinD; sk.spinAcc += Math.abs(spinD);
       if(sk.airT<=dt*1.5 || sk.pos.y>sk.peakY) sk.peakY=sk.pos.y;
+      /* energy budget at takeoff, in slope-gravity units: air gravity is heavier
+         (snappy ollies), so without this a vert air paid out more speed than it took */
+      if(sk.airT<=dt*1.5) sk.airE = 0.5*(sk.vel.x*sk.vel.x+sk.vel.z*sk.vel.z+sk.vy*sk.vy) + T.slopeG*sk.pos.y;
       sk.spinRate = steer*T.spin;      /* signed body spin — drives cam roll + blur */
       const dirK = held.left&&!held.right ? 1 : (held.right&&!held.left ? 2 : 0);
       if(ev.has("trick")){
@@ -4929,7 +4933,7 @@ function step(dt){
       }
       break; }
     case "grind":{
-      const r=sk.rail; sk.grindV=Math.max(2.5,(sk.grindV||T.grindSpeed)-0.9*dt); sk.railT += sk.railDir*sk.grindV*dt;
+      const r=sk.rail; sk.grindV=Math.max(2.0,(sk.grindV||T.grindSpeed)-1.6*dt); sk.speed=sk.grindV; sk.railT += sk.railDir*sk.grindV*dt;
       if(sk.railT<0||sk.railT>r.len){ endGrindStat(); sk.state="air"; sk.vy=0; sk.airFrom="rail"; sk.railCool=r; sk.railCoolT=0.4; sk.lastRail=r; markTakeoff();
         sk.vel.set(r.dir.x*sk.railDir*sk.grindV,0,r.dir.z*sk.railDir*sk.grindV); sk.speed=sk.grindV; break; }
       sk.pos.set(r.a.x+r.dir.x*sk.railT, r.y, r.a.z+r.dir.z*sk.railT);
@@ -4986,7 +4990,7 @@ function step(dt){
     const prev=(sk.pushT%PUSH_T)/PUSH_T; sk.pushT+=dt;
     const now=(sk.pushT%PUSH_T)/PUSH_T;
     if(prev<0.55 && now>=0.55){
-      sk.pushBoostT=0.25; sk.pushBoost=T.pushKick*(1-0.55*sk.speed/T.pushMax)/0.25;   /* a push is a 0.25s drive, not a teleport */
+      sk.pushBoostT=0.25; sk.pushBoost=T.pushKick*(1-0.45*sk.speed/T.pushMax)/0.25;   /* a push is a 0.25s drive, not a teleport */
       fxPuff(sk.pos.x - fwd.x*0.9, surfH(sk.pos.x,sk.pos.z), sk.pos.z - fwd.z*0.9, 4, 1.0);
       if(sfx.push) sfx.push();
     }
@@ -5070,7 +5074,7 @@ function rideGround(dt, steer, turnMul, passive){
      speed, the brake drags a foot, and speed only comes from pushing (the push
      cycle in step()) or from gravity on a ramp. */
   if(sk.speed>0){ sk.speed=Math.max(0, sk.speed - (T.rollFric + (held.brake&&!passive?T.brake:0) + sk.speed*sk.speed*0.0035)*dt); }
-  if(sk.pushBoostT>0 && !passive){ const dd=Math.min(dt,sk.pushBoostT); sk.speed+=sk.pushBoost*dd; sk.pushBoostT-=dd; }
+  if(sk.pushBoostT>0 && !passive){ const dd=Math.min(dt,sk.pushBoostT); if(sk.speed<T.pushMax) sk.speed=Math.min(T.pushMax, sk.speed+sk.pushBoost*dd); sk.pushBoostT-=dd; }   /* pushing can't take you past push speed */
   sk.speed=Math.min(sk.speed,T.maxSpeed);
   /* ran out of speed climbing: KICKTURN. The visual yaw eases the 180 so it reads
      as a pivot on the back truck, not a snap. */
@@ -5239,10 +5243,11 @@ function landGround(){
   /* LANDING QUALITY — a skill read on every make, not just make/bail */
   { const off = moving ? Math.min(ad, Math.PI-ad) : 0, late = sk.flipRem;
     if(combo.active && combo.tricks.length && sk.airT>0.3){
-      if(off<0.12 && late<0.03 && sk.airT>0.45){ combo.base=Math.round(combo.base*1.1); landCall("PERFECT",false); }
+      if(off<0.12 && late<0.03 && (sk.airFrom==="lip" || sk.airT>0.85 || Math.abs(sk.spinNet)>2.6)){ combo.base=Math.round(combo.base*1.1); landCall("PERFECT",false); }
       else if(off>0.61 || late>0.35){ combo.base=Math.round(combo.base*0.9); landCall("SKETCHY",true); } } }
   if(moving) sk.yaw=dirYaw;                  /* the visual yaw eases this for a fakie roll-away */
   sk.speed=Math.min(T.maxSpeed, Math.max(v.length(), 0));
+  if(sk.airE!=null){ const vmax=Math.sqrt(Math.max(0.25, 2*(sk.airE - T.slopeG*h))); sk.speed=Math.min(sk.speed, vmax*1.03); sk.airE=null; }
   sk.flip=0; sk.flipRem=0;
   /* spins count in half-turns off the NET rotation, so wiggling left-right in
      the air no longer banks a free 360 */
@@ -5284,7 +5289,7 @@ function applyTransform(dt){
        60-80deg lean into the air read as a physics failure, lying sideways mid-air */
     let tr=14;
     if(sk.state==="air"||sk.state==="grind") _nrmT.set(0,1,0);
-    else { gradAt(sk.pos.x,sk.pos.z,_g2); _nrmT.set(-_g2.x,1,-_g2.z).normalize(); tr=22; }
+    else { gradAt(sk.pos.x,sk.pos.z,_g2); _nrmT.set(-_g2.x*0.8,1,-_g2.z*0.8).normalize(); tr=22; }   /* riders stay a touch more upright than the wall */
     sk.nrm.lerp(_nrmT, Math.min(1,h*tr)).normalize();
     /* slides ride ACROSS the rail, edge grinds cocked ~30deg, 50-50s straight */
     const lt=sk.lastTrick||"";
@@ -5353,7 +5358,13 @@ function updateCamera(dt){
   { const hv=Math.hypot(sk.vel.x,sk.vel.z);
     const want = sk.state==="air" ? (hv>5 ? Math.atan2(sk.vel.x,sk.vel.z) : camYaw) : sk.yaw;
     const d=wrapA(want-camYaw);
-    const rate = sk.state==="air" ? 1.4 : (Math.abs(d)>1.6 ? 2.6 : 7.0);
+    /* v3: a REVERSAL (kickturn/fakie roll-away) is never followed while you're on a
+       ramp or in the air — the rig holds on the downhill side and lets you ride back
+       toward it, then swings behind you once you're on the flat. Swinging at once
+       carried it over the coping onto the deck, behind the lip. */
+    const onRamp = sk.state!=="air" && Math.hypot(gradAt(sk.pos.x,sk.pos.z,_g2).x,_g2.z)>0.25;
+    const rev = Math.abs(d)>1.2;
+    const rate = sk.state==="air" ? (rev?0:1.4) : (rev ? (onRamp?0:2.2) : (onRamp?3.5:7.0));
     camYaw += d*Math.min(1,dt*rate); }
   const fwd=new THREE.Vector3(Math.sin(camYaw),0,Math.cos(camYaw));
   _right.set(-Math.cos(camYaw),0,Math.sin(camYaw));
