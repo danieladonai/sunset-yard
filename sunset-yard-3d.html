@@ -106,6 +106,7 @@
   #muteBtn:active{transform:scale(.93);}
   #muteBtn.muted{color:var(--conc);border-color:rgba(207,195,174,.28);opacity:.72;}
   @media (pointer:coarse){ #muteBtn{top:calc(104px + env(safe-area-inset-top,0));width:44px;height:44px;} }
+  @media (max-width:520px){ #muteBtn{top:auto;bottom:calc(112px + env(safe-area-inset-bottom,0));right:12px;} }
   #letters{display:flex;gap:5px;}
   #letters span{font-weight:700;font-size:15px;width:20px;height:20px;display:grid;place-items:center;
     color:var(--conc);background:rgba(36,30,51,.55);border:1px solid rgba(207,195,174,.35);}
@@ -184,7 +185,7 @@
     border:2px solid rgba(207,195,174,.30);padding:4px;transition:border-color .12s,box-shadow .12s,transform .06s;}
   .char-card:active{transform:scale(.96);}
   .char-card .thumb{width:100%;height:92px;overflow:hidden;background:#1A1526;}
-  .char-card .thumb img{width:100%;height:100%;object-fit:cover;object-position:top center;display:block;}
+  .char-card .thumb img{width:100%;height:100%;object-fit:cover;object-position:50% 38%;display:block;}
   .char-card .cname{font-size:9px;letter-spacing:.10em;text-transform:uppercase;color:var(--conc);line-height:1.3;}
   .char-card .cname b{display:block;font-size:11px;color:var(--chalk);letter-spacing:.03em;}
   .char-card.sel{border-color:var(--orange);box-shadow:0 0 0 2px rgba(240,86,42,.35),0 0 10px rgba(240,86,42,.55);}
@@ -202,6 +203,10 @@
   #runStats b{color:var(--chalk);font-family:var(--num);letter-spacing:0;font-size:13px;margin-left:6px;}
   #bestLine{color:var(--haze);} #bestLine.new{color:var(--ink);background:var(--mint);padding:3px 10px;font-weight:700;}
   @media (max-width:520px){ #runStats{grid-template-columns:repeat(2,auto);} }
+  #landCall{position:absolute;left:50%;top:calc(172px + 26px);transform:translateX(-50%);opacity:0;pointer-events:none;
+    font-weight:800;font-size:13px;letter-spacing:.3em;color:var(--mint);text-shadow:0 1px 0 #241E33,0 0 8px rgba(79,194,162,.6);}
+  #landCall.bad{color:var(--haze);text-shadow:0 1px 0 #241E33;}
+  @media (max-width:520px){ #landCall{top:258px;} }
   /* v3 BALANCE METER — the needle every grind and manual bail used to hide */
   #bal{position:absolute;left:50%;top:172px;width:min(56vw,230px);height:12px;transform:translateX(-50%) skewX(-8deg);
     background:linear-gradient(90deg,#FF3B47 0,#F0562A 14%,rgba(36,30,51,.7) 30%,rgba(36,30,51,.7) 70%,#F0562A 86%,#FF3B47 100%);
@@ -240,6 +245,7 @@
     </div>
     <div class="flash" id="flash"></div>
     <div id="goalToast"></div>
+    <div id="landCall"></div>
     <div id="bal" aria-hidden="true"><b></b><i></i></div>
     <button id="muteBtn" type="button" aria-label="Toggle music">🔊</button>
   </div>
@@ -416,7 +422,9 @@ function buildRoster(){
   CHARACTERS.forEach((c,i)=>{
     const card=document.createElement("div");
     card.className="char-card"+(i===SELECTED?" sel":"");
-    card.innerHTML='<div class="thumb"><img src="./sunset-yard-assets/'+c.id+'.png" alt="'+c.name+'" loading="lazy"></div>'+
+    /* v3: the cards are rendered from the in-game model (tools/v3/harness.js cards),
+       so the menu shows exactly the skater you'll ride, re-dyed outfit and all */
+    card.innerHTML='<div class="thumb"><img src="./sunset-yard-assets/card-'+c.id+'.png" alt="'+c.name+'" loading="lazy"></div>'+
       '<div class="cname">'+c.style+'<b>'+c.name+'</b></div>';
     card.addEventListener("click", ()=>applyCharacter(i));
     row.appendChild(card);
@@ -439,17 +447,20 @@ const LEG1=0.38, LEG2=0.435;
    EVERYTHING below derives from it, and BOARD_S = 1 reproduces the original
    numbers exactly — so this is a one-constant revert, not a rewrite. */
 const BOARD_S=0.47;
-const DECK_TOP=0.040*BOARD_S, SOLE_DROP=0.114;   /* SOLE_DROP is the shoe, not the board */
+/* v3: deck height over the ground in board units. Was 0.32 for 89mm wheels;
+   real street wheels are ~53mm, so the deck sits lower on the smaller wheels */
+const DECK_Y0=0.20;   /* = wheel bottom (hub -0.138, r 0.062): wheels touch the concrete */
+const DECK_TOP=0.030*BOARD_S, SOLE_DROP=0.114;   /* SOLE_DROP is the shoe, not the board */
 /* v3: the tuck and the grab lift the board a REAL distance toward the chest
    (26cm / +16cm more), in metres — scaled by BOARD_S it was 9cm, which with the
    hips rising 14cm at the same time actually STRAIGHTENED the legs in the air. */
-function boardLift(){ return 0.32*BOARD_S + (sk.tuck||0)*0.26 + (sk.grabL||0)*0.16; }
+function boardLift(){ return DECK_Y0*BOARD_S + (sk.tuck||0)*0.26 + (sk.grabL||0)*0.16; }
 /* Hip height above the sole while riding. Held constant because it is the
    CHARACTER's geometry, not the board's — and it is why HIPS_Y has to follow the
    deck down: the legs already sit 96% extended, so lowering the board on its own
    puts the feet outside legIK's reach and they float instead of planting. */
 const STAND_H=0.786;
-const HIPS_Y = 0.32*BOARD_S + DECK_TOP + SOLE_DROP + STAND_H;
+const HIPS_Y = DECK_Y0*BOARD_S + DECK_TOP + SOLE_DROP + STAND_H;
 /* ---- 2-BONE IK, law of cosines, solved in the rig's XY plane ----
    +x is the nose. front=true puts the knee toward the nose, front=false toward
    the tail, which is exactly how a skate stance reads from the side. */
@@ -2998,6 +3009,9 @@ function buildFX(){
    pose is the whole point — so the call-out now punches into the HUD stack under
    SCORE and the character is never occluded. */
 let _trickT=-1;
+function landCall(txt,bad){ const e=el("landCall"); if(!e) return; e.textContent=txt; e.classList.toggle("bad",!!bad);
+  e.animate([{opacity:0,transform:"translate(-50%,6px) scale(.9)"},{opacity:1,transform:"translate(-50%,0) scale(1.05)",offset:.15},
+             {opacity:1,transform:"translate(-50%,0) scale(1)",offset:.7},{opacity:0,transform:"translate(-50%,-4px)"}],{duration:750,easing:"ease-out"}); }
 function trickCall(name, mult){
   const e=el("trickLine"); if(!e) return;
   e.textContent = String(name).toUpperCase() + (mult?"  "+mult:"");
@@ -3417,14 +3431,17 @@ function buildBoard(dark){
   const deckM=charRim(new THREE.MeshStandardMaterial({color:0x1E1840,roughness:0.35,metalness:0.0}),0.9,0xFFC98A);
   const gripM=new THREE.MeshStandardMaterial({color:P.black,roughness:0.95,metalness:0.0});
   const truckM=addFog(new THREE.MeshStandardMaterial({color:0x9AA3AD,roughness:0.42,metalness:0.9}));
-  const wheelM=addFog(new THREE.MeshStandardMaterial({color:0xFFE8C8,roughness:0.3,metalness:0.0}));
-  const deck=new THREE.Mesh(chamferBox(0.60,0.055,2.05,0.022),deckM); deck.castShadow=true; board.add(deck);
+  const wheelM=addFog(new THREE.MeshStandardMaterial({color:0xEFE3CC,roughness:0.55,metalness:0.0}));   /* urethane is satin, not gloss */
+  const deck=new THREE.Mesh(chamferBox(0.50,0.034,2.05,0.014),deckM);   /* v3: real 8.1in x 12mm ply, was a 28cm x 26mm plank */ deck.castShadow=true; board.add(deck);
   /* concave nose + tail kick — a visible kick at both ends */
   for(const s of [-1,1]){
-    const k=new THREE.Mesh(chamferBox(0.54,0.05,0.44,0.02),deckM);
+    const k=new THREE.Mesh(chamferBox(0.46,0.032,0.44,0.013),deckM);
     k.position.set(0,0.035,s*1.12); k.rotation.x=-s*0.50; k.castShadow=true; board.add(k);
+    /* grip tape runs up the kicks too — bare ply there flashed pale in every shot */
+    const kg=new THREE.Mesh(new THREE.BoxGeometry(0.44,0.006,0.42),gripM);
+    kg.position.y=0.019; k.add(kg);
   }
-  const grip=new THREE.Mesh(new THREE.BoxGeometry(0.575,0.012,2.03),gripM); grip.position.y=0.033; board.add(grip);
+  const grip=new THREE.Mesh(new THREE.BoxGeometry(0.48,0.008,2.02),gripM); grip.position.y=0.021; board.add(grip);
   /* underside graphic from the atlas */
   const _deckMat=new THREE.MeshStandardMaterial({map:atlasCell(1,1),transparent:true,roughness:0.55,side:THREE.DoubleSide});
   /* AI-generated deck graphic (Nano Banana) mapped onto the board underside */
@@ -3434,16 +3451,19 @@ function buildBoard(dark){
     _deckMat.map=tx; _deckMat.transparent=false; _deckMat.needsUpdate=true;
   }, undefined, ()=>{});
   const gfx=new THREE.Mesh(new THREE.PlaneGeometry(0.56,1.35), _deckMat);
-  gfx.rotation.set(Math.PI/2,0,Math.PI/2); gfx.position.y=-0.034; board.add(gfx);
+  /* v3: lies FLAT under the deck, long axis down the board. The old Euler
+     (x90, z90) stood it on edge, so a pale quad stuck out through the board in
+     every close shot and cartwheeled through every kickflip. */
+  gfx.rotation.set(Math.PI/2,0,0); gfx.position.y=-0.0185; gfx.scale.set(0.84,1.2,1); board.add(gfx);
   const spokeM=new THREE.MeshStandardMaterial({color:P.black,roughness:0.85,metalness:0.0});
   for(const wz of [-0.66,0.66]){
-    const t=new THREE.Mesh(chamferBox(0.40,0.085,0.15,0.02),truckM); t.position.set(0,-0.10,wz); t.castShadow=true; board.add(t);
+    const t=new THREE.Mesh(chamferBox(0.36,0.075,0.14,0.02),truckM); t.position.set(0,-0.075,wz); t.castShadow=true; board.add(t);
     for(const wx of [-0.28,0.28]){
       /* 12-sided so the facets read, plus one dark spoke face so the spin is legible */
-      const hub=new THREE.Group(); hub.position.set(wx,-0.205,wz); board.add(hub);
-      const w=new THREE.Mesh(new THREE.CylinderGeometry(0.095,0.095,0.11,12),wheelM);
+      const hub=new THREE.Group(); hub.position.set(wx*0.93,-0.138,wz); board.add(hub);
+      const w=new THREE.Mesh(new THREE.CylinderGeometry(0.062,0.062,0.078,14),wheelM);   /* v3: 53mm, was 89mm */
       w.rotation.z=Math.PI/2; w.castShadow=true; hub.add(w);
-      const spoke=new THREE.Mesh(new THREE.BoxGeometry(0.116,0.185,0.032),spokeM);
+      const spoke=new THREE.Mesh(new THREE.BoxGeometry(0.081,0.07,0.02),spokeM);   /* bearing shield: small, so the spin still reads */
       hub.add(spoke);
       wheelMeshes.push(hub);
     }
@@ -3745,7 +3765,7 @@ function poseRig(crouch, lean, flipPhase, dt){
      comment above claimed. 0.70m over the rest ankle is a ~50deg athletic knee
      bend; crouch sinks a further 24cm; the air tuck barely moves the hips at all
      because the BOARD comes up to meet them. */
-  const ankRest = 0.32*BOARD_S + DECK_TOP + SOLE_DROP;
+  const ankRest = DECK_Y0*BOARD_S + DECK_TOP + SOLE_DROP;
   hips.position.y = ankRest + 0.70 - crouch*0.24 - pushDip + tuck*0.05 + P0.hipY;
   const bob = Math.sin(perfT*Math.PI*2*1.6)*0.03*(1-crouch*0.6);
   hips.position.y += bob;
@@ -4951,6 +4971,11 @@ function landGround(){
   const ad=Math.abs(wrapA(sk.yaw-dirYaw)), moving=v.length()>2.5;
   if(moving && ad>T.landAngle && ad<Math.PI-T.landAngle){ bail("Landed sideways"); return; }
   sk.fakieLand = moving && ad>=Math.PI/2;
+  /* LANDING QUALITY — a skill read on every make, not just make/bail */
+  { const off = moving ? Math.min(ad, Math.PI-ad) : 0, late = sk.flipRem;
+    if(combo.active && combo.tricks.length && sk.airT>0.3){
+      if(off<0.21 && late<0.08){ combo.base=Math.round(combo.base*1.1); landCall("PERFECT",false); }
+      else if(off>0.61 || late>0.35){ combo.base=Math.round(combo.base*0.9); landCall("SKETCHY",true); } } }
   if(moving) sk.yaw=dirYaw;                  /* the visual yaw eases this for a fakie roll-away */
   sk.speed=Math.min(T.maxSpeed, Math.max(v.length(), 0));
   sk.flip=0; sk.flipRem=0;
@@ -5293,7 +5318,7 @@ window.__pose=(name)=>{
 window.__setFrame=(c,l)=>{ window.__freezeCam=true;
   camera.position.set(c[0],c[1],c[2]); camera.lookAt(l[0],l[1],l[2]); };
 /* v3 test hooks: the headless physics harness drives and reads the sim here */
-window.__dbg={ sk:()=>sk, state:()=>state, combo:()=>combo, T, held, edges, surfH, QUARTERS, rails, kickers,
+window.__dbg={ pick:(i)=>applyCharacter(i), charReady:()=>!!charModel&&!charLoading, sk:()=>sk, state:()=>state, combo:()=>combo, T, held, edges, surfH, QUARTERS, rails, kickers,
   place:(x,z,yaw,speed)=>{ sk.pos.set(x,surfH(x,z),z); sk.yaw=yaw; sk.yawVis=yaw; sk.speed=speed; sk.state="roll";
     sk.vy=0; sk.vel.set(Math.sin(yaw)*speed,0,Math.cos(yaw)*speed); camYaw=yaw; sk.flipRem=0; sk.flip=0; },
   step:(n)=>{ for(let i=0;i<n;i++) step(DT); } };
