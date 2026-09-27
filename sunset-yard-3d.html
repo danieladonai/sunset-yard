@@ -4232,31 +4232,96 @@ function bindTouch(){ document.querySelectorAll("#touch .btn").forEach(b=>{const
 if(matchMedia("(pointer:coarse)").matches){ document.getElementById("touch").classList.add("show");
   document.getElementById("kbHelp").innerHTML="<b>Touch</b> — steer/spin on the left · flip, manual/grab, ollie on the right"; }
 
-let AC=null,master=null,rollGain=null,rollOsc=null,grindGain=null,musicGain=null;
+let AC=null,master=null,rollGain=null,rollOsc=null,grindGain=null,musicGain=null,sfxBus=null;
+/* ---- v3 SOUND ----
+   The old bed was a 58Hz sawtooth drone for rolling and a square wave for
+   grinding, both constant no matter what you did. Everything here is filtered
+   NOISE shaped by the sim: urethane on concrete that brightens with speed and
+   clacks over every slab seam, steel-on-steel for grinds vs wood-on-steel for
+   slides, wind that rises with air speed, and one-shots with real transients.
+   Still zero audio files. */
+let rollBP=null, grindBP=null, grindTone=null, grindToneG=null, windGain=null, windLP=null, _nzBuf=null;
+function _nz(){ if(_nzBuf) return _nzBuf; const n=(AC.sampleRate*2)|0, b=AC.createBuffer(1,n,AC.sampleRate), d=b.getChannelData(0);
+  let last=0; for(let i=0;i<n;i++){ const w=Math.random()*2-1; last=(last+0.02*w)/1.02; d[i]=w*0.7+last*3.2; }   /* white + a little brown */
+  _nzBuf=b; return b; }
+function _loopNoise(){ const s=AC.createBufferSource(); s.buffer=_nz(); s.loop=true; s.loopStart=Math.random(); s.start(0, Math.random()*1.5); return s; }
 function audioInit(){ if(AC)return; try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){return;}
   /* iOS 16.4+: route Web Audio to the playback category so the hardware
      ring/silent switch does NOT mute the game (the classic "no sound on iPhone"). */
   try{ if(navigator.audioSession) navigator.audioSession.type="playback"; }catch(e){}
-  master=AC.createGain();master.gain.value=muted?0:0.5;master.connect(AC.destination);
+  master=AC.createGain();master.gain.value=muted?0:0.5;
+  const comp=AC.createDynamicsCompressor(); comp.threshold.value=-14; comp.ratio.value=3.5; comp.attack.value=0.004; comp.release.value=0.18;
+  master.connect(comp); comp.connect(AC.destination);
+  sfxBus=AC.createGain(); sfxBus.gain.value=1; sfxBus.connect(master);
   musicGain=AC.createGain();musicGain.gain.value=0;musicGain.connect(master);
-  rollOsc=AC.createOscillator();rollOsc.type="sawtooth";rollOsc.frequency.value=58;
-  const f=AC.createBiquadFilter();f.type="lowpass";f.frequency.value=420; rollGain=AC.createGain();rollGain.gain.value=0;
-  rollOsc.connect(f);f.connect(rollGain);rollGain.connect(master);rollOsc.start();
-  grindGain=AC.createGain();grindGain.gain.value=0; const gb=AC.createOscillator();gb.type="square";gb.frequency.value=190;
-  const gf=AC.createBiquadFilter();gf.type="bandpass";gf.frequency.value=1600;gf.Q.value=3;
-  gb.connect(gf);gf.connect(grindGain);grindGain.connect(master);gb.start(); }
+  /* wheels on concrete */
+  { const n=_loopNoise(); rollBP=AC.createBiquadFilter(); rollBP.type="bandpass"; rollBP.frequency.value=420; rollBP.Q.value=0.9;
+    const lp=AC.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=2200;
+    rollGain=AC.createGain(); rollGain.gain.value=0; n.connect(rollBP); rollBP.connect(lp); lp.connect(rollGain); rollGain.connect(sfxBus); }
+  /* grind: a tight noise band plus two inharmonic steel partials with a wobble */
+  { const n=_loopNoise(); grindBP=AC.createBiquadFilter(); grindBP.type="bandpass"; grindBP.frequency.value=2600; grindBP.Q.value=5;
+    grindGain=AC.createGain(); grindGain.gain.value=0; n.connect(grindBP); grindBP.connect(grindGain); grindGain.connect(sfxBus);
+    grindToneG=AC.createGain(); grindToneG.gain.value=0; grindToneG.connect(sfxBus);
+    grindTone=[1870,3130].map((f,i)=>{ const o=AC.createOscillator(); o.type="sine"; o.frequency.value=f;
+      const lfo=AC.createOscillator(), lg=AC.createGain(); lfo.frequency.value=7+i*3.3; lg.gain.value=f*0.012; lfo.connect(lg); lg.connect(o.frequency);
+      const g=AC.createGain(); g.gain.value=i?0.35:0.6; o.connect(g); g.connect(grindToneG); o.start(); lfo.start(); return o; }); }
+  /* wind */
+  { const n=_loopNoise(); windLP=AC.createBiquadFilter(); windLP.type="lowpass"; windLP.frequency.value=500; windLP.Q.value=0.7;
+    windGain=AC.createGain(); windGain.gain.value=0; n.connect(windLP); windLP.connect(windGain); windGain.connect(sfxBus); } }
 function resumeAudio(){ if(AC&&AC.state==="suspended")AC.resume(); }
-function blip(fr,d,ty,v){ if(!AC)return; const o=AC.createOscillator(),g=AC.createGain(); o.type=ty||"triangle";o.frequency.value=fr;
-  g.gain.value=v||0.3; g.gain.exponentialRampToValueAtTime(1e-4,AC.currentTime+d); o.connect(g);g.connect(master);o.start();o.stop(AC.currentTime+d); }
-const sfx={ ollie(){ if(!AC)return;const o=AC.createOscillator(),g=AC.createGain();o.type="triangle";
-    o.frequency.setValueAtTime(240,AC.currentTime);o.frequency.exponentialRampToValueAtTime(560,AC.currentTime+.12);
-    g.gain.value=.3;g.gain.exponentialRampToValueAtTime(1e-4,AC.currentTime+.16);o.connect(g);g.connect(master);o.start();o.stop(AC.currentTime+.16);},
-  trick(){blip(430+RNG()*180,.09,"square",.22);}, land(m){blip(300+m*20,.14,"triangle",.32);blip(150,.18,"sine",.22);},
+function blip(fr,d,ty,v,delay){ if(!AC)return; const o=AC.createOscillator(),g=AC.createGain(); o.type=ty||"triangle";o.frequency.value=fr;
+  const t=AC.currentTime+(delay||0); g.gain.setValueAtTime(v||0.3,t); g.gain.exponentialRampToValueAtTime(1e-4,t+d); o.connect(g);g.connect(sfxBus||master);o.start(t);o.stop(t+d+0.02); }
+/* one-shot noise hit: bandpass at f (optionally sweeping to f2), exp decay */
+function nzHit(dur,f,Q,v,f2,type,delay){ if(!AC)return; const t=AC.currentTime+(delay||0);
+  const s=AC.createBufferSource(); s.buffer=_nz(); const bp=AC.createBiquadFilter(); bp.type=type||"bandpass"; bp.frequency.setValueAtTime(f,t); bp.Q.value=Q;
+  if(f2) bp.frequency.exponentialRampToValueAtTime(f2,t+dur);
+  const g=AC.createGain(); g.gain.setValueAtTime(1e-4,t); g.gain.exponentialRampToValueAtTime(v,t+Math.min(0.006,dur*0.2)); g.gain.exponentialRampToValueAtTime(1e-4,t+dur);
+  s.connect(bp); bp.connect(g); g.connect(sfxBus||master); s.start(t, Math.random()*1.5); s.stop(t+dur+0.03); }
+function thump(f0,f1,dur,v,delay){ if(!AC)return; const t=AC.currentTime+(delay||0); const o=AC.createOscillator(), g=AC.createGain();
+  o.type="sine"; o.frequency.setValueAtTime(f0,t); o.frequency.exponentialRampToValueAtTime(f1,t+dur);
+  g.gain.setValueAtTime(v,t); g.gain.exponentialRampToValueAtTime(1e-4,t+dur); o.connect(g); g.connect(sfxBus||master); o.start(t); o.stop(t+dur+0.02); }
+const sfx={
+  /* the POP: tail cracking the concrete, then the board leaving it */
+  ollie(){ nzHit(0.035,1900,1.4,0.55); thump(160,70,0.07,0.35); nzHit(0.12,5200,0.8,0.05,1800); },
+  trick(){ nzHit(0.16,700,1.2,0.10,2600); },                       /* the flick: a short rising whoosh */
+  flipCatch(){ nzHit(0.03,2600,2,0.22); thump(240,150,0.04,0.12); },
+  grab(){ nzHit(0.22,500,0.8,0.08,1400); },
+  land(m, impact){ const k=Math.min(1.6, 0.55+(impact||6)/14);
+    thump(95,38,0.16,0.55*k); nzHit(0.05,900,1,0.35*k); nzHit(0.09,3200,1.5,0.08*k,1400,undefined,0.012);
+    if(m>=3) blip(300+m*18,.12,"triangle",.10); },
   letter(){blip(880,.1,"sine",.3);blip(1320,.14,"sine",.22);},
-  bail(){if(!AC)return;const o=AC.createOscillator(),g=AC.createGain();o.type="sawtooth";
-    o.frequency.setValueAtTime(180,AC.currentTime);o.frequency.exponentialRampToValueAtTime(50,AC.currentTime+.35);
-    g.gain.value=.38;g.gain.exponentialRampToValueAtTime(1e-4,AC.currentTime+.4);o.connect(g);g.connect(master);o.start();o.stop(AC.currentTime+.4);},
-  bank(){blip(660,.1,"square",.26);setTimeout(()=>blip(990,.14,"square",.24),90);} };
+  bonk(){ thump(120,55,0.12,0.45); nzHit(0.07,450,1,0.3); },
+  bail(){ thump(110,32,0.28,0.7); nzHit(0.5,1400,0.6,0.35,300);
+    [0.09,0.2,0.34].forEach((d,i)=>nzHit(0.04,2400-i*400,3,0.18-i*0.04,null,undefined,d));   /* board clattering away */
+    if(musicGain&&AC){ const t=AC.currentTime; musicGain.gain.cancelScheduledValues(t); musicGain.gain.setValueAtTime(musicGain.gain.value,t);
+      musicGain.gain.linearRampToValueAtTime(MUS_VOL*0.35,t+0.06); musicGain.gain.linearRampToValueAtTime(MUS_VOL,t+1.4); } },
+  bank(v){ const big=v>=10000?2:(v>=3000?1:0); const base=[523.25,659.25,783.99,1046.5];
+    base.slice(0,2+big).forEach((f,i)=>blip(f,0.16+big*0.05,"square",0.16,i*0.07)); },
+  goal(){ [659.25,830.61,987.77,1318.5].forEach((f,i)=>setTimeout(()=>blip(f,.18,"triangle",.2),i*70)); },
+  seam(sp){ nzHit(0.018,2900,2.5,Math.min(0.16,0.03+sp*0.006)); thump(180,120,0.03,Math.min(0.12,sp*0.005)); },
+};
+/* the continuous bed, driven from step(): speed, surface, state */
+let _seamAcc=0, _audT=0;
+function audioTick(dt){
+  if(!AC||!rollGain) return;
+  _audT+=dt; if(_audT<1/30) return; const h=_audT; _audT=0;
+  const t=AC.currentTime, playing=state.phase==="playing";
+  const wheels = playing && (sk.state==="roll"||sk.state==="manual");
+  const sp=Math.max(0,sk.speed||0);
+  const slide = sk.state==="grind" && /slide/i.test(sk.lastTrick||"");
+  rollGain.gain.setTargetAtTime(wheels ? Math.min(0.30, 0.05+sp*0.011)*(sk.state==="manual"?0.7:1) : 0, t, 0.04);
+  rollBP.frequency.setTargetAtTime(240+sp*26+(sk.state==="manual"?260:0), t, 0.06);
+  const gOn = playing && sk.state==="grind";
+  grindGain.gain.setTargetAtTime(gOn ? (slide?0.30:0.22) : 0, t, 0.025);
+  grindBP.frequency.setTargetAtTime(slide?950:2600+Math.abs(sk.balance||0)*900, t, 0.05);
+  grindBP.Q.setTargetAtTime(slide?1.4:5, t, 0.05);
+  grindToneG.gain.setTargetAtTime(gOn&&!slide ? 0.045 : 0, t, 0.03);
+  const inAir = playing && sk.state==="air";
+  const wv = inAir ? Math.min(0.16, 0.02+Math.hypot(sk.vel.x,sk.vel.z,sk.vy||0)*0.006) : 0;
+  windGain.gain.setTargetAtTime(wv, t, 0.08); windLP.frequency.setTargetAtTime(380+wv*4000, t, 0.1);
+  /* slab seams every ~2.3m of travel: the clack that sells concrete */
+  if(wheels && sp>3){ _seamAcc+=sp*h; if(_seamAcc>2.3){ _seamAcc-=2.3; sfx.seam(sp); } } else _seamAcc=0;
+}
 
 /* ---- BACKGROUND MUSIC ----------------------------------------------------
    A procedural UPBEAT synthwave loop, no audio files: 4 bars of Am-F-C-G at
@@ -4367,11 +4432,11 @@ function snapCombo(landed){ state.lastCombo={tricks:combo.tricks.map(t=>t.name),
   if(landed){ const st=state.stats; if(st){ st.maxChain=Math.max(st.maxChain,combo.tricks.length);
     if(comboValue()>=(st.bestComboV||0)){ st.bestComboV=comboValue(); st.bestComboList=combo.tricks.map(t=>t.name); } } checkGoals(); } }
 function bankCombo(){ if(!combo.active)return; const v=comboValue(); snapCombo(true);
-  if(v>0){ state.score+=v; if(v>state.best)state.best=v; sfx.bank(); flash(v.toLocaleString()+" BANKED");
+  if(v>0){ state.score+=v; if(v>state.best)state.best=v; sfx.bank(v); flash(v.toLocaleString()+" BANKED");
     /* SCORE stops reading 0 next to a live 52,000: the plate punches and the digits
        roll up over ~0.35s (see the _scoreShown chase in updateHUD) */
     _scoreHit=0.35; const s=el("scoreV"); if(s) s.classList.add("hit"); }
-  combo.active=false;combo.tricks=[];combo.base=0;combo.counts={}; updateCombo(); refreshGoals(); }
+  combo.active=false;combo.tricks=[];combo.base=0;combo.counts={}; updateCombo(); checkGoals(); }
 function loseCombo(){ if(combo.active&&combo.tricks.length) snapCombo(false); combo.active=false;combo.tricks=[];combo.base=0;combo.counts={}; updateCombo(); }
 function stokeAdd(n){ if(special.on)return; special.meter=Math.min(1,special.meter+n);
   if(special.meter>=1){ special.on=true;special.t=1;el("stokeWrap").classList.add("hot"); flash("STOKED! 2×"); } }
@@ -4438,7 +4503,7 @@ function landedStats(halfs, gl){
     /* spine transfer: took off one face of a spine, landed on the other */
     if(sk.lipQ && sk.lipQ.spine){ quarterH(sk.pos.x,sk.pos.z); if(_qHit===sk.lipQ.spine) awardGap("Spine Transfer",700); }
   }
-  sk.lastRail=null;
+  sk.lastRail=null; sk.lipQ=null;
   checkGoals();
 }
 function endGrindStat(){ if(state.stats) state.stats.longGrind=Math.max(state.stats.longGrind,sk.grindT||0); sk.grindT=0; checkGoals(); }
@@ -4490,7 +4555,7 @@ function endGame(){ if(combo.active)bankCombo(); state.phase="over";
   html += open.length ? ("Next: <b>"+open[0].label+"</b>"+(open[1]?" · "+open[1].label:"")) : "Every goal cleared. Chase the score.";
   el("goalSummary").innerHTML=html;
   el("over").classList.remove("hide");
-  if(rollGain)rollGain.gain.value=0; if(grindGain)grindGain.gain.value=0; }
+  audioTick(1); }
 
 const _v=new THREE.Vector3();
 function nearestRail(){ let best=null,bd=1e9,bt=0;
@@ -4513,8 +4578,7 @@ function step(dt){
   sk.steer += (steer-sk.steer)*Math.min(1,dt*9);
   const fwd=new THREE.Vector3(Math.sin(sk.yaw),0,Math.cos(sk.yaw));
 
-  if(rollGain){ rollGain.gain.value=(state.phase==="playing"&&sk.state!=="bail")?0.05:0; }
-  if(grindGain){ grindGain.gain.value=(sk.state==="grind")?0.06:0; }
+  audioTick(dt);
 
   /* ---- CHARGED OLLIE ----
      Pop fires on RELEASE: hold to crouch (the rig already sinks while the button
@@ -4534,7 +4598,7 @@ function step(dt){
       if(r==="air") break;
       if(combo.active){ sk.grace-=dt; if(sk.grace<=0) bankCombo(); }
       /* REVERT: tap MANUAL as you land on a transition to keep the line alive */
-      if(sk.revertWin>0 && combo.active && (ev.has("manual")||held.manual)){
+      if(sk.revertWin>0 && combo.active && ev.has("manual")){
         sk.revertWin=0; addTrick("Revert",100); sk.grace=T.comboGrace+0.6; sfx.trick(); }
       const flatHere=Math.abs(slopeAt(sk.pos.x,sk.pos.z,Math.sin(sk.yaw),Math.cos(sk.yaw)))<0.3;
       if(overKicker()){ pop(T.kicker*(held.ollie?1.12:1)); }
@@ -4553,24 +4617,24 @@ function step(dt){
       const dirK = held.left&&!held.right ? 1 : (held.right&&!held.left ? 2 : 0);
       if(ev.has("trick")){
         /* a second press while the board is still turning STACKS the flip */
-        if(sk.flipRem>0.6 && sk.flipBase && sk.flipN<3){
+        const ft=combo.tricks[sk.flipIdx];
+        if(sk.flipRem>0.6 && sk.flipBase && sk.flipN<3 && ft && ft.flipId===sk.flipId){
           sk.flipN++; sk.flipRem+=Math.PI*2;
-          const t=combo.tricks[combo.tricks.length-1];
-          if(t && t.flipId===sk.flipId){ const add=Math.round(sk.flipPts*0.9*(special.on?2:1));
-            t.name=STACK[sk.flipN]+sk.flipBase; combo.base+=add; t.pts+=add; updateCombo(); trickCall(t.name,"×"+combo.tricks.length); sfx.trick(); }
-        } else {
+          const add=Math.round(sk.flipPts*0.9*(special.on?2:1)*(ft.deg||1));
+          ft.name=(special.on?"✦":"")+STACK[sk.flipN]+sk.flipBase; combo.base+=add; ft.pts+=add; updateCombo(); trickCall(ft.name,"×"+combo.tricks.length); sfx.trick();
+        } else if(sk.flipRem<=0.6) {
           const nm=FLIP_BY[dirK]; sk.axis=FLIPAXIS[nm]||FLIPAXIS.Kickflip;
           sk.flipRem+=Math.PI*2; sk.flipBase=nm; sk.flipN=0; sk.flipId=(sk.flipId||0)+1;
           sk.flipPts = nm==="Pop Shove-it"?120:150;
-          addTrick(nm, sk.flipPts); combo.tricks[combo.tricks.length-1].flipId=sk.flipId;
+          addTrick(nm, sk.flipPts); sk.flipIdx=combo.tricks.length-1; combo.tricks[sk.flipIdx].flipId=sk.flipId;
         }
       }
       /* GRAB: MANUAL in the air. Held = paid by the tenth of a second. */
       if(ev.has("manual") && !sk.grab){ const nm=GRAB_BY[dirK];
-        sk.grab={name:nm,t:0,acc:0}; addTrick(nm,110); sk.grabIdx=combo.tricks.length-1; }
+        sk.grab={name:nm,t:0,acc:0}; addTrick(nm,110); sk.grabIdx=combo.tricks.length-1; sk.grab.deg=combo.tricks[sk.grabIdx].deg||1; sfx.grab(); }
       if(sk.grab){
         if(held.manual){ sk.grab.t+=dt; sk.grab.acc+=dt;
-          if(sk.grab.acc>=0.1){ sk.grab.acc-=0.1; const add=Math.round(38*(special.on?2:1)*(sk.grabDeg||1));
+          if(sk.grab.acc>=0.1){ sk.grab.acc-=0.1; const add=Math.round(38*(special.on?2:1)*(sk.grab.deg||1));
             combo.base+=add; const t=combo.tricks[sk.grabIdx]; if(t){ t.pts+=add; } updateCombo(); } }
         else sk.grab=null;
       }
@@ -4581,7 +4645,7 @@ function step(dt){
         /* floor at 12 rad/s: below that a kickflip in a 0.45s hang time turns
            through so little that it reads as the board wobbling, not flipping */
         const rate=Math.max(12, T.flipSpeed*(0.55+1.75*Math.min(1,u)));
-        const d=Math.min(rate*dt,sk.flipRem); sk.flip+=d; sk.flipRem-=d;
+        const d=Math.min(rate*dt,sk.flipRem); sk.flip+=d; sk.flipRem-=d; if(sk.flipRem<=0) sfx.flipCatch();
         sk.flipRate=rate;
       } else sk.flipRate=0;
       const nr=nearestRail();
@@ -4595,7 +4659,7 @@ function step(dt){
       if(sk.pos.y<=h){
         /* clipped the SIDE of a ramp below its surface: glance off it, don't
            teleport up onto a 3m deck */
-        if(h-sk.pos.y>0.9 && h-surfH(opx,opz)>0.9){
+        if(h-sk.pos.y>0.45 && h-surfH(opx,opz)>0.45){
           sk.pos.x=opx; sk.pos.z=opz; sk.vel.x*=-0.25; sk.vel.z*=-0.25;
         } else landGround();
       }
@@ -4606,21 +4670,26 @@ function step(dt){
         sk.vel.set(r.dir.x*sk.railDir*T.grindSpeed,0,r.dir.z*sk.railDir*T.grindSpeed); sk.speed=T.grindSpeed; break; }
       sk.pos.set(r.a.x+r.dir.x*sk.railT, r.y, r.a.z+r.dir.z*sk.railT);
       sk.yaw=Math.atan2(r.dir.x*sk.railDir, r.dir.z*sk.railDir);
-      grindPts(dt); drift(dt,ev); fxGrind(dt); sk.grindT=(sk.grindT||0)+dt;
+      grindPts(dt); drift(dt,ev); if(sk.state!=="grind") break; fxGrind(dt); sk.grindT=(sk.grindT||0)+dt;
       if(ev.has("trick")){ sk.gsw=((sk.gsw||0)+1)%GRIND_SWITCH.length; addTrick(GRIND_SWITCH[sk.gsw],130); sk.balV*=0.5; }
       if(wantPop){ endGrindStat(); sk.speed=T.grindSpeed; sk.railCool=r; sk.railCoolT=0.4; sk.lastRail=r; pop(T.ollie*popPow); }
       break; }
     case "manual":{
       const r=rideGround(dt, steer, 0.6);
       if(r==="air") break;
-      manualPts(dt); drift(dt,ev); sk.manT=(sk.manT||0)+dt;
+      sk.manT=(sk.manT||0)+dt;
+      if(!sk.manPaid && sk.manT>=0.3){ sk.manPaid=true; addTrick("Manual",60); }
+      if(sk.manPaid) manualPts(dt);
+      drift(dt,ev);
       if(sk.state!=="manual") break;
       if(wantPop){ endManualStat(); pop(T.ollie*popPow); }
-      else if(!held.manual){ endManualStat(); sk.state="roll"; sk.grace=T.comboGrace; }
+      else if(!held.manual){ const paid=sk.manPaid; endManualStat(); sk.state="roll"; if(paid) sk.grace=T.comboGrace; }
       break; }
     case "bail":{
       sk.bailT-=dt; sk.speed*=Math.max(0,1-dt*5);
-      rideGround(dt, 0, 0, true);
+      if(rideGround(dt, 0, 0, true)==="fall"){ sk.vy=(sk.vy||0)-T.gravity*dt; sk.pos.y+=sk.vy*dt;
+        const hb=surfH(sk.pos.x,sk.pos.z); if(sk.pos.y<=hb){ sk.pos.y=hb; if(sk.vy<-6){ sfx.bonk(); state.shake=Math.max(state.shake,0.3);} sk.vy=0; } }
+      else sk.vy=0;
       if(sk.state==="bail" && sk.bailT<=0){ sk.state="roll"; sk.speed=Math.max(sk.speed,T.cruise*0.6); sk.flip=0; } break; }
   }
   /* solid wall block, run right after the state machine moves sk.pos — skip
@@ -4715,7 +4784,13 @@ function rideGround(dt, steer, turnMul, passive){
   const along=slopeAt(sk.pos.x,sk.pos.z,fx,fz);
   const inv=1/Math.sqrt(1+along*along), sinA=along*inv, cosA=inv;
   sk.speed -= (sinA>0?T.slopeUp:T.slopeG)*sinA*dt;
-  if(Math.abs(along)<0.12){
+  /* the slope ACROSS your heading bends the line downhill — you can't hold a
+     traverse across a 60deg face at constant height any more */
+  gradAt(sk.pos.x,sk.pos.z,_g2); const gl=Math.hypot(_g2.x,_g2.z);
+  if(gl>0.15){ const rx=-Math.cos(sk.yaw), rz=Math.sin(sk.yaw);
+    const latS=-(_g2.x*rx+_g2.z*rz)/Math.sqrt(1+gl*gl);
+    sk.yaw -= T.slopeG*latS/Math.max(4,Math.abs(sk.speed))*dt; fx=Math.sin(sk.yaw); fz=Math.cos(sk.yaw); }
+  if(gl<0.12){
     if(!passive && sk.speed<T.cruise) sk.speed += (T.cruise-sk.speed)*Math.min(1,dt*1.6);
     else if(sk.speed>T.cruise) sk.speed -= (sk.speed-T.cruise)*Math.min(1,dt*0.35);
   }
@@ -4737,6 +4812,7 @@ function rideGround(dt, steer, turnMul, passive){
     sk.yaw=Math.atan2(tx,tz); sk.speed*=0.45;
     if(!passive && dn>0.5){ state.shake=Math.max(state.shake,0.2); if(typeof sfx!=="undefined"&&sfx.bonk) sfx.bonk(); }
     return "block"; }
+  if(passive && py-h>0.02){ sk.pos.y=py; return "fall"; }  /* a bail FALLS off edges (see the bail state), it never becomes an air */
   if(py-h>0.30){                     /* rolled off an edge: you're airborne */
     sk.state="air"; sk.airFrom="edge"; sk.vel.set(fx*hs,0,fz*hs); sk.lipQ=null; markTakeoff(px,pz,py);
     sk.vy=Math.min(0, sk.speed*sinA); sk.spinNet=0; sk.airT=0; sk.pos.y=py;
@@ -4791,7 +4867,7 @@ function pop(v){
 function enterGrind(nr){
   /* RAIL TRANSFER: off one rail and onto a different one without touching down */
   if(sk.lastRail && sk.lastRail!==nr.rail && combo.active) addTrick("Rail Transfer",350);
-  sk.grindT=0; sk.grab=null; sk.state="grind"; sk.rail=nr.rail; sk.railT=nr.t; sk.vy=0;
+  sk.grindT=0; sk.grab=null; sk.spinNet=0; sk.spinAcc=0; sk.flipRem=0; sk.flip=0; sk.lipQ=null; sk.state="grind"; sk.rail=nr.rail; sk.railT=nr.t; sk.vy=0;
   const align=(new THREE.Vector3(Math.sin(sk.yaw),0,Math.cos(sk.yaw))).dot(nr.rail.dir); sk.railDir=align>=0?1:-1;
   sk.balance=0; sk.balV=0; sk.balT=0; sk._tip=0;
   /* the grind is chosen by HOW YOU MEET THE RAIL — the board's angle to it when
@@ -4802,7 +4878,7 @@ function enterGrind(nr){
   const ang=Math.acos(Math.min(1,Math.abs(bf)));
   const side=((sk.pos.x-nr.rail.a.x)*nr.rail.dir.z-(sk.pos.z-nr.rail.a.z)*nr.rail.dir.x)>0;
   let nm, pts;
-  if(ang<0.42){ nm=(sk.lastTrick==="Nosegrind"||bf<0)?"Nosegrind":"50-50"; pts=220; }
+  if(ang<0.42){ nm="50-50"; pts=220; }
   else if(ang<1.05){ nm=side?"Smith":"Feeble"; pts=270; }
   else { nm=side?"Boardslide":"Lipslide"; pts=300; }
   sk.grindSlide=ang>=1.05;
@@ -4887,7 +4963,7 @@ function landGround(){
   if(gl>0.35 && combo.active) sk.revertWin=0.32;   /* landed on transition: revert window */
   landedStats(halfs, gl);
   const n=combo.tricks.length;
-  sk.spinAcc=0; sk.spinNet=0; sk._tip=0; sfx.land(Math.max(1,n));
+  sk.spinAcc=0; sk.spinNet=0; sk._tip=0; sfx.land(Math.max(1,n), sk.landImpact);
   sk.crouch=1.0; sk.crouchHold=1.0; sk.crouchT=0.18;
   /* every landing gets weight now, not just 3+ combos: a short 0.25 decaying
      shake is what separates "stomped it" from "the pose changed" */
@@ -4896,7 +4972,9 @@ function landGround(){
   sk.grab=null;
   if(held.manual && gl<0.3){ enterManual(); } else { sk.state="roll"; sk.grace=T.comboGrace; } }
 /* MANUAL links two tricks across the flat — and can open a line on its own */
-function enterManual(){ sk.manT=0; sk.state="manual"; sk.balance=0; sk.balV=0; sk.balT=0; sk._tip=0; mAcc=0; addTrick("Manual",60); }
+/* the Manual only COUNTS once you've actually held it 0.3s — tapping it used to
+   add a trick (and a multiplier step) every tap, forever */
+function enterManual(){ sk.manT=0; sk.manPaid=false; sk.state="manual"; sk.balance=0; sk.balV=0; sk.balT=0; sk._tip=0; mAcc=0; }
 function bail(why){ sk.grab=null; sk.lastRail=null; sk.flipN=0; if(state.stats) state.stats.bails++; sfx.bail(); flash(why?("BAIL · "+why):"BAIL!",true); loseCombo(); fxBail(sk.pos.x,sk.pos.y,sk.pos.z); sk.state="bail"; sk.bailT=T.bailLock; sk.vy=0; sk.flipRem=0; sk._tip=0;
   state.hitStop=0.09; state.shake=0.35; }
 
@@ -5219,6 +5297,8 @@ window.__dbg={ sk:()=>sk, state:()=>state, combo:()=>combo, T, held, edges, surf
   place:(x,z,yaw,speed)=>{ sk.pos.set(x,surfH(x,z),z); sk.yaw=yaw; sk.yawVis=yaw; sk.speed=speed; sk.state="roll";
     sk.vy=0; sk.vel.set(Math.sin(yaw)*speed,0,Math.cos(yaw)*speed); camYaw=yaw; sk.flipRem=0; sk.flip=0; },
   step:(n)=>{ for(let i=0;i<n;i++) step(DT); } };
+window.__dbgAudio=()=>{ if(!AC) return "no ctx"; const r={state:AC.state, roll:+rollGain.gain.value.toFixed(3), grind:+grindGain.gain.value.toFixed(3), wind:+windGain.gain.value.toFixed(3)};
+  for(const k of ["ollie","trick","flipCatch","grab","land","letter","bonk","bail","bank","goal","seam"]){ try{ sfx[k](5,8); }catch(e){ r["ERR_"+k]=e.message; } } return r; };
 window.__rinfo=()=>({calls:renderer.info.render.calls,tris:renderer.info.render.triangles,progs:renderer.info.programs.length});
 window.__fidx=()=>frameIdx;
 window.__scene=()=>scene;
