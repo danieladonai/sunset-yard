@@ -4869,6 +4869,9 @@ function step(dt){
         sk.revertWin=0; addTrick("Revert",100); sk.grace=T.comboGrace+0.6; sfx.trick(); sk.fakie=!sk.fakie; }
       const flatHere=Math.abs(slopeAt(sk.pos.x,sk.pos.z,Math.sin(sk.yaw),Math.cos(sk.yaw)))<0.3;
       if(wantPop){ pop(T.ollie*popPow); }
+      /* GRIND ASSIST: K next to a bar/ledge pops you onto it — a small magnet steers the
+         pop so you land ON the rail instead of sailing past it */
+      else if(ev.has("manual") && railNearGround()){ grindPop(); }
       else if(ev.has("manual") && flatHere && sk.revertWin<=0 && sk.speed>4){ enterManual(); }
       break; }
     case "air":{
@@ -4927,7 +4930,7 @@ function step(dt){
       if(sk.railCoolT>0) sk.railCoolT-=dt;
       /* v3: a grind is a DECISION — press GRIND (the K / grab button) as you come
          down onto an orange edge. It used to lock on by itself. */
-      if(ev.has("manual")) sk.grindReqT=0.3; else if(sk.grindReqT>0) sk.grindReqT-=dt;
+      if(ev.has("manual")) sk.grindReqT=0.5; else if(sk.grindReqT>0) sk.grindReqT-=dt;
       if((held.manual||sk.grindReqT>0) && railLockable(nr)){ enterGrind(nr); break; }
       const h=surfH(sk.pos.x,sk.pos.z);
       if(sk.pos.y<=h){
@@ -5157,7 +5160,18 @@ function pop(v){
   sk.vy=v+Math.max(0,sk.speed*along*inv);
   sk.state="air"; sk.airFrom=sk.airFrom==="rail"?"rail":"pop"; sk.spinNet=0; sk.airT=0; sk.lipBoost=false; sk.lipQ=null; markTakeoff();
   comboStart(); sfx.ollie(); sk.crouch=-0.15; sk.crouchT=0; }
-function railLockable(nr){ return !!(nr.rail && sk.vy<2.5 && nr.dist<1.3 && sk.pos.y-nr.rail.y<0.9 && sk.pos.y-nr.rail.y>-0.35
+/* a rail you could pop onto from where you're rolling: beside you, ahead-ish, within ollie height */
+function railNearGround(){ const nr=nearestRail(); if(!nr.rail || sk.speed<1.5) return null;
+  const dy=nr.rail.y-sk.pos.y; if(dy<0.05||dy>0.62||nr.dist>1.9) return null;
+  if(nr.t<0.6||nr.t>nr.rail.len-0.6) return null; return nr; }
+function grindPop(){ const nr=railNearGround(); pop(T.ollie*0.97); sk.grindReqT=0.8;
+  const r=nr.rail, fl=0.30;                                   /* ~time to come down onto it */
+  const ax=sk.pos.x+sk.vel.x*fl, az=sk.pos.z+sk.vel.z*fl;    /* where you'd be... */
+  let t=(ax-r.a.x)*r.dir.x+(az-r.a.z)*r.dir.z; t=Math.max(0.6,Math.min(r.len-0.6,t));
+  const tx=r.a.x+r.dir.x*t, tz=r.a.z+r.dir.z*t;              /* ...and the bar point to aim at */
+  const px=-r.dir.z, pz=r.dir.x, off=(tx-ax)*px+(tz-az)*pz;  /* sideways miss, perpendicular to the bar */
+  const corr=Math.max(-4.5,Math.min(4.5,off/fl)); sk.vel.x+=px*corr; sk.vel.z+=pz*corr; }
+function railLockable(nr){ return !!(nr.rail && sk.vy<4.0 && nr.dist<1.4 && sk.pos.y-nr.rail.y<1.0 && sk.pos.y-nr.rail.y>-0.22
   && nr.t>0.25 && nr.t<nr.rail.len-0.25 && !(sk.railCoolT>0 && nr.rail===sk.railCool)); }
 function enterGrind(nr){
   /* RAIL TRANSFER: off one rail and onto a different one without touching down */
@@ -5543,7 +5557,7 @@ function updateBalanceHUD(){
   const on = state.phase==="playing" && (sk.state==="grind"||sk.state==="manual");
   if(on!==_balOn){ _balOn=on; el("bal").classList.toggle("on",on); }
   if(on){ el("bal").lastChild.style.left=(50+Math.max(-1,Math.min(1,sk.balance))*50).toFixed(1)+"%"; }
-  const lbl = sk.state==="air" ? (railLockable(nearestRail())?"GRIND":"GRAB") : "MANUAL";
+  const lbl = sk.state==="air" ? (railLockable(nearestRail())?"GRIND":"GRAB") : ((sk.state==="roll"&&railNearGround())?"GRIND":"MANUAL");
   if(lbl!==_manLbl){ _manLbl=lbl; const m=el("manBtn"); if(m) m.textContent=lbl; }
 }
 function updateCombo(){ const c=el("combo"); if(!combo.active||!combo.tricks.length){c.classList.remove("on");return;}
