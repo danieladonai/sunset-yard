@@ -5015,7 +5015,9 @@ function applyTransform(dt){
      tracking spins 1:1. */
   { const h=dt||1/120, d=wrapA(sk.yaw-sk.yawVis);
     sk.yawVis = Math.abs(d)>0.9 ? sk.yawVis+d*Math.min(1,h*13) : sk.yaw;
-    let tr=3.2;
+    /* in the air the rider rights himself FAST (~0.15s) — carrying the wall's
+       60-80deg lean into the air read as a physics failure, lying sideways mid-air */
+    let tr=14;
     if(sk.state==="air"||sk.state==="grind") _nrmT.set(0,1,0);
     else { gradAt(sk.pos.x,sk.pos.z,_g2); _nrmT.set(-_g2.x,1,-_g2.z).normalize(); tr=22; }
     sk.nrm.lerp(_nrmT, Math.min(1,h*tr)).normalize();
