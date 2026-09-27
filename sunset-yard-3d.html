@@ -5303,7 +5303,9 @@ function applyTransform(dt){
   /* THE BOARD IS THE ANKLE ANCHOR. Lifting it toward the chest is what drives the
      air tuck; the IK then folds the legs around it, so deck and shoes cannot
      separate no matter what the flip is doing. */
-  board.position.y = boardLift();
+  /* x/z reset EVERY frame: the slam kick-out below used to accumulate (+=) and
+     never came back, so after any bail the board drifted off and you rode on air */
+  board.position.set(0, boardLift(), 0);
   board.rotation.set(pitch, sk.flip*sk.axis.y, sk.flip*sk.axis.z + wob);
   /* v3 SLAM: on a bail the board shoots out from under the rider and ends up on
      its edge; the rider (solveRider) drops onto the concrete, then gets back up */
