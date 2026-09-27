@@ -301,7 +301,7 @@
       <b>MANUAL</b> links tricks across the flat. Land straight, finish your flip, keep the combo alive.</div>
     <div class="help" id="kbHelp"><b>Keys:</b> ↑ push · ↓ brake · ←/→ steer · Space ollie · J flip · K grab / grind / manual</div>
     <div style="display:flex;gap:22px;flex-wrap:wrap;align-items:center;justify-content:center;">
-    <label class="help" style="display:flex;gap:9px;align-items:center;justify-content:center;cursor:pointer;user-select:none;margin:0;"><input type="checkbox" id="tiltChk" style="width:18px;height:18px;accent-color:var(--orange);"> Tilt phone to steer <span id="tiltNote" style="opacity:.55">(beta)</span></label>
+    <label class="help" style="display:flex;gap:9px;align-items:center;justify-content:center;cursor:pointer;user-select:none;margin:0;"><input type="checkbox" id="tiltChk" autocomplete="off" style="width:18px;height:18px;accent-color:var(--orange);"> Tilt to ride <span id="tiltNote" style="opacity:.55">(lean fwd = go)</span></label>
     <label class="help" style="display:flex;gap:9px;align-items:center;justify-content:center;cursor:pointer;user-select:none;margin:0;"><input type="checkbox" id="freeChk" style="width:18px;height:18px;accent-color:var(--orange);"> Free skate <span style="opacity:.55">(no timer · Esc ends)</span></label>
     <label class="help" style="display:flex;gap:9px;align-items:center;justify-content:center;cursor:pointer;user-select:none;margin:0;"><input type="checkbox" id="musicChk" checked style="width:18px;height:18px;accent-color:var(--orange);"> Sound</label>
     </div>
@@ -4512,7 +4512,31 @@ const held={ollie:false,trick:false,left:false,right:false,manual:false,push:fal
 /* optional tilt steering (mobile): gamma is left/right tilt in portrait. iOS 13+
    needs a permission request fired from a user gesture (the Drop In tap). */
 let tiltSteer=0, tiltOn=false, tiltEvents=0, tiltWatch=0;
+/* TILT TO RIDE (v3.3): the phone is the board. Lean the top of the phone AWAY from
+   you to push (further = faster), toward you to brake, sideways to steer. Built from
+   the gravity vector in SCREEN space (not raw beta/gamma), so it is continuous in
+   portrait and both landscapes, and never wraps when the phone is held near upright.
+   Neutral is whatever angle you hold it at when the run starts. */
+let tiltDrive=0, tiltPitch=null, tiltNeutral=null, _tiltCal=[], tiltOwnPush=false, tiltOwnBrake=false;
+function tiltRecenter(){ tiltNeutral=null; _tiltCal=[]; tiltDrive=0; }
 function __handleTilt(e){
+  if(e.beta!=null && e.gamma!=null){
+    const D2R=Math.PI/180, b=e.beta*D2R, g=e.gamma*D2R;
+    const ux=-Math.sin(g)*Math.cos(b), uy=Math.sin(b), uz=Math.cos(g)*Math.cos(b);   /* world-up in device axes */
+    const a0=(screen.orientation && typeof screen.orientation.angle==="number") ? screen.orientation.angle : (window.orientation||0);
+    const a=((a0%360)+360)%360;
+    let sx=ux, sy=uy; if(a===90){ sx=-uy; sy=ux; } else if(a===270){ sx=uy; sy=-ux; } else if(a===180){ sx=-ux; sy=-uy; }
+    tiltEvents++;
+    let roll=Math.asin(Math.max(-1,Math.min(1,sx)))/D2R;          /* + = left edge down */
+    const dz=4; roll = Math.abs(roll)<dz ? 0 : (roll>0?roll-dz:roll+dz);
+    tiltSteer = Math.max(-1, Math.min(1, roll/20));
+    tiltPitch = Math.atan2(uz, sy)/D2R;                             /* 0 upright, 90 flat, grows as the top leans away */
+    if(tiltNeutral==null){ _tiltCal.push(tiltPitch); if(_tiltCal.length>=8){ tiltNeutral=_tiltCal.reduce((p,q)=>p+q,0)/_tiltCal.length; } tiltDrive=0; return; }
+    const lean=tiltPitch-tiltNeutral;
+    tiltDrive = lean>6 ? Math.min(1,(lean-6)/14) : (lean<-10 ? -Math.min(1,(-lean-10)/10) : 0);
+    return; }
+  return __handleTiltLegacy(e); }
+function __handleTiltLegacy(e){
   /* pick the physical LEFT/RIGHT tilt axis for the current screen orientation
      so tilt steering works in portrait AND both landscape orientations */
   let a = (screen.orientation && typeof screen.orientation.angle==="number") ? screen.orientation.angle : (window.orientation||0);
@@ -4543,7 +4567,8 @@ function __tiltNote(msg, bad){
 function disableTilt(){
   if(!tiltOn) return;
   window.removeEventListener("deviceorientation", __handleTilt);
-  tiltOn=false; tiltSteer=0; clearTimeout(tiltWatch);
+  tiltOn=false; tiltSteer=0; tiltDrive=0; clearTimeout(tiltWatch);
+  if(tiltOwnPush){ held.push=false; tiltOwnPush=false; } if(tiltOwnBrake){ held.brake=false; tiltOwnBrake=false; }
 }
 function enableTilt(){
   if(tiltOn) return;
@@ -4553,7 +4578,7 @@ function enableTilt(){
   if(!D){ fail("(no motion sensor)"); return; }
   if(!window.isSecureContext){ fail("(needs https)"); return; }
   const go=()=>{
-    tiltEvents=0;
+    tiltEvents=0; tiltRecenter();
     window.addEventListener("deviceorientation", __handleTilt);
     tiltOn=true; __tiltNote("(on)", false);
     /* permission can be granted and STILL deliver nothing — a locked sensor, a
@@ -4597,11 +4622,14 @@ function bindTouch(){ const own=new Map();                    /* pointerId -> ac
   addEventListener("pointerup",end); addEventListener("pointercancel",end);
   if(pad) pad.style.touchAction="none"; }
 if(matchMedia("(pointer:coarse)").matches){ document.getElementById("touch").classList.add("show");
+  /* Safari restores remembered form state AFTER scripts run, which silently unticked this */
+  { const tc=document.getElementById("tiltChk"); const on=()=>{ if(tc && !tiltOn){ tc.defaultChecked=true; tc.checked=true; } };
+    on(); addEventListener("pageshow", on); addEventListener("load", on); }
   document.getElementById("kbHelp").innerHTML="<b>Touch</b> — steer &amp; push on the left · flip, grab/grind/manual, ollie on the right";
-  { const h=document.getElementById("hint"); if(h) h.innerHTML="Hold <b>PUSH</b> to roll · hold &amp; release <b>OLLIE</b> to pop"; }
+  { const h=document.getElementById("hint"); if(h) h.innerHTML="<b>Lean the phone forward</b> to roll · tilt to steer · hold &amp; release <b>OLLIE</b> to pop"; }
   /* touch-specific wording: no SPACE/K/Esc on a phone */
   /* phones: a compact start screen that fits one screen, Drop In always visible */
-  { const hs=document.querySelectorAll("#start .help"); if(hs[0]) hs[0].innerHTML="<b>PUSH</b> to roll · hold &amp; release <b>OLLIE</b> to pop · <b>◀ ▶</b> steer (spin in the air)<br><b>GRIND</b>: ride beside a bar and tap <b>GRIND</b> when the orange prompt shows, then ◀ ▶ to balance · <b>FLIP</b> and <b>GRAB</b> in the air"; if(hs[1]) hs[1].style.display="none"; document.getElementById("start").classList.add("compact"); }
+  { const hs=document.querySelectorAll("#start .help"); if(hs[0]) hs[0].innerHTML="<b>Tilt to ride:</b> lean the top of the phone away to roll (more = faster), toward you to brake, sideways to steer and spin. PUSH / ◀ ▶ buttons work too · hold &amp; release <b>OLLIE</b> to pop<br><b>GRIND</b>: ride beside a bar and tap <b>GRIND</b> when the orange prompt shows, then ◀ ▶ to balance · <b>FLIP</b> and <b>GRAB</b> in the air"; if(hs[1]) hs[1].style.display="none"; document.getElementById("start").classList.add("compact"); }
   document.querySelectorAll("#start .help").forEach(p=>{ p.innerHTML=p.innerHTML.replace("press SPACE or K, then steer ←/→ to balance","tap GRIND (or OLLIE alongside it), then steer ◀ ▶ to balance").replace("(no timer · Esc ends)","(no timer)"); }); }
 
 let AC=null,master=null,rollGain=null,rollOsc=null,grindGain=null,musicGain=null,sfxBus=null;
@@ -4893,7 +4921,7 @@ function refreshGoals(){ const g=el("goalList"); if(!g) return;
 function startGame(){ audioInit();resumeAudio();
   { const mc=document.getElementById("musicChk"); if(mc) setMuted(!mc.checked); } startMusic(); updateMuteBtn();
   applyCharacter(SELECTED);
-  { const __tc=document.getElementById("tiltChk"); if(__tc&&__tc.checked) enableTilt(); }
+  { const __tc=document.getElementById("tiltChk"); if(__tc&&__tc.checked){ if(tiltOn) tiltRecenter(); else enableTilt(); } }
   resetSkater();loseCombo();
   special.meter=0;special.on=false;special.t=0;el("stokeWrap").classList.remove("hot");
   for(const L of letterObjs){ L.got=false; L.anim=-1; L.mesh.visible=true; L.mesh.material.opacity=1; L.mesh.position.y=L.base; }
@@ -4952,6 +4980,13 @@ function step(dt){
   if(!state.clockOn && (held.push||held.ollie||edges.size)){ state.clockOn=true; const h=el("hint"); if(h) h.classList.add("gone"); }
   if(state.clockOn && !state.free){ state.time-=dt; if(state.time<=0){state.time=0;endGame();return;} }
   if(special.on){ special.t-=dt*T.stokeDrain; if(special.t<=0){special.on=false;special.meter=0;el("stokeWrap").classList.remove("hot");} }
+  /* tilt owns PUSH / BRAKE only while it asserts them; a thumb on the pad still works */
+  if(tiltOn){
+    const wantP=tiltDrive>0.05, wantB=tiltDrive<-0.05;
+    if(wantP && !held.push){ held.push=true; tiltOwnPush=true; if(!state.clockOn) edges.add("push"); }
+    else if(!wantP && tiltOwnPush){ held.push=false; tiltOwnPush=false; }
+    if(wantB && !held.brake){ held.brake=true; tiltOwnBrake=true; }
+    else if(!wantB && tiltOwnBrake){ held.brake=false; tiltOwnBrake=false; } }
   const ev=new Set(edges); edges.clear();
   if(sk.state!=="air"){ sk.spinRate=(sk.spinRate||0)*0.82; sk.flipRate=0; }
   const steer=Math.max(-1,Math.min(1,(held.left?1:0)-(held.right?1:0)+(tiltOn?tiltSteer:0)));
@@ -5116,7 +5151,9 @@ function step(dt){
      real pushing tops out around 30 km/h. First contact comes 0.2s after you
      press, so it never feels laggy from a standstill. */
   const flatHereP=Math.abs(slopeAt(sk.pos.x,sk.pos.z,fwd.x,fwd.z))<0.15;
-  const wantPush = (sk.state==="roll" && held.push && flatHereP && !held.ollie);
+  /* a light lean cruises, a full lean pushes to top push speed */
+  const wantPush = (sk.state==="roll" && held.push && flatHereP && !held.ollie
+                    && !(tiltOwnPush && sk.speed > T.pushMax*(0.45+0.55*tiltDrive)));
   /* ---- PUSH STROKE (v3.2): reach -> plant -> swing, a little state machine ----
      PLANT is DISTANCE-driven: the foot moves back exactly as far as the board rolls, so
      it can never ski along the concrete at any speed, and the drive happens only while
