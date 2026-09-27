@@ -90,6 +90,14 @@ const POSES = [
   ['bail-a', `D.place(0,-5,0.6,7); D.step(5); D.bail(); D.step(12);`],
   ['bail-b', `D.place(0,-5,0.6,7); D.step(5); D.bail(); D.step(45);`],
   ['bail-c', `D.place(0,-5,0.6,7); D.step(5); D.bail(); D.step(100);`],
+  ['push-0', `D.place(0,-5,0.6,5); H.push=true; D.step(75);`],
+  ['push-1', `D.place(0,-5,0.6,5); H.push=true; D.step(84);`],
+  ['push-2', `D.place(0,-5,0.6,5); H.push=true; D.step(94);`],
+  ['push-3', `D.place(0,-5,0.6,5); H.push=true; D.step(103);`],
+  ['push-4', `D.place(0,-5,0.6,5); H.push=true; D.step(112);`],
+  ['push-5', `D.place(0,-5,0.6,5); H.push=true; D.step(122);`],
+  ['push-6', `D.place(0,-5,0.6,5); H.push=true; D.step(131);`],
+  ['push-7', `D.place(0,-5,0.6,5); H.push=true; D.step(140);`],
   ['vert-air', `D.place(-4,-15.2,-Math.PI/2,16); D.step(170);`],
 ];
 async function poses(out, only, camd = 2.3, camf = 1.2) {

@@ -3535,7 +3535,11 @@ function spring(key, target, dt){
   return s.x;
 }
 /* ---- pose driver: crouch + stance asymmetry + a real push cycle ---- */
-const PUSH_T=0.62;   /* one push every 0.72s: a brisk street push */
+const PUSH_T=0.62;
+/* contact share of a stroke: the planted foot is LOCKED to the ground while the board
+   rolls past it, so a 0.7m stroke lasts 0.7/speed seconds — short and snappy at speed,
+   long and deliberate from a standstill */
+function pushContact(v){ return Math.max(0.18, Math.min(0.62, 0.7/Math.max(v,1.13)/PUSH_T)); }   /* one push every 0.72s: a brisk street push */
 /* ==========================================================================
    GENERATED CHARACTER (Genex/Meshy rigged GLB)
    --------------------------------------------------------------------------
@@ -3656,7 +3660,13 @@ const RS={ pel:new THREE.Vector3(), q:{}, p:{} };
 const _stance=new THREE.Object3D(), _rootInv=new THREE.Matrix4(), _st2root=new THREE.Matrix4();
 const _t1=new THREE.Vector3(), _t2=new THREE.Vector3(), _t3=new THREE.Vector3(), _t4=new THREE.Vector3(), _t5=new THREE.Vector3(), _t6=new THREE.Vector3(), _t7=new THREE.Vector3();
 const _qa2=new THREE.Quaternion(), _qb2=new THREE.Quaternion(), _qc2=new THREE.Quaternion(), _eu=new THREE.Euler(0,0,0,"YXZ");
-function sp(k,v,dt){ return spring("r_"+k,v,dt); }   /* the rider's underdamped secondary motion */
+/* the rider's pose smoothing: CRITICALLY damped (no overshoot). The shared spring()
+   is underdamped (~0.67 of critical) — right for flapping arms on the old toy rig,
+   but on a realistic body every pose change wobbled past its target and read as jelly */
+const RSP={};
+function sp(k,v,dt){ let s=RSP[k]; if(!s){ RSP[k]=s={x:v,v:0}; return v; }
+  const h=Math.min(dt,1/90), w=16;                            /* ~0.2s to settle */
+  const a=w*w*(v-s.x) - 2*w*s.v; s.v+=a*h; s.x+=s.v*h; if(!isFinite(s.x)){ s.x=v; s.v=0; } return s.x; }
 function solveRider(dt){
   const ik=charModel.ik, B=ik.B, P=ik.P, Q=ik.Q, O=ik.O, root=charModel.root;
   const st=sk.state, crouch=Math.max(0,Math.min(1,sk.crouch)), grabL=sk.grabL||0;
@@ -3679,9 +3689,12 @@ function solveRider(dt){
   const aB=toRoot(0.035, deck+ik.ankleH, -0.25, _t3), tB=toRoot(-0.105, deck+0.03, -0.26, _t4);
   if(pw>0.01){
     /* push: plant beside the toe edge ahead, drive it back past the tail, lift and return */
-    const down=ph<0.62, u=down? ph/0.62 : (ph-0.62)/0.38;
-    const gz = down ? (0.28-0.72*u) : (-0.44+0.72*u);
-    const gy = down ? 0 : Math.sin(u*Math.PI)*0.16;
+    const cf=pushContact(sk.speed), c0=0.12, c1=c0+cf;
+    let gz, gy;
+    if(ph<c0){ const u=ph/c0; gz=0.30; gy=0.10*(1-u)*(1-u); }                       /* reaching down beside the front truck */
+    else if(ph<c1){ const u=(ph-c0)/cf; gz=0.30-0.72*u; gy=0; }                   /* planted: the board rolls past the foot */
+    else { const u=(ph-c1)/(1-c1); gz=-0.42+0.72*u; gy=Math.sin(u*Math.PI)*0.13+0.10*u*u; }   /* lift and swing forward */
+    sk.pushDip = (ph>=c0 && ph<c1) ? Math.sin(((ph-c0)/cf)*Math.PI) : 0;
     const gy0 = surfH(sk.pos.x,sk.pos.z)-sk.pos.y;
     _t5.set(-0.26, gy0+ik.ankleH+gy, gz).applyMatrix4(_rootInv);
     _t6.set(-0.28, gy0+0.03+gy, gz+0.14).applyMatrix4(_rootInv);
@@ -3695,7 +3708,7 @@ function solveRider(dt){
   }
   /* pelvis */
   const legL=ik.thigh+ik.shin;
-  const k = 0.93 - crouch*0.22 - (grind?0.05:0) - (manual?0.04:0) - pw*0.10;
+  const k = 0.93 - crouch*0.22 - (grind?0.05:0) - (manual?0.04:0) - pw*(0.08 + 0.07*(sk.pushDip||0));   /* standing knee dips into each stroke */
   const midx=(aF.x+aB.x)*0.5, midz=(aF.z+aB.z)*0.5, lowY=Math.min(aF.y,aB.y);
   const spanX=Math.max(0,Math.abs(aF.x-aB.x)*0.5-ik.hipW*0.5);
   const reachY=Math.sqrt(Math.max(0.04,(legL*k)*(legL*k)-spanX*spanX));
@@ -3705,13 +3718,13 @@ function solveRider(dt){
     sp("pz", midz - 0.05 - crouch*0.07 + sk.lean*0.10*(1-pw) - (air?0.03:0), dt));
   const pel=RS.pel.copy(pel0).lerp(_t5.set(0, gY+0.13, 0.02), bw);
   /* pelvis rotation: hips open toward the nose, fold forward with the crouch */
-  const pYaw = 0.0 + pw*1.10, pPitch = (0.10 + crouch*0.40 + (air?0.12:0) + grabL*0.25)*(1-bw) - 0.55*bw, pRoll = -sk.lean*0.18*(1-bw);
+  const pYaw = 0.0 + pw*1.25, pPitch = (0.10 + crouch*0.40 + (air?0.12:0) + grabL*0.25)*(1-bw) - 0.55*bw, pRoll = -sk.lean*0.18*(1-bw);
   _eu.set(sp("pp",pPitch,dt), sp("pyaw",pYaw,dt), pRoll); const Rpel=_qa2.setFromEuler(_eu).clone();
   const q=RS.q, p=RS.p;
   q.Hips=(q.Hips||new THREE.Quaternion()).copy(Rpel).multiply(Q.Hips);
   /* spine: lean into the line, shoulders square toward the nose, head watches the path */
   const chestYaw = 0.0 + pw*0.10 + (grind&&/slide/i.test(sk.lastTrick||"")?0.2:0);
-  const bend = (0.10 + crouch*0.22 + (air?0.18:0) + grabL*0.45 + ((grind||manual)?0.05:0))*(1-bw) + 0.30*bw;
+  const bend = (0.10 + crouch*0.22 + (air?0.18:0) + grabL*0.45 + ((grind||manual)?0.05:0) + pw*(0.10+0.10*(sk.pushDip||0)))*(1-bw) + 0.30*bw;
   const sideB = (manual?0.10:0) - sk.lean*0.12 + wob*0.6;
   _eu.set(sp("sb",bend,dt)/3, sp("sy",chestYaw,dt)/3, sp("sr",sideB,dt)/3); const Rsp=_qb2.setFromEuler(_eu).clone();
   const Rt0=Rpel.clone().multiply(Rsp), Rt1=Rt0.clone().multiply(Rsp), Rt2=Rt1.clone().multiply(Rsp);
@@ -4997,11 +5010,11 @@ function step(dt){
   const flatHereP=Math.abs(slopeAt(sk.pos.x,sk.pos.z,fwd.x,fwd.z))<0.15;
   const wantPush = (sk.state==="roll" && held.push && flatHereP && !held.ollie);
   if(wantPush){
-    if(!sk.pushOn){ sk.pushOn=true; sk.pushT=PUSH_T*0.35; sk.pushMark=0; }
+    if(!sk.pushOn){ sk.pushOn=true; sk.pushT=0; sk.pushMark=0; }   /* first foot reaches down immediately */
     const prev=(sk.pushT%PUSH_T)/PUSH_T; sk.pushT+=dt;
     const now=(sk.pushT%PUSH_T)/PUSH_T;
-    if(prev<0.55 && now>=0.55){
-      sk.pushBoostT=0.25; sk.pushBoost=T.pushKick*(1-0.45*sk.speed/T.pushMax)/0.25;   /* a push is a 0.25s drive, not a teleport */
+    if(prev<0.12 && now>=0.12){   /* the foot PLANTS at 12% of the stroke (see solveRider) */
+      const ct=pushContact(sk.speed)*PUSH_T; sk.pushBoostT=ct; sk.pushBoost=T.pushKick*(1-0.45*sk.speed/T.pushMax)/ct;   /* a push is a 0.25s drive, not a teleport */
       fxPuff(sk.pos.x - fwd.x*0.9, surfH(sk.pos.x,sk.pos.z), sk.pos.z - fwd.z*0.9, 4, 1.0);
       if(sfx.push) sfx.push();
     }
