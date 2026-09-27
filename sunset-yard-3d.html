@@ -1373,7 +1373,7 @@ function addHubba(x,z,rot,len){
   aoBlobs.push([x,z,len*0.42]);
   occ(x,z,Math.max(1.2,len*0.30),h+0.1);
   /* local +X after a ry rotation is (cos,0,-sin), so the rail heading is PI/2-rot */
-  addRail(x, z, len*0.92, Math.PI/2-rot, h+0.02);
+  addRail(x, z, len*0.92, Math.PI/2+rot, h+0.02);   /* v3: +rot — the bar crossed its own ledge at 32deg */
 }
 function addStairSet(x,z,rot,steps,railLen){
   const w=5.0, rise=0.21, run=0.40;   /* v3: real stairs (21cm risers) — 45cm treads read as a loading dock */
@@ -1395,7 +1395,7 @@ function addStairSet(x,z,rot,steps,railLen){
   occ(x + Math.sin(rot)*(steps*run+1.2), z + Math.cos(rot)*(steps*run+1.2), 3.0, steps*rise+0.1);
   /* flat handrail on the run-out past the bottom step (rails in this sim are
      horizontal, so a sloped one would float) */
-  addRail(x + Math.cos(rot)*(w*0.34), z - 2.6, railLen, rot+Math.PI/2, 0.42);
+  addRail(x + Math.cos(rot)*(w*0.34), z - 2.6, railLen, rot, 0.42);   /* v3: runs WITH the lane, not across the landing */
 }
 const STAIRS=[];
 function addManualPad(x,z,rot){
@@ -3706,7 +3706,7 @@ function solveRider(dt){
   const st=sk.state, crouch=Math.max(0,Math.min(1,sk.crouch)), grabL=sk.grabL||0;
   const air=st==="air", grind=st==="grind", manual=st==="manual", bail=st==="bail", bw=sk.bailW||0;
   /* push blend: the rider turns to face the nose and the back foot works the ground */
-  sk.pushW=(sk.pushW||0)+(((sk.pushOn&&st==="roll")?1:0)-(sk.pushW||0))*Math.min(1,dt*6);
+  sk.pushW=(sk.pushW||0)+(((sk.pushOn&&st==="roll")?1:0)-(sk.pushW||0))*Math.min(1,dt*(sk.pushOn&&st==="roll"?13:4));
   const pw=sk.pushW, ph=sk.pushOn?((sk.pushT%PUSH_T)/PUSH_T):0;
   /* stance frame: the board without its flip, in root space */
   const pitch = sk.bpitch||0, wob=(grind||manual)?sk.balance*0.3:0;
@@ -3724,15 +3724,16 @@ function solveRider(dt){
   const aB=toRoot(0.035, deck+hR+sl, -0.25, _t3), tB=toRoot(-0.105, deck+hR+sl, -0.26, _t4);
   if(pw>0.01){
     /* push: plant beside the toe edge ahead, drive it back past the tail, lift and return */
-    const cf=pushContact(sk.speed), c0=0.12, c1=c0+cf;
-    let gz, gy;
-    if(ph<c0){ const u=ph/c0; gz=0.30; gy=0.10*(1-u)*(1-u); }                       /* reaching down beside the front truck */
-    else if(ph<c1){ const u=(ph-c0)/cf; gz=0.30-0.72*u; gy=0; }                   /* planted: the board rolls past the foot */
-    else { const u=(ph-c1)/(1-c1); gz=-0.42+0.72*u; gy=Math.sin(u*Math.PI)*0.13+0.10*u*u; }   /* lift and swing forward */
-    sk.pushDip = (ph>=c0 && ph<c1) ? Math.sin(((ph-c0)/cf)*Math.PI) : 0;
+    const S=sk.stroke||{ph:"idle",t:0,d:0,gz0:0.3};
+    let gz=0.30, gy=0.10, gx=-0.26;
+    if(S.ph==="reach"){ const u=Math.min(1,S.t/(S.first?0.24:0.12)); gz=0.30; gy=0.10*(1-u)*(1-u); }              /* down beside the front truck */
+    else if(S.ph==="plant"){ gz=0.30-S.d; gy=0; }                                                  /* locked to the ground while the board rolls past */
+    else if(S.ph==="swing"){ const u=Math.min(1,S.t/0.30), e=u*u*(3-2*u);
+      gz=S.gz0+(0.30-S.gz0)*e; gy=0.035+Math.sin(u*Math.PI)*0.12+0.065*u; gx=-0.26-0.08*Math.sin(u*Math.PI); }   /* toe lifts at once; swings wide of the standing leg */
+    sk.pushDip = S.ph==="plant" ? Math.sin(Math.min(1,S.d/0.70)*Math.PI) : 0;
     const gy0 = surfH(sk.pos.x,sk.pos.z)-sk.pos.y;
-    _t5.set(-0.26, gy0+ik.ankleH+gy, gz).applyMatrix4(_rootInv);
-    _t6.set(-0.28, gy0+0.03+gy, gz+0.14).applyMatrix4(_rootInv);
+    _t5.set(gx, gy0+hR+sl+gy, gz).applyMatrix4(_rootInv);
+    _t6.set(gx-0.02, gy0+hR+sl+gy, gz+0.14).applyMatrix4(_rootInv);
     aB.lerp(_t5,pw); tB.lerp(_t6,pw);
   }
   /* SLAM targets (root space, ground = surface under the rider) */
@@ -3784,6 +3785,7 @@ function solveRider(dt){
     /* knee over the toes, splayed a little toward its own end of the board */
     const toeDir=_t5.subVectors(toe,ank); toeDir.y=0; toeDir.normalize();
     const pole=_t6.copy(toeDir).addScaledVector(_t7.set(sx,0,0),0.25).normalize();
+    if(sx<0 && pw>0.01) pole.addScaledVector(_t7.set(0,0,1),0.7*pw).normalize();   /* pushing knee tracks out, clear of the standing leg */
     const knee=p[sd+"Leg"]||(p[sd+"Leg"]=new THREE.Vector3()), ankR=p[sd+"Foot"]||(p[sd+"Foot"]=new THREE.Vector3());
     ik2(hipJ,ank,ik.thigh,ik.shin,pole,knee,ankR);
     const bendDir=_t7.subVectors(knee,hipJ).add(_t4.subVectors(knee,ankR)).normalize();
@@ -4931,7 +4933,7 @@ function step(dt){
       if(sk.revertWin>0 && combo.active && ev.has("manual")){
         sk.revertWin=0; addTrick("Revert",100); sk.grace=T.comboGrace+0.6; sfx.trick(); sk.fakie=!sk.fakie; }
       const flatHere=Math.abs(slopeAt(sk.pos.x,sk.pos.z,Math.sin(sk.yaw),Math.cos(sk.yaw)))<0.3;
-      if(wantPop){ if(railNearGround()) grindPop(Math.max(0.95,popPow)); else pop(T.ollie*popPow); }
+      if(wantPop){ const nrg=railNearGround(); if(nrg && nrg.dist<1.8 && railAligned(nrg.rail)) grindPop(Math.max(0.95,popPow)); else pop(T.ollie*popPow); }
       /* GRIND ASSIST: K next to a bar/ledge pops you onto it — a small magnet steers the
          pop so you land ON the rail instead of sailing past it */
       else if(ev.has("manual") && railNearGround()){ grindPop(); }
@@ -4995,7 +4997,8 @@ function step(dt){
          down onto an orange edge. It used to lock on by itself. */
       if(ev.has("manual")) sk.grindReqT=0.5; else if(sk.grindReqT>0) sk.grindReqT-=dt;
       /* ...and simply coming DOWN onto a rail from an ollie locks you on, like landing on it */
-      if((held.manual||sk.grindReqT>0||(sk.vy<0.6&&sk.airFrom!=="lip")) && railLockable(nr)){ enterGrind(nr); break; }
+      if((held.manual||sk.grindReqT>0||false) && railLockable(nr)){ enterGrind(nr); break; }
+      if(sk.vy<0.3 && sk.airFrom!=="lip" && railLockable(nr,true)){ enterGrind(nr); break; }
       const h=surfH(sk.pos.x,sk.pos.z);
       if(sk.pos.y<=h){
         /* clipped the SIDE of a ramp below its surface: glance off it, don't
@@ -5065,16 +5068,22 @@ function step(dt){
      press, so it never feels laggy from a standstill. */
   const flatHereP=Math.abs(slopeAt(sk.pos.x,sk.pos.z,fwd.x,fwd.z))<0.15;
   const wantPush = (sk.state==="roll" && held.push && flatHereP && !held.ollie);
-  if(wantPush){
-    if(!sk.pushOn){ sk.pushOn=true; sk.pushT=0; sk.pushMark=0; }   /* first foot reaches down immediately */
-    const prev=(sk.pushT%PUSH_T)/PUSH_T; sk.pushT+=dt;
-    const now=(sk.pushT%PUSH_T)/PUSH_T;
-    if(prev<0.12 && now>=0.12){   /* the foot PLANTS at 12% of the stroke (see solveRider) */
-      const ct=pushContact(sk.speed)*PUSH_T; sk.pushBoostT=ct; sk.pushBoost=T.pushKick*(1-0.45*sk.speed/T.pushMax)/ct;   /* a push is a 0.25s drive, not a teleport */
-      fxPuff(sk.pos.x - fwd.x*0.9, surfH(sk.pos.x,sk.pos.z), sk.pos.z - fwd.z*0.9, 4, 1.0);
-      if(sfx.push) sfx.push();
-    }
-  } else sk.pushOn=false;
+  /* ---- PUSH STROKE (v3.2): reach -> plant -> swing, a little state machine ----
+     PLANT is DISTANCE-driven: the foot moves back exactly as far as the board rolls, so
+     it can never ski along the concrete at any speed, and the drive happens only while
+     it's down. Letting go / popping mid-stroke lets the stroke FINISH its arc instead of
+     resetting (that reset made the foot jump up to 0.6m in one frame). */
+  { const S=sk.stroke||(sk.stroke={ph:"idle",t:0,d:0,gz0:0.3});
+    if(S.ph==="idle"){ if(wantPush){ S.ph="reach"; S.t=0; S.first=(sk.pushW||0)<0.3; } }
+    else if(S.ph==="reach"){ S.t+=dt; if(sk.state!=="roll"){ S.ph="swing"; S.t=0; S.gz0=0.30; }
+      else if(S.t>=(S.first?0.24:0.12)){ S.first=false; S.ph="plant"; S.t=0; S.d=0;
+        fxPuff(sk.pos.x - fwd.x*0.9, surfH(sk.pos.x,sk.pos.z), sk.pos.z - fwd.z*0.9, 4, 1.0); if(sfx.push) sfx.push(); } }
+    else if(S.ph==="plant"){ S.t+=dt; S.d+=Math.max(0,sk.speed)*dt;
+      if(sk.speed<T.pushMax) sk.speed=Math.min(T.pushMax, sk.speed + (T.pushKick/0.22)*(1-0.45*sk.speed/T.pushMax)*dt);
+      if(S.d>=0.70 || S.t>0.45 || !wantPush || sk.state!=="roll"){ S.ph="swing"; S.gz0=0.30-S.d; S.t=0; } }
+    else if(S.ph==="swing"){ S.t+=dt; if(S.t>=0.30){ S.ph = wantPush ? "reach" : "idle"; S.t=0; } }
+    sk.pushOn = S.ph!=="idle";
+  }
   /* continuous rear-contact dust — a 20Hz chalk trickle off the back truck so
      the rider always looks like he is actually moving over concrete */
   if((sk.state==="roll"||sk.state==="manual") && sk.speed>6){
@@ -5175,7 +5184,7 @@ function rideGround(dt, steer, turnMul, passive){
       if(!passive && v0>2.5){ sk.speed=v0*0.45; bail("Hit a wall"); return "block"; }
       sk.speed=0; if(!passive){ state.shake=Math.max(state.shake,0.15); if(sfx.bonk) sfx.bonk(); } return "block"; }
     let tx=fx-nx*dn, tz=fz-nz*dn;                   /* glancing: slide along the face */
-    sk.yaw=Math.atan2(tx,tz); sk.speed*=0.6;
+    { const want=Math.atan2(tx,tz), dd=wrapA(want-sk.yaw); sk.yaw+=Math.max(-0.12,Math.min(0.12,dd)); } sk.speed*=0.6;   /* glance: turn by at most ~7deg a step */
     /* a knee-high ledge at jogging speed is a stumble; a tall face or real speed is a slam */
     if(!passive && dn>0.6 && (v0>7.5 || (h-py>0.7 && v0>5.0))){ bail("Slammed into it"); return "block"; }
     if(!passive && dn>0.5){ state.shake=Math.max(state.shake,0.2); if(typeof sfx!=="undefined"&&sfx.bonk) sfx.bonk(); }
@@ -5237,18 +5246,27 @@ function railNearGround(){ const nr=nearestRail(); if(!nr.rail || sk.speed<0.8) 
   const dy=nr.rail.y-sk.pos.y; if(dy<0.05||dy>0.62||nr.dist>2.4) return null;
   if(nr.t<0.6||nr.t>nr.rail.len-0.6) return null; return nr; }
 function grindPop(pw){ const nr=railNearGround(); pop(T.ollie*(pw||0.97)); sk.grindReqT=0.8;
-  const r=nr.rail, fl=0.30;                                   /* ~time to come down onto it */
+  const r=nr.rail, dh=r.y+0.05-sk.pos.y, disc=sk.vy*sk.vy-2*T.gravity*dh;
+  const fl=Math.max(0.2, disc>0 ? (sk.vy+Math.sqrt(disc))/T.gravity : sk.vy/T.gravity);   /* when you come DOWN to bar height */
   const ax=sk.pos.x+sk.vel.x*fl, az=sk.pos.z+sk.vel.z*fl;    /* where you'd be... */
   let t=(ax-r.a.x)*r.dir.x+(az-r.a.z)*r.dir.z; t=Math.max(0.6,Math.min(r.len-0.6,t));
   const tx=r.a.x+r.dir.x*t, tz=r.a.z+r.dir.z*t;              /* ...and the bar point to aim at */
   const px=-r.dir.z, pz=r.dir.x, off=(tx-ax)*px+(tz-az)*pz;  /* sideways miss, perpendicular to the bar */
   const corr=Math.max(-4.5,Math.min(4.5,off/fl)); sk.vel.x+=px*corr; sk.vel.z+=pz*corr; }
-function railLockable(nr){ return !!(nr.rail && sk.vy<4.0 && nr.dist<1.4 && sk.pos.y-nr.rail.y<1.0 && sk.pos.y-nr.rail.y>-0.22
+/* v3: lock when you're COMING DOWN onto it (or already right over it). Locking on the
+   way up snapped the rider up to 1.3m sideways in one frame. 'auto' (no button) also
+   needs you truly on the bar and travelling roughly along it. */
+function railAligned(r){ return Math.abs(sk.vel.x*r.dir.x+sk.vel.z*r.dir.z) > 0.5*Math.max(0.5,Math.hypot(sk.vel.x,sk.vel.z)); }
+function railLockable(nr,auto){ if(auto && !(nr.rail && nr.dist<0.55 && railAligned(nr.rail))) return false;
+  return !!(nr.rail && (sk.vy<=0.3 || nr.dist<0.25) && nr.dist<1.4 && sk.pos.y-nr.rail.y<1.0 && sk.pos.y-nr.rail.y>-0.22
   && nr.t>0.25 && nr.t<nr.rail.len-0.25 && !(sk.railCoolT>0 && nr.rail===sk.railCool)); }
 function enterGrind(nr){
   /* RAIL TRANSFER: off one rail and onto a different one without touching down */
   if(sk.lastRail && sk.lastRail!==nr.rail && combo.active) addTrick("Rail Transfer",350);
-  sk.grindV=Math.max(4, Math.min(11, Math.hypot(sk.vel.x,sk.vel.z)));
+  sk.grindV=Math.max(3, Math.min(11, Math.abs(sk.vel.x*nr.rail.dir.x+sk.vel.z*nr.rail.dir.z)));   /* along the bar only: the sideways magnet isn't speed */
+  { const r=nr.rail, rx=r.a.x+r.dir.x*nr.t, rz=r.a.z+r.dir.z*nr.t;
+    sk.gSnap={x:sk.pos.x-rx, y:sk.pos.y-r.y, z:sk.pos.z-rz, t:0.12}; sk.yawEaseT=0.2;
+    sk.pos.set(rx, r.y, rz); }   /* on the rail NOW; the visual offset above eases the last bit */
   sk.grindT=0; sk.grab=null; sk.grabPend=0; sk.spinNet=0; sk.spinAcc=0; sk.flipRem=0; sk.flip=0; sk.lipQ=null; sk.state="grind"; sk.rail=nr.rail; sk.railT=nr.t; sk.vy=0;
   const align=(new THREE.Vector3(Math.sin(sk.yaw),0,Math.cos(sk.yaw))).dot(nr.rail.dir); sk.railDir=align>=0?1:-1;
   sk.balance=0; sk.balV=0; sk.balT=0; sk._tip=0;
@@ -5397,12 +5415,15 @@ function bail(why){ bailBoardStart(); if(sk.state==="grind") endGrindStat(); els
 const _UP=new THREE.Vector3(0,1,0), _qTilt=new THREE.Quaternion(), _qYaw=new THREE.Quaternion();
 function applyTransform(dt){
   skater.position.copy(sk.pos);
+  /* the last few cm onto a rail are eased over 0.12s instead of snapped */
+  if(sk.gSnap && sk.gSnap.t>0){ const u=sk.gSnap.t/0.12, e=u*u*(3-2*u); skater.position.x+=sk.gSnap.x*e; skater.position.y+=sk.gSnap.y*e; skater.position.z+=sk.gSnap.z*e; sk.gSnap.t-=(dt||1/120); }
   /* v3: the rider stands on the SURFACE, not on a world-up datum — up a quarter
      he leans into the wall; in the air he rights himself over ~0.4s. The visual
      yaw eases big jumps (kickturns, fakie roll-aways) into a readable pivot while
      tracking spins 1:1. */
   { const h=dt||1/120, face=sk.yaw+(sk.fakie?Math.PI:0), d=wrapA(face-sk.yawVis);
-    sk.yawVis = Math.abs(d)>0.9 ? sk.yawVis+d*Math.min(1,h*11) : face;
+    if(sk.yawEaseT>0) sk.yawEaseT-=h;
+    sk.yawVis = (Math.abs(d)>0.9 || sk.yawEaseT>0) ? sk.yawVis+d*Math.min(1,h*(sk.yawEaseT>0?16:11)) : face;
     /* in the air the rider rights himself FAST (~0.15s) — carrying the wall's
        60-80deg lean into the air read as a physics failure, lying sideways mid-air */
     let tr=14;
@@ -5412,7 +5433,7 @@ function applyTransform(dt){
     /* slides ride ACROSS the rail, edge grinds cocked ~30deg, 50-50s straight */
     const lt=sk.lastTrick||"";
     const gOff = sk.state!=="grind" ? 0 :
-      (/slide|Lipslide/i.test(lt) ? Math.PI/2 : (/Smith|Feeble|Crooked|Overcrook/.test(lt) ? 0.5 : 0));
+      (/slide|Lipslide/i.test(lt) ? Math.PI/2 : (/Smith|Feeble|Crooked|Overcrook/.test(lt) ? 0.28 : 0));
     sk.gOff = (sk.gOff||0) + (gOff-(sk.gOff||0))*Math.min(1,h*16);
     _qTilt.setFromUnitVectors(_UP, sk.nrm); _qYaw.setFromAxisAngle(_UP, sk.yawVis + sk.gOff);
     skater.quaternion.copy(_qTilt).multiply(_qYaw); }
@@ -5648,7 +5669,8 @@ function updateHUD(){
     if(r){ const u=(combo.active && sk.grace>0) ? Math.max(0,Math.min(1,sk.grace/T.comboGrace))
                                                : (combo.active?1:0);
       r.style.strokeDashoffset=(_ringC*(1-u)).toFixed(2); } } }
-let _balOn=false, _manLbl="", _railHintOn=false;
+let _balOn=false, _manLbl="", _railHintOn=false, _railHintTxt="";
+const COARSE = matchMedia("(pointer:coarse)").matches;
 const RAIL_HINT = matchMedia("(pointer:coarse)").matches ? "Tap GRIND or OLLIE onto the rail" : "SPACE or K — grind";
 function updateBalanceHUD(){
   const on = state.phase==="playing" && (sk.state==="grind"||sk.state==="manual");
@@ -5657,7 +5679,9 @@ function updateBalanceHUD(){
   const lbl = sk.state==="air" ? (railLockable(nearestRail())?"GRIND":"GRAB") : ((sk.state==="roll"&&railNearGround())?"GRIND":"MANUAL");
   if(lbl!==_manLbl){ _manLbl=lbl; const m=el("manBtn"); if(m) m.textContent=lbl; }
   const rh = state.phase==="playing" && lbl==="GRIND";
-  if(rh!==_railHintOn){ _railHintOn=rh; const h=el("railHint"); if(h){ h.textContent=RAIL_HINT; h.classList.toggle("on",rh); } }
+  const spaceOK = rh && sk.state==="roll" && (()=>{ const n=railNearGround(); return !!(n && n.dist<1.8 && railAligned(n.rail)); })();
+  const txt = !rh ? "" : (sk.state!=="roll" ? (COARSE?"Tap GRIND":"K — grind") : (spaceOK ? RAIL_HINT : (COARSE?"Tap GRIND":"K — grind")));
+  if(rh!==_railHintOn || txt!==_railHintTxt){ _railHintOn=rh; _railHintTxt=txt; const h=el("railHint"); if(h){ h.textContent=txt; h.classList.toggle("on",rh); } }
 }
 function updateCombo(){ const c=el("combo"); if(!combo.active||!combo.tricks.length){c.classList.remove("on");return;}
   c.classList.add("on");

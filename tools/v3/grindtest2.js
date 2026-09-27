@@ -16,7 +16,7 @@ for(const style of ['K on prompt','SPACE on prompt','naive ollie ~1m out']){
       if(!pressed && s.state==='roll'){
         const lbl=document.getElementById('manBtn').textContent;
         if(style==='K on prompt' && lbl==='GRIND'){ E.add('manual'); pressed=true; prompted++; }
-        else if(style==='SPACE on prompt' && lbl==='GRIND'){ E.add('ollie'); pressed=true; prompted++; }
+        else if(style==='SPACE on prompt' && lbl==='GRIND' && /SPACE/.test(document.getElementById('railHint').textContent)){ E.add('ollie'); pressed=true; prompted++; }
         else if(style==='naive ollie ~1m out'){ // lateral distance to the bar line
           const lat=Math.abs((s.pos.x-rl.a.x)*px+(s.pos.z-rl.a.z)*pz); if(lat<1.0){ E.add('ollie'); pressed=true; prompted++; } }
       }
