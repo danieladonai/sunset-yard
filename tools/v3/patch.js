@@ -10,5 +10,8 @@ for (const [a, b] of pairs) {
   if (n !== 1) { console.error(`patch failed (${n} matches): ${a.slice(0, 90)}`); process.exit(1); }
   s = s.replace(a, () => b);
 }
+/* refuse to write a game file whose module script no longer parses */
+const mod=(s.split('<script type="module">')[1]||'').split('</script>')[0];
+if(mod){ try{ new Function(mod.replace(/^import .*$/mg,'')); }catch(e){ console.error('patch REFUSED: module script would not parse: '+e.message); process.exit(1); } }
 fs.writeFileSync(target, s);
 console.log(`applied ${pairs.length} edits to ${target}`);
