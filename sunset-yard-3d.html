@@ -310,7 +310,7 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass }     from "three/addons/postprocessing/RenderPass.js";
 import { ShaderPass }     from "three/addons/postprocessing/ShaderPass.js";
-import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
+import { mergeGeometries, toCreasedNormals } from "three/addons/utils/BufferGeometryUtils.js";
 import { GLTFLoader }     from "three/addons/loaders/GLTFLoader.js";
 
 /* ---------------- harness contract ---------------- */
@@ -377,8 +377,13 @@ let skater, board, rigYaw, rig, hips, torso, head, shoulderL, shoulderR, armLU, 
 /* selectable roster — skin tones varied & ambiguous, everyone curly-haired */
 let matSkin, matTop, matBottom, matHair, hairGroup, capBrim;
 const CHARACTERS=[
-  {id:'lowpoly-woman',  style:'Low-poly',  name:'Nova', skin:0x6E4A34, hair:0x241712, top:0x9B3FE0, bottom:0x2FBFA8, hairScale:1.20},
-  {id:'lowpoly-man',    style:'Low-poly',  name:'Rio',  skin:0x8A5A3C, hair:0x1E1712, top:0x2FA6C8, bottom:0x6B6350, hairScale:0.82},
+  /* outfit: v3 re-dye of the generated textures (see recolorOutfit). Nova's tee
+     was the same salmon as her skin and Rio was one orange from neck to ankle,
+     so both read as bare skin / a jumpsuit rather than clothes. null = keep. */
+  {id:'lowpoly-woman',  style:'Street',  name:'Nova', skin:0x6E4A34, hair:0x241712, top:0x9B3FE0, bottom:0x2FBFA8, hairScale:1.20,
+    outfit:{shirt:0x37477A, shirtRef:0.30, pants:null}},
+  {id:'lowpoly-man',    style:'Street',  name:'Rio',  skin:0x8A5A3C, hair:0x1E1712, top:0x2FA6C8, bottom:0x6B6350, hairScale:0.82,
+    outfit:{shirt:0x2C7F9E, shirtRef:0.26, pants:0x5E5A48, pantsRef:0.26}},
 ];
 let SELECTED=0;
 function applyCharacter(i){
@@ -424,7 +429,10 @@ const LEG1=0.38, LEG2=0.435;
    numbers exactly — so this is a one-constant revert, not a rewrite. */
 const BOARD_S=0.47;
 const DECK_TOP=0.040*BOARD_S, SOLE_DROP=0.114;   /* SOLE_DROP is the shoe, not the board */
-function boardLift(){ return (0.32 + (sk.tuck||0)*0.20)*BOARD_S; }
+/* v3: the tuck and the grab lift the board a REAL distance toward the chest
+   (26cm / +16cm more), in metres — scaled by BOARD_S it was 9cm, which with the
+   hips rising 14cm at the same time actually STRAIGHTENED the legs in the air. */
+function boardLift(){ return 0.32*BOARD_S + (sk.tuck||0)*0.26 + (sk.grabL||0)*0.16; }
 /* Hip height above the sole while riding. Held constant because it is the
    CHARACTER's geometry, not the board's — and it is why HIPS_Y has to follow the
    deck down: the legs already sit 96% extended, so lowering the board on its own
@@ -3489,6 +3497,42 @@ let charModel=null;      /* {root, pairs:[{ctrl,bone,rest}]} once loaded */
 let charModelId=null;    /* which roster slot is currently on screen */
 let charLoading=false;
 
+/* ---- OUTFIT RE-DYE ----
+   Per vertex, the bone that drives it says what it IS: spine/shoulders/arms =
+   top, legs = trousers, hips split by bind height, hands/head/feet untouched
+   (skin). The fragment shader then swaps only WARM, saturated texels on those
+   vertices (the mint undershirt, laces and skin stay) and keeps the texture's
+   own luminance, so every fold and seam the generator painted survives. */
+function recolorOutfit(mesh, outfit){
+  const g=mesh.geometry, sk=mesh.skeleton; if(!g||!sk||!g.attributes.skinIndex) return;
+  const names=sk.bones.map(b=>b.name);
+  const TOP=/^(Spine|Spine0?1|Spine0?2|LeftShoulder|RightShoulder|LeftArm|RightArm|LeftForeArm|RightForeArm|neck)$/i;
+  const LEG=/^(LeftUpLeg|RightUpLeg|LeftLeg|RightLeg)$/i;
+  const hi=names.findIndex(n=>/^Hips$/i.test(n));
+  const hipY = hi>=0 ? new THREE.Matrix4().copy(sk.boneInverses[hi]).invert().elements[13] : 0;
+  const lin=(hex,ref)=>{ const c=new THREE.Color(hex); return [c.r/ref,c.g/ref,c.b/ref]; };
+  const shirt = outfit.shirt!=null ? lin(outfit.shirt,outfit.shirtRef||0.3) : null;
+  const pants = outfit.pants!=null ? lin(outfit.pants,outfit.pantsRef||0.12) : null;
+  const si=g.attributes.skinIndex, sw=g.attributes.skinWeight, pos=g.attributes.position, n=pos.count;
+  const out=new Float32Array(n*4);
+  for(let i=0;i<n;i++){
+    let best=-1, bw=-1; for(let k=0;k<4;k++){ const w=sw.getComponent(i,k); if(w>bw){ bw=w; best=si.getComponent(i,k); } }
+    const nm=names[best]||"";
+    let cls = TOP.test(nm) ? shirt : (LEG.test(nm) ? pants : (/^Hips$/i.test(nm) ? (pos.getY(i)>hipY-0.15 ? shirt : pants) : null));
+    if(cls){ out[i*4]=cls[0]; out[i*4+1]=cls[1]; out[i*4+2]=cls[2]; out[i*4+3]=1; }
+  }
+  g.setAttribute("aRecolor", new THREE.BufferAttribute(out,4));
+  const mats=Array.isArray(mesh.material)?mesh.material:[mesh.material];
+  mats.forEach(m=>{ m.onBeforeCompile=(sh)=>{
+    sh.vertexShader="attribute vec4 aRecolor;\nvarying vec4 vRecolor;\n"+sh.vertexShader.replace("#include <begin_vertex>","#include <begin_vertex>\n vRecolor=aRecolor;");
+    sh.fragmentShader="varying vec4 vRecolor;\n"+sh.fragmentShader.replace("#include <map_fragment>",`#include <map_fragment>
+      { vec3 c=diffuseColor.rgb; float mx=max(c.r,max(c.g,c.b)), mn=min(c.r,min(c.g,c.b));
+        float sat=(mx-mn)/(mx+1e-4);
+        float warm=step(c.g,c.r)*step(c.b,c.r)*smoothstep(0.35,0.6,sat);
+        float lum=dot(c,vec3(0.2126,0.7152,0.0722));
+        diffuseColor.rgb=mix(c, vRecolor.rgb*lum, vRecolor.a*warm); }`);
+  }; m.customProgramCacheKey=()=>"sy-recolor"; m.needsUpdate=true; });
+}
 function unloadCharacterModel(){
   if(!charModel) return;
   rig.remove(charModel.root);
@@ -3530,7 +3574,7 @@ function loadCharacterModel(id){
       let restDir=null;
       if(childBone && childBone.position.lengthSq()>1e-8) restDir=childBone.position.clone().normalize();
       let depth=0; for(let o=bone; o && o!==root; o=o.parent) depth++;
-      pairs.push({key, ctrl, bone, rest:bone.quaternion.clone(), restDir, depth});
+      pairs.push({key, ctrl, bone, rest:bone.quaternion.clone(), restPos:bone.position.clone(), restDir, depth});
     }
     if(pairs.length < 6){        /* skeleton we don't recognise — keep the boxes */
       console.warn('[character] only',pairs.length,'bones matched; staying on the blocky rig');
@@ -3558,11 +3602,34 @@ function loadCharacterModel(id){
        multiply by s again here, that double-scales and drops the model ~0.2 low. */
     root.position.y = HIPS_Y - (bHips ? wp(bHips).y : 0);
     root.rotation.y = MODEL_YAW;
-    root.traverse(o=>{ if(o.isMesh||o.isSkinnedMesh){ o.castShadow=true; o.receiveShadow=true; o.frustumCulled=false; } });
+    root.traverse(o=>{ if(o.isMesh||o.isSkinnedMesh){ o.castShadow=true; o.receiveShadow=true; o.frustumCulled=false;
+      /* ---- v3: LIGHT THE RIDER ----
+         The generated GLBs ship a material that is EMISSIVE white x its own
+         albedo, at metalness 1. That means the rider glowed at one flat
+         brightness and ignored the sun entirely — no key side, no violet shadow
+         side, no ground bounce — which is exactly why he read as a cut-out
+         pasted onto the park rather than a person standing in it. Strip the
+         self-illumination, make it a dielectric, and give the cloth a sheen so
+         the raking key catches fabric instead of plastic. */
+      (Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{
+        if(!m) return;
+        if(m.emissive) m.emissive.setHex(0x000000);
+        m.emissiveMap=null; m.emissiveIntensity=0;
+        m.metalness=0.0; m.roughness=0.78; m.metalnessMap=null; m.roughnessMap=null;
+        if(m.map) m.map.colorSpace=THREE.SRGBColorSpace;
+        if("sheen" in m){ m.sheen=0.55; m.sheenRoughness=0.75; m.sheenColor=new THREE.Color(0xFFE2C8); }
+        if("clearcoat" in m) m.clearcoat=0;
+        m.envMapIntensity=0.55;
+        m.needsUpdate=true;
+      }); } });
     /* GRAB THE BOX MESHES *BEFORE* PARENTING THE MODEL. boxMeshes() walks rigYaw,
        and rig lives inside rigYaw — so calling it afterwards sweeps up the model's
        own SkinnedMesh and hides the character we just loaded. That failure is
        silent and looks exactly like "the GLB never loaded": a riderless board. */
+    /* smooth the generator's faceted low-poly normals (crease at 55deg keeps
+       real edges like collars and shoe soles sharp), then re-dye the outfit */
+    root.traverse(o=>{ if(o.isSkinnedMesh){ try{ o.geometry=toCreasedNormals(o.geometry, 55*Math.PI/180); }catch(e){ console.warn('[character] normals kept',e); } } });
+    { const c=CHARACTERS.find(q=>q.id===id); if(c&&c.outfit) root.traverse(o=>{ if(o.isSkinnedMesh) recolorOutfit(o,c.outfit); }); }
     const boxes=boxMeshes();
     rig.add(root);
     boxes.forEach(m=>m.visible=false);
@@ -3593,12 +3660,24 @@ function loadCharacterModel(id){
    Instead: point the bone the way the control limb points. Roll is left free,
    which is correct for a knee or an elbow. */
 const SPINE_KEYS=new Set(['hips','torso','head']);
-const _qa=new THREE.Quaternion(), _qb=new THREE.Quaternion(), _vd=new THREE.Vector3();
+const _qa=new THREE.Quaternion(), _qb=new THREE.Quaternion(), _vd=new THREE.Vector3(), _vs=new THREE.Vector3();
 function syncCharacter(){
   if(!charModel) return;
   /* bring the model root current first — every parent-space solve below reads
      through it, and rig/rigYaw were just moved by poseRig */
   charModel.root.updateWorldMatrix(true,false);
+  /* v3: carry the control pelvis HEIGHT onto the model too. Only rotations used
+     to transfer, so crouch, air tuck, landing sink and bail all left the visible
+     body standing at its bind height with its legs folded into (or floating
+     over) the deck. */
+  { const hp=charModel.pairs.find(q=>q.key==="hips");
+    if(hp && hp.restPos){
+      hp.bone.position.copy(hp.restPos);
+      _vd.set(0, hips.position.y-HIPS_Y, 0).applyQuaternion(rig.getWorldQuaternion(_qa));
+      hp.bone.parent.getWorldQuaternion(_qb); _vd.applyQuaternion(_qb.invert());
+      hp.bone.parent.getWorldScale(_vs); _vd.divide(_vs);
+      hp.bone.position.add(_vd); hp.bone.updateMatrixWorld(true);
+    } }
   for(const p of charModel.pairs){
     if(SPINE_KEYS.has(p.key) || !p.restDir){
       p.bone.quaternion.copy(p.rest).multiply(_qa.copy(p.ctrl.quaternion));
@@ -3632,7 +3711,13 @@ function poseRig(crouch, lean, flipPhase, dt){
   const P0=POSE(), shTwist = P0.shTwist;
   /* 1.26 left the legs bolt upright with a 20-degree knee: a mannequin on a plank.
      1.18 puts a real 60-degree bend in the front knee at rest. */
-  hips.position.y = 1.18 - crouch*0.30 - pushDip + tuck*0.14 + P0.hipY;
+  /* v3 STANCE. The hips used to sit 0.90m above the ankles on a 0.815m leg, so
+     legIK clamped both legs dead straight: a mannequin on a plank, whatever the
+     comment above claimed. 0.70m over the rest ankle is a ~50deg athletic knee
+     bend; crouch sinks a further 24cm; the air tuck barely moves the hips at all
+     because the BOARD comes up to meet them. */
+  const ankRest = 0.32*BOARD_S + DECK_TOP + SOLE_DROP;
+  hips.position.y = ankRest + 0.70 - crouch*0.24 - pushDip + tuck*0.05 + P0.hipY;
   const bob = Math.sin(perfT*Math.PI*2*1.6)*0.03*(1-crouch*0.6);
   hips.position.y += bob;
   /* ---- FEET PINNED TO THE DECK ----
@@ -3661,8 +3746,8 @@ function poseRig(crouch, lean, flipPhase, dt){
   shoulderR.rotation.x = spring("srx", -crouch*1.2 - 0.25 + push*0.45 + P0.shX*0.4, dt);
   /* asymmetric: the lead arm hangs wide and low, the trailing arm stays tucked.
      A symmetric T-pose is what read as a toy. */
-  shoulderL.rotation.z = spring("slz", -0.85 + fold - steer*0.30 - P0.shZ, dt);
-  shoulderR.rotation.z = spring("srz",  0.65 + fold - steer*0.30 + P0.shZ, dt);
+  shoulderL.rotation.z = spring("slz", -0.62 - tuck*0.25 + fold - steer*0.30 - P0.shZ, dt);
+  shoulderR.rotation.z = spring("srz",  0.48 + tuck*0.20 + fold - steer*0.30 + P0.shZ, dt);
   /* counter-rotation: the shoulders wind against the carve, the head leads it */
   rigYaw.rotation.y = -Math.PI/2 + Math.sin(perfT*2.2)*0.09 + steer*0.35 + P0.rigYaw;
   head.rotation.y = spring("hy", -steer*0.6 + P0.headY, dt);
@@ -3684,7 +3769,7 @@ function POSE(){
   if(sk.state==="air"){
     /* GRAB: the rear hand reaches for the deck and the torso folds over it */
     /* only while the grab is actually HELD now — it used to stick for the whole air */
-    if(sk.grab){ p.torsoX=0.65; p.shX=-0.55; p.shZ=0.5; p.headX=0.3; p.hipY=-0.04;
+    if(sk.grab){ p.torsoX=0.95; p.shX=-1.15; p.shZ=0.35; p.headX=0.45; p.hipY=0.02;
       if(sk.grab.name==="Indy"){ p.torsoZ=0.18; p.shZ=0.75; }
       else if(sk.grab.name==="Method"){ p.torsoX=0.35; p.torsoZ=-0.30; p.shTwist=0.6; p.headY=0.4; p.bLift=0.12; } }
   } else if(sk.state==="grind"){
@@ -4426,6 +4511,7 @@ function step(dt){
   sk.lean += ((-steer*0.35) - sk.lean)*Math.min(1,dt*7);
   /* air tuck eases in over 0.12s so the deck flips through a real gap */
   sk.tuck += ((sk.state==="air"?1:0)-sk.tuck)*Math.min(1, dt/0.12);
+  sk.grabL = (sk.grabL||0) + (((sk.state==="air"&&sk.grab)?1:0)-(sk.grabL||0))*Math.min(1, dt/0.09);
   /* push cycle: back foot down to the concrete, kicks a dust puff on contact */
   const wantPush = (sk.state==="roll" && sk.crouch<0.35 && !held.ollie);
   if(wantPush){
