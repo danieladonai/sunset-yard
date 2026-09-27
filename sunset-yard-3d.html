@@ -5421,6 +5421,12 @@ function updateCamera(dt){
   camSun += (sunPush-camSun)*Math.min(1,dt*2.2);
   _cam.addScaledVector(_right, camSun);
   _cam.addScaledVector(_right, -steer*1.6);                 /* lateral whip into the carve */
+  /* v3 RAMP GUARD: walk out from the rider toward the wanted camera spot and stop
+     short of any ramp face rising above him, so the rig never parks over a
+     transition or up on a deck behind the coping (it pulls in instead) */
+  { const gy0=surfH(sk.pos.x,sk.pos.z), ox=_cam.x-sk.pos.x, oz=_cam.z-sk.pos.z, L=Math.hypot(ox,oz);
+    if(L>0.5){ let keep=1; for(let i=1;i<=10;i++){ const u=i/10; if(surfH(sk.pos.x+ox*u, sk.pos.z+oz*u) > gy0+0.55){ keep=Math.max(2.0/L,(i-1)/10); break; } }
+      if(keep<1){ _cam.x=sk.pos.x+ox*keep; _cam.z=sk.pos.z+oz*keep; } } }
   _cam.y=Math.max(_cam.y, surfH(_cam.x,_cam.z)+1.0);
   /* ---- OCCLUSION CLEARANCE ----
      A chase rig staring at the back of a ledge is not a shot. Probe the deck-level
