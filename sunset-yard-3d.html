@@ -191,6 +191,17 @@
   .char-card.sel .cname b{color:var(--orange);}
   #load{position:absolute;inset:0;display:grid;place-items:center;color:var(--conc);font-size:13px;letter-spacing:.24em;
     text-transform:uppercase;text-align:center;padding:24px;background:#241E33;}
+  /* v3 progression chrome */
+  #goalList .count{background:none;color:rgba(207,195,174,.7);letter-spacing:.18em;font-size:10px;}
+  #goalList .count::before{content:"";}
+  #goalToast{position:absolute;left:50%;top:calc(38% + 20px);transform:translateX(-50%);opacity:0;pointer-events:none;
+    font-weight:700;font-size:15px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink);background:var(--mint);
+    padding:5px 14px;white-space:nowrap;box-shadow:4px 4px 0 rgba(36,30,51,.8);}
+  #runStats{display:grid;grid-template-columns:repeat(3,auto);gap:4px 18px;font-size:11px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--conc);}
+  #runStats b{color:var(--chalk);font-family:var(--num);letter-spacing:0;font-size:13px;margin-left:6px;}
+  #bestLine{color:var(--haze);} #bestLine.new{color:var(--ink);background:var(--mint);padding:3px 10px;font-weight:700;}
+  @media (max-width:520px){ #runStats{grid-template-columns:repeat(2,auto);} }
   /* v3 BALANCE METER — the needle every grind and manual bail used to hide */
   #bal{position:absolute;left:50%;top:172px;width:min(56vw,230px);height:12px;transform:translateX(-50%) skewX(-8deg);
     background:linear-gradient(90deg,#FF3B47 0,#F0562A 14%,rgba(36,30,51,.7) 30%,rgba(36,30,51,.7) 70%,#F0562A 86%,#FF3B47 100%);
@@ -225,13 +236,10 @@
     </div>
     <div id="goals">
       <div id="letters"><span>S</span><span>K</span><span>A</span><span>T</span><span>E</span></div>
-      <div id="goalList">
-        <div data-g="score">Score 12,000</div>
-        <div data-g="combo">One combo worth 5,000</div>
-        <div data-g="letters">Collect S-K-A-T-E</div>
-      </div>
+      <div id="goalList"></div>
     </div>
     <div class="flash" id="flash"></div>
+    <div id="goalToast"></div>
     <div id="bal" aria-hidden="true"><b></b><i></i></div>
     <button id="muteBtn" type="button" aria-label="Toggle music">🔊</button>
   </div>
@@ -262,17 +270,20 @@
       <div id="rosterLabel">Choose your skater</div>
       <div id="rosterRow"></div>
     </div>
+    <div class="fine" id="recordLine"></div>
     <button class="cta" id="startBtn">Drop In</button>
     <div class="fine">Original 3D game · desktop &amp; mobile</div>
   </div>
   <div class="overlay hide" id="over">
-    <div class="tag">Run complete</div>
-    <div class="brand" style="font-size:min(10vw,70px)">Nice <em>line</em></div>
+    <div class="tag" id="overTag">Run complete</div>
+    <div class="brand" style="font-size:min(10vw,70px)" id="overHead">Nice <em>line</em></div>
     <div class="result">
       <div class="stat"><label>Final Score</label><span id="fScore">0</span></div>
       <div class="stat"><label>Best Combo</label><span id="fCombo">0</span></div>
       <div class="stat"><label>Letters</label><span id="fLetters">0/5</span></div>
     </div>
+    <div id="bestLine" class="fine"></div>
+    <div id="runStats"></div>
     <div id="goalSummary" class="help"></div>
     <button class="cta" id="againBtn">Skate Again</button>
   </div>
@@ -1168,8 +1179,9 @@ function addQuarterPhys(x,z,rot,hw,R,vert,plat){
   QUARTERS.push({x,z,c:Math.cos(rot),s:Math.sin(rot),hw,R,vert,plat,top:R+vert,
                  rr:Math.hypot(Math.max(R,plat),hw)+0.1});
 }
+let _qHit=null;            /* the quarter that won the last quarterH() query */
 function quarterH(x,z){
-  let y=-1e9;
+  let y=-1e9; _qHit=null;
   for(const q of QUARTERS){
     const dx=x-q.x, dz=z-q.z;
     if(dx*dx+dz*dz>q.rr*q.rr) continue;
@@ -1179,11 +1191,21 @@ function quarterH(x,z){
     if(lx<=0) h=q.top;                               /* the deck */
     else{ const u=q.R-lx; h=q.R-Math.sqrt(Math.max(0,q.R*q.R-u*u));
       if(q.vert>0 && lx<VZ){ const t=1-lx/VZ; h+=q.vert*t*t*(3-2*t); } }
-    if(h>y) y=h;
+    if(h>y){ y=h; _qHit=q; }
+  }
+  for(const b of BOXES){                     /* solid ledges, stairs, the manual pad */
+    const dx=x-b.x, dz=z-b.z; if(dx*dx+dz*dz>b.rr*b.rr) continue;
+    const lx=dx*b.c-dz*b.s, lz=dx*b.s+dz*b.c;
+    if(lx>-b.hw&&lx<b.hw&&lz>-b.hd&&lz<b.hd&&b.top>y){ y=b.top; _qHit=null; }
   }
   return y;
 }
-function surfH(x,z){ const g=groundH(x,z); if(!QUARTERS.length) return g; const q=quarterH(x,z); return q>g?q:g; }
+/* v3: solid boxes. The stairs, the hubba ledge and the manual pad were drawn but
+   had no body — you rolled straight through them. (x,z,rot) uses the same M()
+   frame as the mesh; hw/hd are LOCAL half-extents. */
+const BOXES=[];
+function addBoxPhys(x,z,rot,hw,hd,top){ BOXES.push({x,z,c:Math.cos(rot),s:Math.sin(rot),hw,hd,top,rr:Math.hypot(hw,hd)+0.1}); }
+function surfH(x,z){ const g=groundH(x,z); if(!QUARTERS.length&&!BOXES.length) return g; const q=quarterH(x,z); return q>g?q:g; }
 /* slope along a heading, and the full gradient, of the RIDEABLE surface */
 /* Finite differences that refuse to read a CLIFF as a slope: straddling the side
    face of a ramp used to report a 40:1 grade, which stalled the skater dead and
@@ -1288,6 +1310,7 @@ function addHubba(x,z,rot,len){
   for(const sd of [-1,1]) push("wax", chamferBox(len*0.94,0.055,0.10,0.015), T(0,h+0.012,sd*(w/2-0.24)));
   /* poured skirt so it rises OUT of the slab instead of sitting on it */
   push("concS", uvScale(chamferBox(len+0.5,0.12,w+0.5,0.04),1.6), T(0,0.06,0));
+  addBoxPhys(x,z,rot,len/2,w/2,h);
   aoBlobs.push([x,z,len*0.42]);
   occ(x,z,Math.max(1.2,len*0.30),h+0.1);
   /* local +X after a ry rotation is (cos,0,-sin), so the rail heading is PI/2-rot */
@@ -1302,6 +1325,10 @@ function addStairSet(x,z,rot,steps,railLen){
        4-stair readable in silhouette at 30m */
     push("chalk", chamferBox(w*0.9,0.035,0.09,0.02), T(0, rise*(i+1)+0.02, i*run+0.06));
   }
+  for(let i=0;i<steps;i++){ const cz=(i+0.5)*run;
+    addBoxPhys(x+Math.sin(rot)*cz, z+Math.cos(rot)*cz, rot, w/2, run/2, rise*(i+1)); }
+  { const cz=steps*run+1.2; addBoxPhys(x+Math.sin(rot)*cz, z+Math.cos(rot)*cz, rot, w/2+0.9, 1.2, steps*rise);
+    STAIRS.push({x,z,rot,top:steps*rise,pad:[x+Math.sin(rot)*cz, z+Math.cos(rot)*cz],foot:[x-Math.sin(rot)*2.5, z-Math.cos(rot)*2.5]}); }
   /* the upper pad the set is cut out of, at the TOP of the flight */
   push("deckflat", uvScale(chamferBox(w+1.8, steps*rise, 2.4, 0.05),1.4),
        T(0, steps*rise/2, steps*run+1.2));
@@ -1311,8 +1338,10 @@ function addStairSet(x,z,rot,steps,railLen){
      horizontal, so a sloped one would float) */
   addRail(x + Math.cos(rot)*(w*0.34), z - 2.6, railLen, rot+Math.PI/2, 0.62);
 }
+const STAIRS=[];
 function addManualPad(x,z,rot){
   const w=6.0, d=2.2, h=0.55;
+  addBoxPhys(x,z,rot,w/2,d/2,h);
   const T=(dx,dy,dz)=>M(x,0,z,rot).multiply(new THREE.Matrix4().makeTranslation(dx,dy,dz));
   push("conc", uvScale(chamferBox(w,h,d,0.05),1.6), T(0,h/2,0));
   for(const sd of [-1,1]) push("paint", chamferBox(w*0.98,0.075,0.16,0.03), T(0,h+0.005,sd*(d/2-0.09)));
@@ -1561,7 +1590,7 @@ function addBowl(){
    knife edge you can roll over (a spine transfer) or launch off. */
 function spineFix(){
   for(const a of QUARTERS) for(const b of QUARTERS){
-    if(a!==b && Math.abs(a.x-b.x)<0.01 && Math.abs(a.z-b.z)<0.01 && a.c*b.c+a.s*b.s<-0.99){ a.plat=0.001; b.plat=0.001; }
+    if(a!==b && Math.abs(a.x-b.x)<0.01 && Math.abs(a.z-b.z)<0.01 && a.c*b.c+a.s*b.s<-0.99){ a.plat=0.001; b.plat=0.001; a.spine=b; b.spine=a; }
   } }
 function buildPark(){
   /* perimeter retaining banks — the yard is poured against them */
@@ -1569,7 +1598,7 @@ function buildPark(){
   addBank(-BOUND+7,0,-Math.PI/2,60); addBank(BOUND-7,0,Math.PI/2,60);
   addFunbox(-14,10); addFunbox(20,-18);
   /* rails sit ACROSS the sightline, never down the camera barrel */
-  addRail(-7,2,26,1.02,1.4); addRail(-30,-24,20,Math.PI/2,1.4); addRail(26,6,22,0.5,1.4);
+  addRail(-5,3.2,20,1.02,1.4);   /* v3: shortened — its far end used to sit INSIDE the vert wall */ addRail(-30,-24,20,Math.PI/2,1.4); addRail(26,6,22,0.5,1.4);
   addKicker(8,28,Math.PI); addKicker(-26,20,0); addKicker(30,-4,-Math.PI/2); addKicker(-4,-30,0);
   addBank(46,-40,Math.PI/2-0.2,26); addBank(58,-40,-Math.PI/2-0.2,26);
   /* HERO LANDMARK, moved onto the opening straight and set just off the start
@@ -4334,7 +4363,9 @@ function addTrick(name,pts){ comboStart(); const k=trickKey(name), n=combo.count
   { const t=el("comboTotal"); if(t){ t.classList.remove("pop"); void t.offsetWidth; t.classList.add("pop"); } }
   trickCall(name, "×"+combo.tricks.length); }
 function comboValue(){ return combo.base*Math.max(1,combo.tricks.length); }
-function snapCombo(landed){ state.lastCombo={tricks:combo.tricks.map(t=>t.name), value:comboValue(), landed}; }
+function snapCombo(landed){ state.lastCombo={tricks:combo.tricks.map(t=>t.name), value:comboValue(), landed};
+  if(landed){ const st=state.stats; if(st){ st.maxChain=Math.max(st.maxChain,combo.tricks.length);
+    if(comboValue()>=(st.bestComboV||0)){ st.bestComboV=comboValue(); st.bestComboList=combo.tricks.map(t=>t.name); } } checkGoals(); } }
 function bankCombo(){ if(!combo.active)return; const v=comboValue(); snapCombo(true);
   if(v>0){ state.score+=v; if(v>state.best)state.best=v; sfx.bank(); flash(v.toLocaleString()+" BANKED");
     /* SCORE stops reading 0 next to a live 52,000: the plate punches and the digits
@@ -4345,6 +4376,81 @@ function loseCombo(){ if(combo.active&&combo.tricks.length) snapCombo(false); co
 function stokeAdd(n){ if(special.on)return; special.meter=Math.min(1,special.meter+n);
   if(special.meter>=1){ special.on=true;special.t=1;el("stokeWrap").classList.add("hot"); flash("STOKED! 2×"); } }
 
+/* =======================================================================
+   v3 PROGRESSION — a reason to take one more run
+   A save that survives the tab, a 13-rung goal ladder (three shown at a time,
+   next-up first), per-run stats, and named gaps that reward knowing the park.
+   ======================================================================= */
+const SAVE_KEY="sy3_save";
+let SAVE={best:0,bestCombo:0,runs:0,goals:{}};
+try{ const j=JSON.parse(localStorage.getItem(SAVE_KEY)||"null"); if(j&&typeof j==="object") SAVE=Object.assign(SAVE,j,{goals:Object.assign({},j.goals||{})}); }catch(e){}
+function persist(){ try{ localStorage.setItem(SAVE_KEY,JSON.stringify(SAVE)); }catch(e){} }
+const GOALS=[
+  {id:"s10",   label:"Score 10,000",               ok:()=>state.score>=10000},
+  {id:"c2500", label:"Land a 2,500 combo",         ok:()=>state.best>=2500},
+  {id:"skate", label:"Collect S-K-A-T-E",          ok:()=>state.letters>=5},
+  {id:"air2",  label:"Air 2m over a coping",       ok:()=>state.stats.bigAir>=2},
+  {id:"spin",  label:"Land a 360",                 ok:()=>state.stats.maxSpin>=360},
+  {id:"grind3",label:"Grind 3 seconds straight",   ok:()=>state.stats.longGrind>=3},
+  {id:"man3",  label:"Manual 3 seconds",           ok:()=>state.stats.longManual>=3},
+  {id:"dbl",   label:"Land a Double flip",         ok:()=>state.stats.double},
+  {id:"stair", label:"Clear the four stair",       ok:()=>!!state.stats.gaps["Four Stair"]},
+  {id:"spine", label:"Spine transfer",             ok:()=>!!state.stats.gaps["Spine Transfer"]},
+  {id:"chain10",label:"Land a 10-trick combo",     ok:()=>state.stats.maxChain>=10},
+  {id:"s40",   label:"Score 40,000",               ok:()=>state.score>=40000},
+  {id:"c20k",  label:"Land a 20,000 combo",        ok:()=>state.best>=20000},
+];
+function newStats(){ return {bigAir:0,maxSpin:0,longGrind:0,longManual:0,double:false,gaps:{},maxChain:0,
+  bails:0,landed:0,bestComboV:0,bestComboList:[],newGoals:[]}; }
+state.stats=newStats();
+function checkGoals(){
+  if(!state.stats) return;
+  for(const g of GOALS){ if(SAVE.goals[g.id]) continue;
+    let ok=false; try{ ok=g.ok(); }catch(e){}
+    if(ok){ SAVE.goals[g.id]=Date.now(); state.stats.newGoals.push(g.label); persist();
+      if(state.phase==="playing"){ goalToast(g.label); if(sfx.goal) sfx.goal(); } }
+  }
+  refreshGoals();
+}
+function goalToast(txt){ const t=el("goalToast"); if(!t) return; t.textContent="GOAL — "+txt;
+  t.animate([{opacity:0,transform:"translate(-50%,8px)"},{opacity:1,transform:"translate(-50%,0)",offset:.12},
+             {opacity:1,transform:"translate(-50%,0)",offset:.8},{opacity:0,transform:"translate(-50%,-6px)"}],{duration:2600,easing:"ease-out"}); }
+/* GAPS — named lines through the park, judged takeoff -> touchdown */
+function markTakeoff(x,z,y){ sk.to={x:x==null?sk.pos.x:x, z:z==null?sk.pos.z:z, y:y==null?sk.pos.y:y}; }
+function inBox(b,x,z,pad){ const dx=x-b.x, dz=z-b.z, lx=dx*b.c-dz*b.s, lz=dx*b.s+dz*b.c; pad=pad||0;
+  return lx>-b.hw-pad&&lx<b.hw+pad&&lz>-b.hd-pad&&lz<b.hd+pad; }
+function awardGap(name,pts){ addTrick(name,pts); state.stats.gaps[name]=1; }
+function landedStats(halfs, gl){
+  const st=state.stats; if(!st) return; st.landed++;
+  if(halfs>=2) st.maxSpin=Math.max(st.maxSpin,halfs*180);
+  if(sk.flipN>=1 && sk.flipBase){ st.double=true; } sk.flipN=0; sk.flipBase=null;
+  if(sk.airFrom==="lip"){ const above=Math.max(0,(sk.peakY||0)-(sk.lipY||0)); st.bigAir=Math.max(st.bigAir,above); }
+  const to=sk.to;
+  if(to){
+    /* four stair: off the pad (or its top step) down past the bottom tread */
+    for(const S of STAIRS){ const px=sk.pos.x-S.x, pz=sk.pos.z-S.z;
+      const along=px*Math.sin(S.rot)+pz*Math.cos(S.rot), tAlong=(to.x-S.x)*Math.sin(S.rot)+(to.z-S.z)*Math.cos(S.rot);
+      const lat=Math.abs(px*Math.cos(S.rot)-pz*Math.sin(S.rot));
+      if(to.y>=S.top-0.5 && tAlong>2.6 && along<0.2 && lat<3.5 && sk.pos.y<0.3) awardGap("Four Stair",600); }
+    /* dock gap: pop off the loading dock and clear 5m of flat before you touch down */
+    if(to.y>=DOCK.h-0.15 && Math.abs(to.x-DOCK.x)<DOCK.hw+0.5 && Math.abs(to.z-DOCK.z)<DOCK.hd+0.5
+       && sk.pos.y<0.25 && Math.hypot(sk.pos.x-to.x,sk.pos.z-to.z)>5) awardGap("Dock Gap",300);
+    /* spine transfer: took off one face of a spine, landed on the other */
+    if(sk.lipQ && sk.lipQ.spine){ quarterH(sk.pos.x,sk.pos.z); if(_qHit===sk.lipQ.spine) awardGap("Spine Transfer",700); }
+  }
+  sk.lastRail=null;
+  checkGoals();
+}
+function endGrindStat(){ if(state.stats) state.stats.longGrind=Math.max(state.stats.longGrind,sk.grindT||0); sk.grindT=0; checkGoals(); }
+function endManualStat(){ if(state.stats) state.stats.longManual=Math.max(state.stats.longManual,sk.manT||0); sk.manT=0; checkGoals(); }
+function refreshGoals(){ const g=el("goalList"); if(!g) return;
+  const open=GOALS.filter(q=>!SAVE.goals[q.id]).slice(0,3);
+  const done=GOALS.length-GOALS.filter(q=>!SAVE.goals[q.id]).length;
+  const html=(open.length?open.map(q=>"<div>"+q.label+"</div>").join(""):"<div class='done'>Every goal cleared</div>")+
+    "<div class='count'>"+done+" / "+GOALS.length+" goals</div>";
+  if(g._h!==html){ g._h=html; g.innerHTML=html; }
+  const rb=el("recordLine"); if(rb) rb.textContent = SAVE.best ? ("Best "+SAVE.best.toLocaleString()+" · best combo "+SAVE.bestCombo.toLocaleString()+" · "+done+"/"+GOALS.length+" goals") : "";
+}
 function startGame(){ audioInit();resumeAudio();
   { const mc=document.getElementById("musicChk"); if(mc) setMuted(!mc.checked); } startMusic(); updateMuteBtn();
   applyCharacter(SELECTED);
@@ -4353,7 +4459,7 @@ function startGame(){ audioInit();resumeAudio();
   special.meter=0;special.on=false;special.t=0;el("stokeWrap").classList.remove("hot");
   for(const L of letterObjs){ L.got=false; L.anim=-1; L.mesh.visible=true; L.mesh.material.opacity=1; L.mesh.position.y=L.base; }
   document.querySelectorAll("#letters span").forEach(s=>s.classList.remove("got"));
-  state.phase="playing";state.score=0;_scoreShown=0;_lastScore=-1;state.best=0;state.time=RUN_TIME;state.letters=0;state.hitStop=0;state.shake=0;
+  state.stats=newStats(); sk.to=null; sk.lastRail=null; state.phase="playing";state.score=0;_scoreShown=0;_lastScore=-1;state.best=0;state.time=RUN_TIME;state.letters=0;state.hitStop=0;state.shake=0;
   el("start").classList.add("hide"); el("over").classList.add("hide");
   refreshGoals();updateCombo(); }
 window.__startGame=startGame;
@@ -4361,8 +4467,28 @@ function endGame(){ if(combo.active)bankCombo(); state.phase="over";
   el("fScore").textContent=Math.round(state.score).toLocaleString();
   el("fCombo").textContent=Math.round(state.best).toLocaleString();
   el("fLetters").textContent=state.letters+"/5";
-  const g=[]; if(state.score>=12000)g.push("hit 12k"); if(state.best>=5000)g.push("a 5k combo"); if(state.letters>=5)g.push("all of S-K-A-T-E");
-  el("goalSummary").innerHTML=g.length?"Landed: <b>"+g.join("</b>, <b>")+"</b>. Go bigger?":"Chain a grind into a manual into a flip and watch the multiplier climb.";
+  /* ---- v3 RESULTS: what you did, what's new, what's next ---- */
+  checkGoals();
+  const st=state.stats, sc=Math.round(state.score), bc=Math.round(state.best);
+  const newBest = sc>SAVE.best, newCombo = bc>SAVE.bestCombo;
+  SAVE.runs=(SAVE.runs||0)+1; if(newBest) SAVE.best=sc; if(newCombo) SAVE.bestCombo=bc; persist();
+  el("overHead").innerHTML = newBest&&SAVE.runs>1 ? "New <em>best</em>" : (sc>=20000 ? "Big <em>line</em>" : "Nice <em>line</em>");
+  const bl=el("bestLine"); bl.classList.toggle("new", newBest&&SAVE.runs>1);
+  bl.textContent = newBest&&SAVE.runs>1 ? "New personal best" : ("Best "+SAVE.best.toLocaleString()+" · best combo "+SAVE.bestCombo.toLocaleString());
+  const row=(k,v)=>"<div>"+k+"<b>"+v+"</b></div>";
+  el("runStats").innerHTML =
+    row("Biggest air", st.bigAir>0.05 ? st.bigAir.toFixed(1)+"m" : "—")+
+    row("Longest grind", st.longGrind>0.05 ? st.longGrind.toFixed(1)+"s" : "—")+
+    row("Longest manual", st.longManual>0.05 ? st.longManual.toFixed(1)+"s" : "—")+
+    row("Best spin", st.maxSpin ? st.maxSpin+"°" : "—")+
+    row("Longest chain", st.maxChain||"—")+
+    row("Bails", st.bails);
+  const open=GOALS.filter(q=>!SAVE.goals[q.id]);
+  let html="";
+  if(st.bestComboList.length) html+="Best line: <b>"+st.bestComboList.slice(0,8).map(t=>t.replace(/</g,"")).join(" → ")+(st.bestComboList.length>8?" …":"")+"</b><br>";
+  if(st.newGoals.length) html+="Goals cleared: <b>"+st.newGoals.join("</b>, <b>")+"</b><br>";
+  html += open.length ? ("Next: <b>"+open[0].label+"</b>"+(open[1]?" · "+open[1].label:"")) : "Every goal cleared. Chase the score.";
+  el("goalSummary").innerHTML=html;
   el("over").classList.remove("hide");
   if(rollGain)rollGain.gain.value=0; if(grindGain)grindGain.gain.value=0; }
 
@@ -4476,20 +4602,21 @@ function step(dt){
       break; }
     case "grind":{
       const r=sk.rail; sk.railT += sk.railDir*T.grindSpeed*dt;
-      if(sk.railT<0||sk.railT>r.len){ sk.state="air"; sk.vy=0; sk.airFrom="rail"; sk.railCool=r; sk.railCoolT=0.4;
+      if(sk.railT<0||sk.railT>r.len){ endGrindStat(); sk.state="air"; sk.vy=0; sk.airFrom="rail"; sk.railCool=r; sk.railCoolT=0.4; sk.lastRail=r; markTakeoff();
         sk.vel.set(r.dir.x*sk.railDir*T.grindSpeed,0,r.dir.z*sk.railDir*T.grindSpeed); sk.speed=T.grindSpeed; break; }
       sk.pos.set(r.a.x+r.dir.x*sk.railT, r.y, r.a.z+r.dir.z*sk.railT);
       sk.yaw=Math.atan2(r.dir.x*sk.railDir, r.dir.z*sk.railDir);
-      grindPts(dt); drift(dt,ev); fxGrind(dt);
+      grindPts(dt); drift(dt,ev); fxGrind(dt); sk.grindT=(sk.grindT||0)+dt;
       if(ev.has("trick")){ sk.gsw=((sk.gsw||0)+1)%GRIND_SWITCH.length; addTrick(GRIND_SWITCH[sk.gsw],130); sk.balV*=0.5; }
-      if(wantPop){ sk.speed=T.grindSpeed; sk.railCool=r; sk.railCoolT=0.4; pop(T.ollie*popPow); }
+      if(wantPop){ endGrindStat(); sk.speed=T.grindSpeed; sk.railCool=r; sk.railCoolT=0.4; sk.lastRail=r; pop(T.ollie*popPow); }
       break; }
     case "manual":{
       const r=rideGround(dt, steer, 0.6);
       if(r==="air") break;
-      manualPts(dt); drift(dt,ev);
-      if(wantPop){ pop(T.ollie*popPow); }
-      else if(!held.manual){ sk.state="roll"; sk.grace=T.comboGrace; }
+      manualPts(dt); drift(dt,ev); sk.manT=(sk.manT||0)+dt;
+      if(sk.state!=="manual") break;
+      if(wantPop){ endManualStat(); pop(T.ollie*popPow); }
+      else if(!held.manual){ endManualStat(); sk.state="roll"; sk.grace=T.comboGrace; }
       break; }
     case "bail":{
       sk.bailT-=dt; sk.speed*=Math.max(0,1-dt*5);
@@ -4573,7 +4700,7 @@ function step(dt){
 
   for(const L of letterObjs){ if(L.got)continue;
     if(sk.pos.distanceTo(L.mesh.position)<3.4){ L.got=true; L.anim=0; state.letters++; state.score+=500; sfx.letter();
-      const i=["S","K","A","T","E"].indexOf(L.ch); if(i>=0)document.querySelectorAll("#letters span")[i].classList.add("got"); refreshGoals(); } }
+      const i=["S","K","A","T","E"].indexOf(L.ch); if(i>=0)document.querySelectorAll("#letters span")[i].classList.add("got"); checkGoals(); } }
 
   applyTransform(dt); updateCamera(dt); updateHUD(); updateBalanceHUD();
 }
@@ -4600,7 +4727,7 @@ function rideGround(dt, steer, turnMul, passive){
   const hs=sk.speed*cosA;
   sk.pos.x+=fx*hs*dt; sk.pos.z+=fz*hs*dt;
   const h=surfH(sk.pos.x,sk.pos.z);
-  if(h-py>0.45){                     /* a face you can't roll up: glance off it */
+  if(h-py>0.32){                     /* a face you can't roll up: glance off it */
     sk.pos.x=px; sk.pos.z=pz;
     /* the face normal, read from the cliff itself (which side got taller) */
     const e=0.25, hx=surfH(px+e,pz)-surfH(px-e,pz), hz=surfH(px,pz+e)-surfH(px,pz-e);
@@ -4611,7 +4738,7 @@ function rideGround(dt, steer, turnMul, passive){
     if(!passive && dn>0.5){ state.shake=Math.max(state.shake,0.2); if(typeof sfx!=="undefined"&&sfx.bonk) sfx.bonk(); }
     return "block"; }
   if(py-h>0.30){                     /* rolled off an edge: you're airborne */
-    sk.state="air"; sk.airFrom="edge"; sk.vel.set(fx*hs,0,fz*hs);
+    sk.state="air"; sk.airFrom="edge"; sk.vel.set(fx*hs,0,fz*hs); sk.lipQ=null; markTakeoff(px,pz,py);
     sk.vy=Math.min(0, sk.speed*sinA); sk.spinNet=0; sk.airT=0; sk.pos.y=py;
     return "air"; }
   sk.pos.y=h;
@@ -4641,11 +4768,15 @@ function launchLip(fx,fz){
   const gl=Math.hypot(_g2.x,_g2.z)||1, nx=_g2.x/gl, nz=_g2.z/gl;    /* uphill */
   const sp=Math.max(0,sk.speed);
   const vx=fx*sp, vz=fz*sp, vn=vx*nx+vz*nz;
-  sk.vel.set(vx-nx*vn-nx*0.9, 0, vz-nz*vn-nz*0.9);
   const charged = held.ollie || sk.ollieWas;
+  quarterH(sk.pos.x,sk.pos.z); sk.lipQ=_qHit;
+  /* SPINE TRANSFER: carry a loaded ollie into a spine's knife edge and you keep
+     your drive over the top and come down the far side instead of straight back */
+  if(charged && sk.lipQ && sk.lipQ.spine) sk.vel.set(vx-nx*vn+nx*2.1, 0, vz-nz*vn+nz*2.1);
+  else sk.vel.set(vx-nx*vn-nx*0.9, 0, vz-nz*vn-nz*0.9);
   const charge = charged ? Math.min(1,(sk.chargeT||0)/0.28) : 0;
   sk.vy = sp*0.85 + T.lipPop + (charged ? T.lipOllie*(0.55+0.45*charge) : 0);
-  sk.state="air"; sk.airFrom="lip"; sk.lipY=sk.pos.y; sk.spinNet=0; sk.airT=0;
+  sk.state="air"; sk.airFrom="lip"; sk.lipY=sk.pos.y; sk.spinNet=0; sk.airT=0; markTakeoff();
   if(charged){ sk.lipBoost=true; held.ollie=false; sk.ollieWas=false; sk.chargeT=0; } else sk.lipBoost=false;
   comboStart(); sfx.ollie(); sk.crouch=-0.15; sk.crouchT=0;
 }
@@ -4655,9 +4786,12 @@ function pop(v){
   const hs=Math.max(0,sk.speed)*inv;
   sk.vel.set(fx*hs,0,fz*hs);
   sk.vy=v+Math.max(0,sk.speed*along*inv);
-  sk.state="air"; sk.airFrom=sk.airFrom==="rail"?"rail":"pop"; sk.spinNet=0; sk.airT=0; sk.lipBoost=false;
+  sk.state="air"; sk.airFrom=sk.airFrom==="rail"?"rail":"pop"; sk.spinNet=0; sk.airT=0; sk.lipBoost=false; sk.lipQ=null; markTakeoff();
   comboStart(); sfx.ollie(); sk.crouch=-0.15; sk.crouchT=0; }
-function enterGrind(nr){ sk.grab=null; sk.state="grind"; sk.rail=nr.rail; sk.railT=nr.t; sk.vy=0;
+function enterGrind(nr){
+  /* RAIL TRANSFER: off one rail and onto a different one without touching down */
+  if(sk.lastRail && sk.lastRail!==nr.rail && combo.active) addTrick("Rail Transfer",350);
+  sk.grindT=0; sk.grab=null; sk.state="grind"; sk.rail=nr.rail; sk.railT=nr.t; sk.vy=0;
   const align=(new THREE.Vector3(Math.sin(sk.yaw),0,Math.cos(sk.yaw))).dot(nr.rail.dir); sk.railDir=align>=0?1:-1;
   sk.balance=0; sk.balV=0; sk.balT=0; sk._tip=0;
   /* the grind is chosen by HOW YOU MEET THE RAIL — the board's angle to it when
@@ -4751,6 +4885,7 @@ function landGround(){
   if(sk.airFrom==="lip" && gl>0.35){ const above=Math.max(0,(sk.peakY||0)-(sk.lipY||0));
     if(above>0.4) addTrick("Air "+above.toFixed(1)+"m", Math.round(80+above*90)); }
   if(gl>0.35 && combo.active) sk.revertWin=0.32;   /* landed on transition: revert window */
+  landedStats(halfs, gl);
   const n=combo.tricks.length;
   sk.spinAcc=0; sk.spinNet=0; sk._tip=0; sfx.land(Math.max(1,n));
   sk.crouch=1.0; sk.crouchHold=1.0; sk.crouchT=0.18;
@@ -4761,8 +4896,8 @@ function landGround(){
   sk.grab=null;
   if(held.manual && gl<0.3){ enterManual(); } else { sk.state="roll"; sk.grace=T.comboGrace; } }
 /* MANUAL links two tricks across the flat — and can open a line on its own */
-function enterManual(){ sk.state="manual"; sk.balance=0; sk.balV=0; sk.balT=0; sk._tip=0; mAcc=0; addTrick("Manual",60); }
-function bail(why){ sk.grab=null; sfx.bail(); flash(why?("BAIL · "+why):"BAIL!",true); loseCombo(); fxBail(sk.pos.x,sk.pos.y,sk.pos.z); sk.state="bail"; sk.bailT=T.bailLock; sk.vy=0; sk.flipRem=0; sk._tip=0;
+function enterManual(){ sk.manT=0; sk.state="manual"; sk.balance=0; sk.balV=0; sk.balT=0; sk._tip=0; mAcc=0; addTrick("Manual",60); }
+function bail(why){ sk.grab=null; sk.lastRail=null; sk.flipN=0; if(state.stats) state.stats.bails++; sfx.bail(); flash(why?("BAIL · "+why):"BAIL!",true); loseCombo(); fxBail(sk.pos.x,sk.pos.y,sk.pos.z); sk.state="bail"; sk.bailT=T.bailLock; sk.vy=0; sk.flipRem=0; sk._tip=0;
   state.hitStop=0.09; state.shake=0.35; }
 
 /* =======================================================================
@@ -5009,10 +5144,6 @@ function updateCombo(){ const c=el("combo"); if(!combo.active||!combo.tricks.len
   if(more){ more.textContent = n>4 ? ("+"+(n-4)+" more") : ""; more.style.display = n>4 ? "block" : "none"; }
   const mult=el("comboMult"); if(mult) mult.textContent="×"+n;
   el("comboTotal").innerHTML=comboValue().toLocaleString(); }
-function refreshGoals(){ const g=el("goalList");
-  g.querySelector('[data-g="score"]').classList.toggle("done",state.score>=12000);
-  g.querySelector('[data-g="combo"]').classList.toggle("done",state.best>=5000);
-  g.querySelector('[data-g="letters"]').classList.toggle("done",state.letters>=5); }
 function flash(txt,bail){ const f=el("flash"); f.textContent=txt; f.classList.toggle("bail",!!bail);
   f.animate([{opacity:0,transform:"translate(-50%,-50%) scale(.7) rotate(-2deg)"},
              {opacity:1,transform:"translate(-50%,-50%) scale(1.02) rotate(-2deg)"},
@@ -5110,7 +5241,7 @@ window.__camShot=(name)=>{
 async function boot(){
   try{
     await buildScene();
-    buildRoster();
+    buildRoster(); refreshGoals();
     bindTouch(); resetSkater(); applyTransform(1/60); updateKeyLight();
     el("load").style.display="none"; el("start").classList.remove("hide");
     window.__booted=true;
