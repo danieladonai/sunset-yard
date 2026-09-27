@@ -13,9 +13,10 @@
     --num:ui-monospace,Menlo,Consolas,monospace;
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
-  html,body{height:100%;overflow:hidden;background:#241E33;touch-action:none;overscroll-behavior:none;font-family:var(--disp);}
+  html{-webkit-text-size-adjust:100%;text-size-adjust:100%;}   /* iOS auto-enlarged all text and pushed Drop In off-screen */
+  html,body{height:100%;overflow:hidden;background:#241E33;touch-action:manipulation;overscroll-behavior:none;font-family:var(--disp);}
   #game{position:fixed;inset:0;overflow:hidden;user-select:none;-webkit-user-select:none;}
-  canvas{position:absolute;inset:0;display:block;}
+  canvas{position:absolute;inset:0;display:block;touch-action:none;}
   #hud{position:absolute;inset:0;pointer-events:none;}
   #topbar{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;gap:12px;
     padding:12px 14px calc(12px + env(safe-area-inset-top,0)) 14px;}
@@ -164,6 +165,12 @@
   .overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
     text-align:center;padding:24px;background:rgba(36,30,51,.78);color:var(--chalk);pointer-events:auto;}
   .overlay.hide{display:none;}
+  #start.compact{gap:10px;padding:14px 16px calc(14px + env(safe-area-inset-bottom,0));}
+  #start.compact .brand{font-size:min(13vw,72px);}
+  #start.compact .help{font-size:12.5px;line-height:1.5;}
+  #start.compact .char-card .thumb{height:78px;}
+  #start.compact #startBtn{position:sticky;bottom:0;z-index:3;flex:0 0 auto;}
+  .overlay{overflow-y:auto;-webkit-overflow-scrolling:touch;justify-content:safe center;touch-action:pan-y;}   /* tall menus scroll on small phones */
   .brand{font-weight:700;text-transform:uppercase;line-height:.84;font-size:min(15vw,104px);letter-spacing:.01em;
     color:var(--chalk);text-wrap:balance;}
   .brand em{font-style:normal;background:var(--orange);color:var(--ink);padding:0 10px;display:inline-block;transform:rotate(-2deg);}
@@ -4593,6 +4600,8 @@ if(matchMedia("(pointer:coarse)").matches){ document.getElementById("touch").cla
   document.getElementById("kbHelp").innerHTML="<b>Touch</b> — steer &amp; push on the left · flip, grab/grind/manual, ollie on the right";
   { const h=document.getElementById("hint"); if(h) h.innerHTML="Hold <b>PUSH</b> to roll · hold &amp; release <b>OLLIE</b> to pop"; }
   /* touch-specific wording: no SPACE/K/Esc on a phone */
+  /* phones: a compact start screen that fits one screen, Drop In always visible */
+  { const hs=document.querySelectorAll("#start .help"); if(hs[0]) hs[0].innerHTML="<b>PUSH</b> to roll · hold &amp; release <b>OLLIE</b> to pop · <b>◀ ▶</b> steer (spin in the air)<br><b>GRIND</b>: ride beside a bar and tap <b>GRIND</b> when the orange prompt shows, then ◀ ▶ to balance · <b>FLIP</b> and <b>GRAB</b> in the air"; if(hs[1]) hs[1].style.display="none"; document.getElementById("start").classList.add("compact"); }
   document.querySelectorAll("#start .help").forEach(p=>{ p.innerHTML=p.innerHTML.replace("press SPACE or K, then steer ←/→ to balance","tap GRIND (or OLLIE alongside it), then steer ◀ ▶ to balance").replace("(no timer · Esc ends)","(no timer)"); }); }
 
 let AC=null,master=null,rollGain=null,rollOsc=null,grindGain=null,musicGain=null,sfxBus=null;
@@ -5872,6 +5881,9 @@ window.__camShot=(name)=>{
    start hidden, so their shaders used to compile on the FIRST ollie — a 350ms hitch
    that made the first pop look like the rider teleported mid-air. */
 function warmShaders(){
+  /* NOT on phones: compiling every material in one burst made iOS Safari kill its GPU
+     process ("BUILD FAILED" / blank page on iPhone). Desktop keeps the warm-up. */
+  if(QS.has("nowarm") || matchMedia("(pointer:coarse)").matches || /iPhone|iPad|iPod/.test(navigator.userAgent)) return;
   try{ const hidden=[]; scene.traverse(o=>{ if(o.visible===false){ hidden.push(o); o.visible=true; } });
     renderer.compile(scene,camera); composer.render();
     hidden.forEach(o=>o.visible=false); }catch(e){ console.warn('[warm]',e); }
