@@ -1228,7 +1228,7 @@ function quarterH(x,z){
     if(h>y){ y=h; _qHit=q; }
   }
   { const kh=kickH(x,z); if(kh>y){ y=kh; _qHit=null; } }
-  for(const b of BOXES){                     /* solid ledges, stairs, the manual pad */
+  if(!_noBox) for(const b of BOXES){         /* solid ledges, stairs, the manual pad */
     const dx=x-b.x, dz=z-b.z; if(dx*dx+dz*dz>b.rr*b.rr) continue;
     const lx=dx*b.c-dz*b.s, lz=dx*b.s+dz*b.c;
     if(lx>-b.hw&&lx<b.hw&&lz>-b.hd&&lz<b.hd&&b.top>y){ y=b.top; _qHit=null; _boxHit=b; }
@@ -1248,10 +1248,14 @@ function surfH(x,z){ const g=groundH(x,z); if(!QUARTERS.length&&!BOXES.length&&!
    is a face, not a surface — take the one-sided difference instead. */
 function _d3(hm,h0,hp,e){ const a=hp-h0, b=h0-hm, J=0.9;
   if(Math.abs(a)>J && Math.abs(b)>J) return 0; if(Math.abs(a)>J) return b/e; if(Math.abs(b)>J) return a/e; return (hp-hm)/(2*e); }
-function slopeAt(x,z,dx,dz){ const e=0.05;
-  return _d3(surfH(x-dx*e,z-dz*e), surfH(x,z), surfH(x+dx*e,z+dz*e), e); }
-function gradAt(x,z,out){ const e=0.05, h0=surfH(x,z);
-  out.x=_d3(surfH(x-e,z),h0,surfH(x+e,z),e); out.z=_d3(surfH(x,z-e),h0,surfH(x,z+e),e); return out; }
+/* v3: slopes are sampled WITHOUT the hard-edged boxes. A ledge's 0.4m face read
+   as a steep hill, and the cross-slope force then fought your steering — next to
+   any box you could barely turn, and standing still you couldn't turn at all. */
+let _noBox=false;
+function slopeAt(x,z,dx,dz){ const e=0.05; _noBox=true;
+  const r=_d3(surfH(x-dx*e,z-dz*e), surfH(x,z), surfH(x+dx*e,z+dz*e), e); _noBox=false; return r; }
+function gradAt(x,z,out){ const e=0.05; _noBox=true; const h0=surfH(x,z);
+  out.x=_d3(surfH(x-e,z),h0,surfH(x+e,z),e); out.z=_d3(surfH(x,z-e),h0,surfH(x,z+e),e); _noBox=false; return out; }
 
 function addRail(x,z,len,rot,h){
   const dir=new THREE.Vector3(Math.sin(rot),0,Math.cos(rot));
@@ -1655,7 +1659,7 @@ function buildPark(){
   /* the plaza fills the origin apron the opening chase camera stares down */
   addHubba(6.2,-19.5, 0.28, 12);
   addStairSet(-7.5,-13.0, 0.0, 4, 3.5);
-  addManualPad(-6.0,-31.0, 0.16);
+  addManualPad(-8.0,-26.0, 0.16);   /* v3: was sat in the drainage swale — a 0.67m step nobody can ollie */
   addBowl();
 
   /* ---------------- the height ladder, all inside r=40 ----------------
@@ -1682,6 +1686,10 @@ function buildPark(){
        at three heights, so its back reads as built structure instead of one flat
        rectangular plate filling a third of the frame. */
     push("deckflat", uvScale(chamferBox(0.9, 3.9, 8.4, 0.06),1.4), M(-19.05, 1.95, -13.2, 0));
+    /* v3: the retaining bank behind the wall is SOLID and fills the gap — you could
+       ride round the side into a dead pocket behind the deck and lose the camera */
+    push("deckflat", uvScale(chamferBox(4.0, 3.4, 19.4, 0.06),1.4), M(-21.0, 1.7, -8, 0));
+    addBoxPhys(-20.95,-8,0, 2.05, 9.75, 3.5);
     push("deckflat", uvScale(chamferBox(1.4, 2.8, 4.0, 0.06),1.4), M(-19.30, 1.40,  -8.0, 0));
     push("deckflat", uvScale(chamferBox(0.9, 3.5, 7.0, 0.06),1.4), M(-19.05, 1.75,  -2.6, 0));
     push("conc",     uvScale(chamferBox(2.2, 0.55, 19.0, 0.05),1.4), M(-20.0, 0.27, -8, 0));
@@ -3697,12 +3705,12 @@ function solveRider(dt){
     sp("pz", midz - 0.05 - crouch*0.07 + sk.lean*0.10*(1-pw) - (air?0.03:0), dt));
   const pel=RS.pel.copy(pel0).lerp(_t5.set(0, gY+0.13, 0.02), bw);
   /* pelvis rotation: hips open toward the nose, fold forward with the crouch */
-  const pYaw = 0.10 + pw*1.10, pPitch = (0.10 + crouch*0.40 + (air?0.12:0) + grabL*0.25)*(1-bw) - 0.55*bw, pRoll = -sk.lean*0.18*(1-bw);
+  const pYaw = 0.0 + pw*1.10, pPitch = (0.10 + crouch*0.40 + (air?0.12:0) + grabL*0.25)*(1-bw) - 0.55*bw, pRoll = -sk.lean*0.18*(1-bw);
   _eu.set(sp("pp",pPitch,dt), sp("pyaw",pYaw,dt), pRoll); const Rpel=_qa2.setFromEuler(_eu).clone();
   const q=RS.q, p=RS.p;
   q.Hips=(q.Hips||new THREE.Quaternion()).copy(Rpel).multiply(Q.Hips);
   /* spine: lean into the line, shoulders square toward the nose, head watches the path */
-  const chestYaw = 0.06 + pw*0.10 + (grind&&/slide/i.test(sk.lastTrick||"")?0.2:0);
+  const chestYaw = 0.0 + pw*0.10 + (grind&&/slide/i.test(sk.lastTrick||"")?0.2:0);
   const bend = (0.10 + crouch*0.22 + (air?0.18:0) + grabL*0.45 + ((grind||manual)?0.05:0))*(1-bw) + 0.30*bw;
   const sideB = (manual?0.10:0) - sk.lean*0.12 + wob*0.6;
   _eu.set(sp("sb",bend,dt)/3, sp("sy",chestYaw,dt)/3, sp("sr",sideB,dt)/3); const Rsp=_qb2.setFromEuler(_eu).clone();
@@ -4777,7 +4785,7 @@ function startGame(){ audioInit();resumeAudio();
   special.meter=0;special.on=false;special.t=0;el("stokeWrap").classList.remove("hot");
   for(const L of letterObjs){ L.got=false; L.anim=-1; L.mesh.visible=true; L.mesh.material.opacity=1; L.mesh.position.y=L.base; }
   document.querySelectorAll("#letters span").forEach(s=>s.classList.remove("got"));
-  state.stats=newStats(); sk.to=null; sk.lastRail=null; state.clockOn=false; { const h=el("hint"); if(h) h.classList.remove("gone"); } state.phase="playing";state.score=0;_scoreShown=0;_lastScore=-1;state.best=0;state.time=RUN_TIME;state.letters=0;state.hitStop=0;state.shake=0;
+  { const sv=el("scoreV"); if(sv) sv.textContent="0"; } state.stats=newStats(); sk.to=null; sk.lastRail=null; state.clockOn=false; { const h=el("hint"); if(h) h.classList.remove("gone"); } state.phase="playing";state.score=0;_scoreShown=0;_lastScore=-1;state.best=0;state.time=RUN_TIME;state.letters=0;state.hitStop=0;state.shake=0;
   el("start").classList.add("hide"); el("over").classList.add("hide");
   refreshGoals();updateCombo();
   /* v3: the chase rig SNAPS behind the rider on Drop In — it used to swoop in from
@@ -5093,7 +5101,8 @@ function rideGround(dt, steer, turnMul, passive){
     let tx=fx-nx*dn*1.9, tz=fz-nz*dn*1.9;          /* reflect, a little soft */
     if(Math.hypot(tx,tz)<0.2){ tx=-fx; tz=-fz; }
     sk.yaw=Math.atan2(tx,tz); sk.speed*=0.45;
-    if(!passive && dn>0.6 && sk.speed/0.45>5.5){ bail("Slammed into it"); return "block"; }
+    /* a knee-high ledge at jogging speed is a stumble; a tall face or real speed is a slam */
+    if(!passive && dn>0.6 && (sk.speed/0.45>7.5 || (h-py>0.7 && sk.speed/0.45>5.0))){ bail("Slammed into it"); return "block"; }
     if(!passive && dn>0.5){ state.shake=Math.max(state.shake,0.2); if(typeof sfx!=="undefined"&&sfx.bonk) sfx.bonk(); }
     return "block"; }
   if(passive && py-h>0.02){ sk.pos.y=py; return "fall"; }  /* a bail FALLS off edges (see the bail state), it never becomes an air */
@@ -5270,7 +5279,7 @@ function landGround(){
 /* the Manual only COUNTS once you've actually held it 0.3s — tapping it used to
    add a trick (and a multiplier step) every tap, forever */
 function enterManual(){ sk.manT=0; sk.manPaid=false; sk.state="manual"; sk.balance=0; sk.balV=0; sk.balT=0; sk._tip=0; mAcc=0; }
-function bail(why){ sk.grab=null; sk.lastRail=null; sk.flipN=0; if(state.stats) state.stats.bails++; sfx.bail(); flash(why?("BAIL · "+why):"BAIL!",true); loseCombo(); fxBail(sk.pos.x,sk.pos.y,sk.pos.z); sk.state="bail"; sk.bailT=T.bailLock; sk.vy=0; sk.flipRem=0; sk._tip=0;
+function bail(why){ if(sk.state==="grind") endGrindStat(); else if(sk.state==="manual") endManualStat(); sk.grab=null; sk.lastRail=null; sk.flipN=0; if(state.stats) state.stats.bails++; sfx.bail(); flash(why?("BAIL · "+why):"BAIL!",true); loseCombo(); fxBail(sk.pos.x,sk.pos.y,sk.pos.z); sk.state="bail"; sk.bailT=T.bailLock; sk.vy=0; sk.flipRem=0; sk._tip=0;
   state.hitStop=0.09; state.shake=0.35; }
 
 /* =======================================================================
