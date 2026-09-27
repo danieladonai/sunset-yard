@@ -27,23 +27,26 @@ async function boot(opts = {}) {
 }
 
 const PHYS = [
-  ['vert wall', -2, -15.2, -Math.PI / 2, 16, {}],
-  ['vert wall + ollie at lip', -2, -15.2, -Math.PI / 2, 16, { ollieHold: true }],
-  ['vert wall + 180', -2, -15.2, -Math.PI / 2, 16, { spin: 0.49 }],
-  ['vert wall + 90 (must bail)', -2, -15.2, -Math.PI / 2, 16, { spin: 0.25 }],
-  ['spine', 10, 14, Math.PI / 2, 16, {}],
-  ['spine transfer (loaded ollie)', 10, 14, Math.PI / 2, 16, { ollieTill: 0.9 }],
-  ['spine side-on (bonk, no launch)', 22, 2, 0, 16, {}],
-  ['3.2 quarter off dock', -16, 20, 0, 16, {}],
-  ['bowl drop', 30, 14, 0, 15, {}],
-  ['four stair (off the pad)', -7.5, -7.0, Math.PI, 15, {}],
-  ['rail 50-50', 'rail2', 0, 0, 15, { railOllie: true }],
+  ['vert wall', -2, -15.2, -Math.PI / 2, 8.5, {}],
+  ['vert wall + ollie at lip', -2, -15.2, -Math.PI / 2, 8.5, { ollieHold: true }],
+  ['vert wall + 180', -2, -15.2, -Math.PI / 2, 8.5, { spin: 0.49 }],
+  ['vert wall + 90 (must bail)', -2, -15.2, -Math.PI / 2, 8.5, { spin: 0.25 }],
+  ['spine', 10, 14, Math.PI / 2, 8.5, {}],
+  ['spine transfer (loaded ollie)', 10, 14, Math.PI / 2, 8.5, { ollieTill: 1.62 }],
+  ['spine side-on (bonk, no launch)', 22, 2, 0, 8.5, {}],
+  ['3.2 quarter off dock', -16, 20, 0, 8.5, {}],
+  ['bowl drop', 30, 14, 0, 8.5, {}],
+  ['four stair (ollie off the pad)', -7.5, -9.2, Math.PI, 8.5, { ollieAt: 0.04, ollieHold: false }],
+  ['rail 50-50 (press grind)', 'rail2', 0, 0, 7, { railOllie: true, grind: true }],
+  ['rail, no press (must NOT grind)', 'rail2', 0, 0, 7, { railOllie: true }],
+  ['kicker ride-up launch', -4, -22, Math.PI, 8.5, {}],
+  ['idle: no input (must coast to a stop)', 0, -5, 0, 6, { idle: true }],
 ];
 
 async function phys() {
   const { b, pg, errs } = await boot({ fresh: true });
   for (const [name, x, z, yaw, sp, o] of PHYS) {
-    const r = await pg.evaluate((x, z, yaw, sp, o) => {
+    const r = await pg.evaluate((x, z, yaw, sp, o, process_trace) => {
       const D = window.__dbg, H = D.held, E = D.edges;
       for (const k in H) H[k] = false; E.clear(); D.state().phase = 'playing'; D.state().time = 120;
       if (x === 'rail2') { const r = D.rails[2]; D.place(r.a.x + r.dir.x * 6, r.a.z + r.dir.z * 6, Math.atan2(r.dir.x, r.dir.z), sp); E.add('ollie'); }
@@ -55,14 +58,17 @@ async function phys() {
         const t = i / 120, s = D.sk();
         if (o.ollieTill != null) H.ollie = s.state !== 'air' && t < o.ollieTill;
         if (o.spin && s.state === 'air' && s.airFrom === 'lip') { if (spinT < o.spin) { H.left = true; spinT += 1 / 120; } else H.left = false; }
-        if (s.state === 'grind') { H.left = s.balance > 0.2; H.right = s.balance < -0.2; }
+        if (o.ollieAt != null && Math.abs(t - o.ollieAt) < 0.004) E.add('ollie');
+        if (o.grind && s.state === 'air' && t > 0.15) H.manual = true;
+        if (s.state === 'grind') { H.manual = false; H.left = s.balance > 0.2; H.right = s.balance < -0.2; }
         D.step(1);
         if (s.state !== last) { ev.push(`${t.toFixed(2)}s ${last}->${s.state} y=${s.pos.y.toFixed(2)} spd=${s.speed.toFixed(1)} ${s.airFrom || ''}`); last = s.state; }
         if (s.state === 'air') peak = Math.max(peak, s.pos.y);
         if (!isFinite(s.pos.x + s.pos.y + s.pos.z + s.yaw)) { ev.push('NaN!'); break; }
+        if (process_trace && i % 120 === 0) ev.push('  t'+t.toFixed(0)+' '+s.state+' '+s.pos.x.toFixed(1)+','+s.pos.y.toFixed(2)+','+s.pos.z.toFixed(1)+' v'+s.speed.toFixed(1)+' ph'+D.state().phase);
       }
-      const lc = D.state().lastCombo; return { ev: ev.slice(0, 8), peak: +peak.toFixed(2), last: lc && lc.tricks, gaps: Object.keys(D.state().stats.gaps) };
-    }, x, z, yaw, sp, o);
+      const lc = D.state().lastCombo; const S2 = D.sk(); ev.push('end: '+S2.state+' spd='+S2.speed.toFixed(2)+' pos='+S2.pos.x.toFixed(1)+','+S2.pos.z.toFixed(1)); return { ev: process_trace ? ev : ev.slice(0, 8).concat(ev.slice(-1)), peak: +peak.toFixed(2), last: lc && lc.tricks, gaps: Object.keys(D.state().stats.gaps) };
+    }, x, z, yaw, sp, o, !!process.env.TRACE);
     console.log(`\n## ${name}  peak=${r.peak}  last=${JSON.stringify(r.last)}  gaps=${r.gaps}`);
     r.ev.forEach(e => console.log('   ' + e));
   }
@@ -70,12 +76,19 @@ async function phys() {
 }
 
 const POSES = [
-  ['push', `D.place(0,-5,0.6,15); D.step(60);`],
+  ['push', `D.place(0,-5,0.6,3); H.push=true; D.step(50);`],
   ['crouch', `D.place(0,-5,0.6,15); H.ollie=true; D.step(60);`],
   ['air-kickflip', `D.place(0,-5,0.6,15); E.add('ollie'); D.step(20); E.add('trick'); D.step(8);`],
   ['air-grab', `D.place(0,-5,0.6,15); E.add('ollie'); D.step(14); E.add('manual'); H.manual=true; D.step(22);`],
   ['grind-5050', `const r=D.rails[2]; D.place(r.a.x+r.dir.x*6, r.a.z+r.dir.z*6, Math.atan2(r.dir.x,r.dir.z),15); E.add('ollie'); D.step(80);`],
   ['manual', `D.place(0,-5,0.6,15); D.step(10); E.add('manual'); H.manual=true; D.step(50);`],
+  ['ollie-a', `D.place(0,-5,0.6,7); H.ollie=true; D.step(30); H.ollie=false; D.step(8);`],
+  ['ollie-b', `D.place(0,-5,0.6,7); H.ollie=true; D.step(30); H.ollie=false; D.step(16);`],
+  ['ollie-c', `D.place(0,-5,0.6,7); H.ollie=true; D.step(30); H.ollie=false; D.step(30);`],
+  ['ollie-d', `D.place(0,-5,0.6,7); H.ollie=true; D.step(30); H.ollie=false; D.step(48);`],
+  ['bail-a', `D.place(0,-5,0.6,7); D.step(5); D.bail(); D.step(12);`],
+  ['bail-b', `D.place(0,-5,0.6,7); D.step(5); D.bail(); D.step(45);`],
+  ['bail-c', `D.place(0,-5,0.6,7); D.step(5); D.bail(); D.step(100);`],
   ['vert-air', `D.place(-4,-15.2,-Math.PI/2,16); D.step(170);`],
 ];
 async function poses(out, only, camd = 2.3, camf = 1.2) {

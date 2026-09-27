@@ -95,7 +95,7 @@
     #comboTricks{font-size:12px;letter-spacing:.12em;}
     #comboTotal{font-size:24px;}
   }
-  @media (pointer:coarse){ #goals{bottom:calc(104px + env(safe-area-inset-bottom,0))!important;} }
+  @media (pointer:coarse){ #goals{bottom:calc(150px + env(safe-area-inset-bottom,0))!important;} }
   #goals{position:absolute;left:14px;bottom:calc(14px + env(safe-area-inset-bottom,0));display:flex;flex-direction:column;gap:7px;font-size:11px;}
   /* in-game music toggle — top-right, below the topbar, clear of stoke/combo/pad */
   #muteBtn{position:absolute;pointer-events:auto;top:calc(62px + env(safe-area-inset-top,0));right:14px;
@@ -106,7 +106,7 @@
   #muteBtn:active{transform:scale(.93);}
   #muteBtn.muted{color:var(--conc);border-color:rgba(207,195,174,.28);opacity:.72;}
   @media (pointer:coarse){ #muteBtn{top:calc(104px + env(safe-area-inset-top,0));width:44px;height:44px;} }
-  @media (max-width:520px){ #muteBtn{top:auto;bottom:calc(112px + env(safe-area-inset-bottom,0));right:12px;} }
+  @media (max-width:520px){ #muteBtn{top:auto;bottom:calc(158px + env(safe-area-inset-bottom,0));right:12px;} }
   #letters{display:flex;gap:5px;}
   #letters span{font-weight:700;font-size:15px;width:20px;height:20px;display:grid;place-items:center;
     color:var(--conc);background:rgba(36,30,51,.55);border:1px solid rgba(207,195,174,.35);}
@@ -207,6 +207,16 @@
     font-weight:800;font-size:13px;letter-spacing:.3em;color:var(--mint);text-shadow:0 1px 0 #241E33,0 0 8px rgba(79,194,162,.6);}
   #landCall.bad{color:var(--haze);text-shadow:0 1px 0 #241E33;}
   @media (max-width:520px){ #landCall{top:258px;} }
+  #hint{position:absolute;left:50%;top:22%;bottom:auto;transform:translateX(-50%);font-size:13px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--chalk);background:rgba(36,30,51,.72);padding:6px 14px;white-space:nowrap;transition:opacity .4s;pointer-events:none;}
+  #hint b{color:var(--orange);} #hint.gone{opacity:0;}
+  @media (pointer:coarse){ #hint{bottom:auto;top:176px;font-size:11px;} }
+  /* v3 touch layout: two stacked rows per thumb so six controls fit a 375px phone */
+  #touch .pad{flex-direction:column;gap:8px;}
+  #touch .pad.left{align-items:flex-start;} #touch .pad.right{align-items:flex-end;}
+  #touch .pad .row{display:flex;gap:8px;}
+  #touch .btn.push{border-color:var(--mint);width:100%;height:46px;font-size:14px;font-weight:800;border-radius:14px;background:rgba(79,194,162,.22);}
+  #touch .btn.ollie{width:100%;}
   /* v3 BALANCE METER — the needle every grind and manual bail used to hide */
   #bal{position:absolute;left:50%;top:172px;width:min(56vw,230px);height:12px;transform:translateX(-50%) skewX(-8deg);
     background:linear-gradient(90deg,#FF3B47 0,#F0562A 14%,rgba(36,30,51,.7) 30%,rgba(36,30,51,.7) 70%,#F0562A 86%,#FF3B47 100%);
@@ -245,29 +255,35 @@
     </div>
     <div class="flash" id="flash"></div>
     <div id="goalToast"></div>
+    <div id="hint">Hold <b>PUSH</b> (↑) to roll · <b>SPACE</b> hold &amp; release to ollie</div>
     <div id="landCall"></div>
     <div id="bal" aria-hidden="true"><b></b><i></i></div>
     <button id="muteBtn" type="button" aria-label="Toggle music">🔊</button>
   </div>
   <div id="touch">
     <div class="pad left">
-      <button class="btn arrow" data-act="left" aria-label="steer left"><span class="tri l"></span></button>
-      <button class="btn arrow" data-act="right" aria-label="steer right"><span class="tri r"></span></button>
+      <button class="btn word push" data-act="push" aria-label="Push">PUSH</button>
+      <div class="row">
+        <button class="btn arrow" data-act="left" aria-label="steer left"><span class="tri l"></span></button>
+        <button class="btn arrow" data-act="right" aria-label="steer right"><span class="tri r"></span></button>
+      </div>
     </div>
     <div class="pad right">
-      <button class="btn word" data-act="trick" aria-label="Flip">FLIP</button>
-      <button class="btn word" data-act="manual" aria-label="Manual or grab" id="manBtn">MANUAL</button>
+      <div class="row">
+        <button class="btn word" data-act="trick" aria-label="Flip">FLIP</button>
+        <button class="btn word" data-act="manual" aria-label="Manual, grab or grind" id="manBtn">MANUAL</button>
+      </div>
       <button class="btn ollie" data-act="ollie" aria-label="Ollie">OLLIE</button>
     </div>
   </div>
   <div class="overlay hide" id="start">
     <div class="brand">Sunset<br><em>Yard</em></div>
     <div class="tag">Late sun on concrete · two-minute line</div>
-    <div class="help">You roll forward on your own. <b>Steer</b> to carve; in the air steering <b>spins</b> you.
+    <div class="help"><b>PUSH</b> to get rolling — stop pushing and you coast. <b>Steer</b> to carve; in the air steering <b>spins</b> you.
       Hold <b>OLLIE</b> to load, let go to pop. Ride up a ramp and you launch off the coping. In the air, <b>FLIP</b>
-      (hold ◀ or ▶ to pick which; tap again to double it) and hold <b>GRAB</b>. Land on the orange edges to <b>grind</b>;
+      (hold ◀ or ▶ to pick which; tap again to double it) and hold <b>GRAB</b>. Press <b>GRIND</b> coming down onto an orange edge;
       <b>MANUAL</b> links tricks across the flat. Land straight, finish your flip, keep the combo alive.</div>
-    <div class="help" id="kbHelp"><b>Keys:</b> ←/→ steer · Space ollie · J flip · K grab/manual</div>
+    <div class="help" id="kbHelp"><b>Keys:</b> ↑ push · ↓ brake · ←/→ steer · Space ollie · J flip · K grab / grind / manual</div>
     <div style="display:flex;gap:22px;flex-wrap:wrap;align-items:center;justify-content:center;">
     <label class="help" style="display:flex;gap:9px;align-items:center;justify-content:center;cursor:pointer;user-select:none;margin:0;"><input type="checkbox" id="tiltChk" style="width:18px;height:18px;accent-color:var(--orange);"> Tilt phone to steer <span id="tiltNote" style="opacity:.55">(beta)</span></label>
     <label class="help" style="display:flex;gap:9px;align-items:center;justify-content:center;cursor:pointer;user-select:none;margin:0;"><input type="checkbox" id="musicChk" checked style="width:18px;height:18px;accent-color:var(--orange);"> Sound</label>
@@ -350,19 +366,23 @@ const SUN_DIR = new THREE.Vector3(0.340,0.145,0.930).normalize();
 
 /* ---------------- tuning: the feel lives here ---------------- */
 const T = {
-  cruise:15, accel:12, brake:22, turn:2.3,
-  gravity:42, ollie:15, kicker:17,
-  spin:6.4, flipSpeed:9, landTol:0.7,
+  /* v3 REALISM PASS — real-world numbers. The old feel ran at 54 km/h with a
+     2.7m flat-ground ollie under 4.3x gravity: it read as a toy, not skating.
+     Street speed is 20-30 km/h, a big ollie clears ~0.9m, and you PUSH to move. */
+  cruise:8.5, accel:12, brake:5.5, turn:2.1,
+  pushMax:9.4, pushKick:1.9, rollFric:0.18,   /* urethane on smooth concrete, Crr ~0.02 */
+  gravity:20, ollie:5.0, kicker:0,     /* full pop 0.62m, a tap 0.38m: a real street ollie, not a 0.9m hop */
+  spin:6.2, flipSpeed:15, landTol:0.7,
   balanceDrift:0.8, balanceFix:2.0,
-  grindSpeed:17, comboGrace:0.75, bailLock:1.0,
+  grindSpeed:7, comboGrace:1.0, bailLock:1.1,
   stokePerTrick:0.13, stokeDrain:1/9,
   /* v3 transition physics */
-  slopeG:25,        /* gravity along a ramp face going DOWN (m/s^2) */
-  slopeUp:15,       /* ...and climbing: the gap between the two is the pump every rider does */
-  maxSpeed:30,
+  slopeG:9.8,        /* gravity along a ramp face going DOWN (m/s^2) */
+  slopeUp:9.8, /* = slopeG: a transition conserves energy; extra speed comes from PUMPING (hold PUSH dropping in) */      /* ...and climbing: the gap between the two is the pump every rider does */
+  maxSpeed:14,
   lipSlope:2.0,     /* steeper than this (~63deg) AND flattening just ahead = the coping: launch */
-  lipPop:4.5,       /* free vertical kick off any coping, so a lip air always reads as an air */
-  lipOllie:5.0,     /* extra pop for a held-and-released ollie AT the lip: the skill shot */
+  lipPop:1.2,       /* free vertical kick off any coping, so a lip air always reads as an air */
+  lipOllie:2.6,     /* extra pop for a held-and-released ollie AT the lip: the skill shot */
   landAngle:0.87,   /* ~50deg: more off-line than this, forward OR fakie, and you bail */
   ollieMin:0.78,    /* a quick tap pops 78% of a full ollie; a 0.28s crouch pops 100% */
 };
@@ -1190,9 +1210,9 @@ function addQuarterPhys(x,z,rot,hw,R,vert,plat){
   QUARTERS.push({x,z,c:Math.cos(rot),s:Math.sin(rot),hw,R,vert,plat,top:R+vert,
                  rr:Math.hypot(Math.max(R,plat),hw)+0.1});
 }
-let _qHit=null;            /* the quarter that won the last quarterH() query */
+let _qHit=null, _boxHit=null;   /* what won the last quarterH() query: a quarter, or a hard-edged box */
 function quarterH(x,z){
-  let y=-1e9; _qHit=null;
+  let y=-1e9; _qHit=null; _boxHit=null;
   for(const q of QUARTERS){
     const dx=x-q.x, dz=z-q.z;
     if(dx*dx+dz*dz>q.rr*q.rr) continue;
@@ -1204,10 +1224,11 @@ function quarterH(x,z){
       if(q.vert>0 && lx<VZ){ const t=1-lx/VZ; h+=q.vert*t*t*(3-2*t); } }
     if(h>y){ y=h; _qHit=q; }
   }
+  { const kh=kickH(x,z); if(kh>y){ y=kh; _qHit=null; } }
   for(const b of BOXES){                     /* solid ledges, stairs, the manual pad */
     const dx=x-b.x, dz=z-b.z; if(dx*dx+dz*dz>b.rr*b.rr) continue;
     const lx=dx*b.c-dz*b.s, lz=dx*b.s+dz*b.c;
-    if(lx>-b.hw&&lx<b.hw&&lz>-b.hd&&lz<b.hd&&b.top>y){ y=b.top; _qHit=null; }
+    if(lx>-b.hw&&lx<b.hw&&lz>-b.hd&&lz<b.hd&&b.top>y){ y=b.top; _qHit=null; _boxHit=b; }
   }
   return y;
 }
@@ -1216,7 +1237,7 @@ function quarterH(x,z){
    frame as the mesh; hw/hd are LOCAL half-extents. */
 const BOXES=[];
 function addBoxPhys(x,z,rot,hw,hd,top){ BOXES.push({x,z,c:Math.cos(rot),s:Math.sin(rot),hw,hd,top,rr:Math.hypot(hw,hd)+0.1}); }
-function surfH(x,z){ const g=groundH(x,z); if(!QUARTERS.length&&!BOXES.length) return g; const q=quarterH(x,z); return q>g?q:g; }
+function surfH(x,z){ const g=groundH(x,z); if(!QUARTERS.length&&!BOXES.length&&!KICKS.length) return g; const q=quarterH(x,z); return q>g?q:g; }
 /* slope along a heading, and the full gradient, of the RIDEABLE surface */
 /* Finite differences that refuse to read a CLIFF as a slope: straddling the side
    face of a ramp used to report a 40:1 grade, which stalled the skater dead and
@@ -1244,8 +1265,16 @@ function addRail(x,z,len,rot,h){
     aoBlobs.push([x+dir.x*s*len/2*0.86, z+dir.z*s*len/2*0.86, 0.95]);
   }
 }
+const KICKS=[];
+function kickH(x,z){ let y=-1e9;
+  for(const k of KICKS){ const dx=x-k.x, dz=z-k.z; if(dx*dx+dz*dz>k.rr*k.rr) continue;
+    const lx=dx*k.c-dz*k.s, lz=dx*k.s+dz*k.c; if(lx<-k.hw||lx>k.hw) continue;
+    const u=(k.d/2-lz)/k.d; if(u<0||u>1) continue;
+    const hh = u<0.72 ? k.h*0.42*(u/0.72)*(u/0.72) : k.h*(0.42+0.58*(u-0.72)/0.28);
+    if(hh>y) y=hh; }
+  return y; }
 function addKicker(x,z,rot){
-  const w=6,d=4,h=2.4;
+  const w=3.4,d=2.7,h=1.05;   /* v3: a real launch ramp — the 2.4m wedge only worked at 54 km/h */
   /* real right-triangle profile with a poured lip at the base */
   const s=new THREE.Shape();
   s.moveTo(0,0); s.quadraticCurveTo(d*0.42,0.02,d*0.72,h*0.42); s.lineTo(d,h); s.lineTo(d,0); s.closePath();
@@ -1257,6 +1286,10 @@ function addKicker(x,z,rot){
   const lip=chamferBox(w,0.13,0.28,0.04);
   push("paint", lip, M(x - Math.sin(rot)*d/2, h+0.02, z - Math.cos(rot)*d/2, rot));
   kickers.push({pos:new THREE.Vector3(x,0,z), r:4.2});
+  /* v3: a REAL ramp in surfH (it auto-launched anyone who strayed within 4.2m,
+     which is half of why the game played itself). Profile = the extrude shape:
+     quadratic to 42% height at 72% depth, then straight to the lip. */
+  KICKS.push({x,z,c:Math.cos(rot),s:Math.sin(rot),hw:w/2,d,h,rr:Math.hypot(w/2,d/2)+0.1});
   aoBlobs.push([x + Math.sin(rot)*d*0.42, z + Math.cos(rot)*d*0.42, w*0.55]);
   occ(x - Math.sin(rot)*d*0.30, z - Math.cos(rot)*d*0.30, 2.0, h);
 }
@@ -1328,7 +1361,7 @@ function addHubba(x,z,rot,len){
   addRail(x, z, len*0.92, Math.PI/2-rot, h+0.02);
 }
 function addStairSet(x,z,rot,steps,railLen){
-  const w=5.0, rise=0.45, run=1.1;
+  const w=5.0, rise=0.21, run=0.40;   /* v3: real stairs (21cm risers) — 45cm treads read as a loading dock */
   const T=(dx,dy,dz)=>M(x,0,z,rot).multiply(new THREE.Matrix4().makeTranslation(dx,dy,dz));
   for(let i=0;i<steps;i++){
     push("conc", uvScale(chamferBox(w,rise,run,0.045),1.6), T(0, rise/2+i*rise, (i+0.5)*run));
@@ -1347,11 +1380,11 @@ function addStairSet(x,z,rot,steps,railLen){
   occ(x + Math.sin(rot)*(steps*run+1.2), z + Math.cos(rot)*(steps*run+1.2), 3.0, steps*rise+0.1);
   /* flat handrail on the run-out past the bottom step (rails in this sim are
      horizontal, so a sloped one would float) */
-  addRail(x + Math.cos(rot)*(w*0.34), z - 2.6, railLen, rot+Math.PI/2, 0.62);
+  addRail(x + Math.cos(rot)*(w*0.34), z - 2.6, railLen, rot+Math.PI/2, 0.42);
 }
 const STAIRS=[];
 function addManualPad(x,z,rot){
-  const w=6.0, d=2.2, h=0.55;
+  const w=6.0, d=2.2, h=0.32;   /* a manual pad you can actually ollie onto */
   addBoxPhys(x,z,rot,w/2,d/2,h);
   const T=(dx,dy,dz)=>M(x,0,z,rot).multiply(new THREE.Matrix4().makeTranslation(dx,dy,dz));
   push("conc", uvScale(chamferBox(w,h,d,0.05),1.6), T(0,h/2,0));
@@ -1609,7 +1642,7 @@ function buildPark(){
   addBank(-BOUND+7,0,-Math.PI/2,60); addBank(BOUND-7,0,Math.PI/2,60);
   addFunbox(-14,10); addFunbox(20,-18);
   /* rails sit ACROSS the sightline, never down the camera barrel */
-  addRail(-5,3.2,20,1.02,1.4);   /* v3: shortened — its far end used to sit INSIDE the vert wall */ addRail(-30,-24,20,Math.PI/2,1.4); addRail(26,6,22,0.5,1.4);
+  addRail(-5,3.2,20,1.02,0.42);   /* v3: shortened — its far end used to sit INSIDE the vert wall */ addRail(-30,-24,20,Math.PI/2,0.40); addRail(26,6,22,0.5,0.45);   /* v3: real flat-bar heights — 1.4m only worked with the old moon-jump */
   addKicker(8,28,Math.PI); addKicker(-26,20,0); addKicker(30,-4,-Math.PI/2); addKicker(-4,-30,0);
   addBank(46,-40,Math.PI/2-0.2,26); addBank(58,-40,-Math.PI/2-0.2,26);
   /* HERO LANDMARK, moved onto the opening straight and set just off the start
@@ -1625,7 +1658,7 @@ function buildPark(){
   /* ---------------- the height ladder, all inside r=40 ----------------
      1.4 funbox -> 2.4 spine -> 3.2 quarter -> 3.8 vert wall. Each one is taller
      than the last by more than a rider's height, so they never read as one band. */
-  { const W=addVertWall(-18,-8, 0, 18, 2.6, 1.6, 0.9);      /* HERO: 4.2m coping */
+  { const W=addVertWall(-18,-8, 0, 18, 2.6, 0.9, 0.9);   /* v3: 3.5m coping — 4.2m off a single wall was unreachable at real speed */      /* HERO: 4.2m coping */
     wallFence(-18,-8, 0, 18, W.top, 2.2);
     /* 0.9m steel-tube deck rail capping the coping: a hard horizontal line at
        4.2m plus its two stanchion rows, so the tallest mass in the yard ends in
@@ -1690,7 +1723,7 @@ function buildPark(){
     /* was clipping to flat white right through the middle of every grind frame —
        nothing but the sun core is allowed to blow out. 0.30/0.85 still gives one
        unbroken hot line down the rail without losing the value. */
-    railM: addFog(Object.assign(new THREE.MeshStandardMaterial({color:0xA79C93,roughness:0.30,metalness:0.90,
+    railM: addFog(Object.assign(new THREE.MeshStandardMaterial({color:0xA79C93,roughness:0.44,metalness:0.85,
              envMapIntensity:0.85,vertexColors:true}), {userData:{em:0.85}})),
     steel: addFog(new THREE.MeshStandardMaterial({color:P.steel,roughnessMap:TEX.wear,roughness:0.32,metalness:0.92,vertexColors:true,flatShading:true})),
     copper:addFog(Object.assign(new THREE.MeshStandardMaterial({color:P.copper,roughness:0.24,metalness:1.0,
@@ -3076,7 +3109,7 @@ function fxGrind(dt){
   /* rear truck, in world: 0.66m behind the deck centre along the travel axis */
   const dx=-r.dir.x*sk.railDir, dz=-r.dir.z*sk.railDir;
   _gp.set(sk.pos.x+dx*0.62, sk.pos.y+0.05, sk.pos.z+dz*0.62);
-  const sp=T.grindSpeed;
+  const sp=sk.grindV||T.grindSpeed;
   while(_grindAcc>=1){ _grindAcc-=1;
     /* -fwd * speed*0.4, plus a +-35deg cone at 1.8-3.4 m/s */
     const a=(RNG()-0.5)*1.222, e=0.25+RNG()*0.55, m=1.8+RNG()*1.6;
@@ -3119,7 +3152,7 @@ function fxLand(x,y,z){
       0.55, 0.30, 0xE8C9A0, 0xC9B096, -5, 0.42, 1.6, 1.8); }
   /* the impact itself: a shock ring plus 12 sparks kicked outward-up */
   const r=impactRings.find(o=>o.t<0)||impactRings[0];
-  if(r){ r.t=0; r.m.visible=true; r.m.position.set(x,y+0.05,z); }
+  if(r && (sk.landImpact||0)>7.5){ r.t=0; r.m.visible=true; r.m.position.set(x,y+0.05,z); }
   if(FXs) for(let i=0;i<12;i++){ const a=(i/12)*6.283+RNG()*0.3;
     emit(FXs, x+Math.cos(a)*0.3, y+0.10, z+Math.sin(a)*0.3,
       Math.cos(a)*4.0, 2.2+RNG()*1.6, Math.sin(a)*4.0,
@@ -3163,8 +3196,9 @@ function updateFX(dt){
   /* a x13 boardslide photographed with no trail at all: whenever the deck is
      genuinely turning, the ribbon is not allowed to fade below 0.45 */
   const spinning=(Math.abs(sk.spinRate||0)+Math.abs(sk.flipRate||0))>4.0;
-  let want=live?Math.max(0.12, Math.min(0.55, flipRate)):0;
-  if(live && spinning) want=Math.max(want, 0.45);
+  /* v3: only while the deck is genuinely whipping round, and faint — always-on in
+     the air it drew a white plank from the board to the ground on every ollie */
+  let want=(live && spinning && sk.state==="air") ? 0.16 : 0;
   trailAlpha += (want-trailAlpha)*Math.min(1, dt*(want>trailAlpha?14:6));
   trail.material.opacity=trailAlpha;
   trail.visible=trailAlpha>0.01;
@@ -3254,10 +3288,10 @@ function updateFX(dt){
        and never during the fast roll-in they exist to sell */
     /* gated on GROUND SPEED, not spin — and kept faint: at 0.26 they scratched
        every frame like rain across the sky. */
-    const fast=(sk.state==="roll"||sk.state==="manual") && sk.speed>=0.7*T.grindSpeed;
-    const o=(fast?Math.max(0, Math.min(0.13,(sk.speed-11.9)/26)):0) * (sk.state==="bail"?0:1);
+    const fast=(sk.state==="roll"||sk.state==="manual") && sk.speed>=8;
+    const o=(fast?Math.max(0, Math.min(0.10,(sk.speed-8)/20)):0) * (sk.state==="bail"?0:1);
     speedLines.material.opacity += (o-speedLines.material.opacity)*Math.min(1,dt*6);
-    const s=1+Math.max(0,sk.speed-15.5)*0.05;
+    const s=1+Math.max(0,sk.speed-10)*0.05;
     speedLines.scale.set(s,s,1);
     speedLines.visible=speedLines.material.opacity>0.005;
   }
@@ -3490,7 +3524,7 @@ function spring(key, target, dt){
   return s.x;
 }
 /* ---- pose driver: crouch + stance asymmetry + a real push cycle ---- */
-const PUSH_T=1.05;
+const PUSH_T=0.72;   /* one push every 0.72s: a brisk street push */
 /* ==========================================================================
    GENERATED CHARACTER (Genex/Meshy rigged GLB)
    --------------------------------------------------------------------------
@@ -3546,6 +3580,197 @@ let charModel=null;      /* {root, pairs:[{ctrl,bone,rest}]} once loaded */
 let charModelId=null;    /* which roster slot is currently on screen */
 let charLoading=false;
 
+/* =======================================================================
+   v3 RIDER SOLVER — poses the generated skeleton DIRECTLY
+   The old path copied angles from an invisible box rig onto the model: the
+   model's upper arm was driven by the box's shoulder GROUP and its forearm by
+   the box's upper arm (so no elbow bend ever arrived), bones were aimed with
+   their twist left free (candy-wrapper crumpling at hips and forearms), and
+   the box rig carried three layers of compensating yaw. Hands swung through
+   the torso and the body read as deformed.
+   This solver works in the model's own root space (X = nose, Y = up, Z = the
+   toe edge the rider faces):
+     - feet are pinned to the deck through a "stance frame" (the board minus
+       its flip), so they follow manuals, tuck lifts and slides
+     - legs are two-bone IK with the knee aimed over the toes
+     - every aimed bone keeps a fixed twist reference (Y = bone, Z = bend
+       direction), so nothing wrings round its own axis
+     - hand targets live OUTSIDE the torso, in the chest's frame
+   ======================================================================= */
+const RIDER_SCALE=1.02;
+const _fx=new THREE.Vector3(), _fy=new THREE.Vector3(), _fz=new THREE.Vector3(), _mB=new THREE.Matrix4();
+function frameQ(d, pole, out){
+  const y=_fy.copy(d).normalize();
+  const z=_fz.copy(pole).addScaledVector(y,-pole.dot(y));
+  if(z.lengthSq()<1e-8){ z.set(0,0,1).addScaledVector(y,-y.z); if(z.lengthSq()<1e-8) z.set(1,0,0).addScaledVector(y,-y.x); }
+  z.normalize(); _fx.crossVectors(y,z); _mB.makeBasis(_fx,y,z); return out.setFromRotationMatrix(_mB);
+}
+function setupRiderIK(root){
+  const need=["Hips","Spine02","Spine01","Spine","neck","Head","LeftUpLeg","LeftLeg","LeftFoot","LeftToeBase","RightUpLeg","RightLeg","RightFoot","RightToeBase",
+              "LeftShoulder","LeftArm","LeftForeArm","LeftHand","RightShoulder","RightArm","RightForeArm","RightHand"];
+  const B={}; for(const n of need){ const b=root.getObjectByName(n); if(!b){ console.warn('[rider] missing bone',n); return null; } B[n]=b; }
+  root.updateWorldMatrix(true,true);
+  const inv=new THREE.Matrix4().copy(root.matrixWorld).invert();
+  const P={}, Q={}; const m=new THREE.Matrix4(), sc=new THREE.Vector3();
+  for(const n of need){ m.multiplyMatrices(inv,B[n].matrixWorld); P[n]=new THREE.Vector3(); Q[n]=new THREE.Quaternion(); m.decompose(P[n],Q[n],sc); }
+  const arm=B.Hips.parent; m.multiplyMatrices(inv,arm.matrixWorld);
+  const armInv=new THREE.Matrix4().copy(m).invert(), armQ=new THREE.Quaternion(); m.decompose(new THREE.Vector3(),armQ,sc);
+  const len=(a,b)=>P[a].distanceTo(P[b]);
+  const ik={B,P,Q,armInv,armQ,O:{},
+    thigh:len("LeftUpLeg","LeftLeg"), shin:len("LeftLeg","LeftFoot"),
+    uarm:len("LeftArm","LeftForeArm"), farm:len("LeftForeArm","LeftHand"),
+    ankleH:P.LeftFoot.y, hipW:Math.abs(P.LeftUpLeg.x-P.RightUpLeg.x)};
+  /* aim offsets: bind rotation relative to its bind aim frame */
+  const off=(bone,child,pole)=>{ const f=frameQ(new THREE.Vector3().subVectors(P[child],P[bone]),pole,new THREE.Quaternion());
+    ik.O[bone]=f.invert().multiply(Q[bone]); };
+  const FWD=new THREE.Vector3(0,0,1), BACK=new THREE.Vector3(0,0,-1), UP=new THREE.Vector3(0,1,0);
+  for(const sd of ["Left","Right"]){
+    off(sd+"UpLeg",sd+"Leg",FWD); off(sd+"Leg",sd+"Foot",FWD); off(sd+"Foot",sd+"ToeBase",UP);
+    off(sd+"Arm",sd+"ForeArm",BACK); off(sd+"ForeArm",sd+"Hand",BACK);
+  }
+  return ik;
+}
+/* two-bone IK: joint A, target C, lengths, bend pole -> middle joint + reachable end */
+const _ikD=new THREE.Vector3(), _ikP=new THREE.Vector3();
+function ik2(A,C,l1,l2,pole,outB,outC){
+  _ikD.subVectors(C,A); const L0=_ikD.length()||1e-4; _ikD.divideScalar(L0);
+  const L=Math.min(Math.max(L0,Math.abs(l1-l2)+0.01), (l1+l2)*0.999);
+  const a=(l1*l1-l2*l2+L*L)/(2*L), h=Math.sqrt(Math.max(0,l1*l1-a*a));
+  _ikP.copy(pole).addScaledVector(_ikD,-pole.dot(_ikD));
+  if(_ikP.lengthSq()<1e-8) _ikP.set(0,0,1); _ikP.normalize();
+  outB.copy(A).addScaledVector(_ikD,a).addScaledVector(_ikP,h);
+  outC.copy(A).addScaledVector(_ikD,L);
+}
+const RS={ pel:new THREE.Vector3(), q:{}, p:{} };
+const _stance=new THREE.Object3D(), _rootInv=new THREE.Matrix4(), _st2root=new THREE.Matrix4();
+const _t1=new THREE.Vector3(), _t2=new THREE.Vector3(), _t3=new THREE.Vector3(), _t4=new THREE.Vector3(), _t5=new THREE.Vector3(), _t6=new THREE.Vector3(), _t7=new THREE.Vector3();
+const _qa2=new THREE.Quaternion(), _qb2=new THREE.Quaternion(), _qc2=new THREE.Quaternion(), _eu=new THREE.Euler(0,0,0,"YXZ");
+function sp(k,v,dt){ return spring("r_"+k,v,dt); }   /* the rider's underdamped secondary motion */
+function solveRider(dt){
+  const ik=charModel.ik, B=ik.B, P=ik.P, Q=ik.Q, O=ik.O, root=charModel.root;
+  const st=sk.state, crouch=Math.max(0,Math.min(1,sk.crouch)), grabL=sk.grabL||0;
+  const air=st==="air", grind=st==="grind", manual=st==="manual", bail=st==="bail", bw=sk.bailW||0;
+  /* push blend: the rider turns to face the nose and the back foot works the ground */
+  sk.pushW=(sk.pushW||0)+(((sk.pushOn&&st==="roll")?1:0)-(sk.pushW||0))*Math.min(1,dt*6);
+  const pw=sk.pushW, ph=sk.pushOn?((sk.pushT%PUSH_T)/PUSH_T):0;
+  /* stance frame: the board without its flip, in root space */
+  const pitch = sk.bpitch||0, wob=(grind||manual)?sk.balance*0.3:0;
+  _stance.position.set(0, board.position.y + (sk.flipRem>0.2 ? 0.07 : 0), 0);
+  _stance.rotation.set(pitch,0,wob); _stance.updateMatrix();
+  root.updateMatrix(); _rootInv.copy(root.matrix).invert();
+  _st2root.multiplyMatrices(_rootInv,_stance.matrix);
+  const deck = DECK_TOP + 0.008;
+  const toRoot=(x,y,z,out)=>out.set(x,y,z).applyMatrix4(_st2root);     /* board-local (skater axes) -> root */
+  /* feet: front (left) over the front bolts, back (right) on the tail bolts */
+  const fa=0.35*(1-pw)+pw*1.45;                                          /* front foot swings to point up the board when pushing */
+  const aF=toRoot(0.035, deck+ik.ankleH, 0.20 - pw*0.03, _t1);
+  const tF=toRoot(0.035-0.14*Math.cos(fa), deck+0.03, 0.20+0.14*Math.sin(fa), _t2);
+  const aB=toRoot(0.035, deck+ik.ankleH, -0.25, _t3), tB=toRoot(-0.105, deck+0.03, -0.26, _t4);
+  if(pw>0.01){
+    /* push: plant beside the toe edge ahead, drive it back past the tail, lift and return */
+    const down=ph<0.62, u=down? ph/0.62 : (ph-0.62)/0.38;
+    const gz = down ? (0.28-0.72*u) : (-0.44+0.72*u);
+    const gy = down ? 0 : Math.sin(u*Math.PI)*0.16;
+    const gy0 = surfH(sk.pos.x,sk.pos.z)-sk.pos.y;
+    _t5.set(-0.26, gy0+ik.ankleH+gy, gz).applyMatrix4(_rootInv);
+    _t6.set(-0.28, gy0+0.03+gy, gz+0.14).applyMatrix4(_rootInv);
+    aB.lerp(_t5,pw); tB.lerp(_t6,pw);
+  }
+  /* SLAM targets (root space, ground = surface under the rider) */
+  const gY = surfH(sk.pos.x,sk.pos.z)-sk.pos.y;
+  if(bw>0.001){
+    aF.lerp(_t5.set( 0.20, gY+0.09, 0.62),bw); tF.lerp(_t6.set( 0.24, gY+0.16, 0.76),bw);
+    aB.lerp(_t5.set(-0.16, gY+0.09, 0.55),bw); tB.lerp(_t6.set(-0.20, gY+0.16, 0.69),bw);
+  }
+  /* pelvis */
+  const legL=ik.thigh+ik.shin;
+  const k = 0.93 - crouch*0.22 - (grind?0.05:0) - (manual?0.04:0) - pw*0.10;
+  const midx=(aF.x+aB.x)*0.5, midz=(aF.z+aB.z)*0.5, lowY=Math.min(aF.y,aB.y);
+  const spanX=Math.max(0,Math.abs(aF.x-aB.x)*0.5-ik.hipW*0.5);
+  const reachY=Math.sqrt(Math.max(0.04,(legL*k)*(legL*k)-spanX*spanX));
+  const pel0=_t7.set(
+    sp("px", midx - (manual?0.10:0) + pw*0.04, dt),
+    sp("py", lowY + reachY, dt),
+    sp("pz", midz - 0.05 - crouch*0.07 + sk.lean*0.10*(1-pw) - (air?0.03:0), dt));
+  const pel=RS.pel.copy(pel0).lerp(_t5.set(0, gY+0.13, 0.02), bw);
+  /* pelvis rotation: hips open toward the nose, fold forward with the crouch */
+  const pYaw = 0.22 + pw*1.10, pPitch = (0.10 + crouch*0.40 + (air?0.12:0) + grabL*0.25)*(1-bw) - 0.55*bw, pRoll = -sk.lean*0.18*(1-bw);
+  _eu.set(sp("pp",pPitch,dt), sp("pyaw",pYaw,dt), pRoll); const Rpel=_qa2.setFromEuler(_eu).clone();
+  const q=RS.q, p=RS.p;
+  q.Hips=(q.Hips||new THREE.Quaternion()).copy(Rpel).multiply(Q.Hips);
+  /* spine: lean into the line, shoulders square toward the nose, head watches the path */
+  const chestYaw = 0.14 + pw*0.10 + (grind&&/slide/i.test(sk.lastTrick||"")?0.2:0);
+  const bend = (0.10 + crouch*0.22 + (air?0.18:0) + grabL*0.45 + ((grind||manual)?0.05:0))*(1-bw) + 0.30*bw;
+  const sideB = (manual?0.10:0) - sk.lean*0.12 + wob*0.6;
+  _eu.set(sp("sb",bend,dt)/3, sp("sy",chestYaw,dt)/3, sp("sr",sideB,dt)/3); const Rsp=_qb2.setFromEuler(_eu).clone();
+  const Rt0=Rpel.clone().multiply(Rsp), Rt1=Rt0.clone().multiply(Rsp), Rt2=Rt1.clone().multiply(Rsp);
+  q.Spine02=(q.Spine02||new THREE.Quaternion()).copy(Rt0).multiply(Q.Spine02);
+  q.Spine01=(q.Spine01||new THREE.Quaternion()).copy(Rt1).multiply(Q.Spine01);
+  q.Spine=(q.Spine||new THREE.Quaternion()).copy(Rt2).multiply(Q.Spine);
+  const look = (air ? 0.55 : 0.95) - pw*0.9 - grabL*0.5 - chestYaw;
+  _eu.set(sp("hp",(air?0.35:0.12)+grabL*0.25-bend*0.35,dt)*0.5, sp("hy",look,dt)*0.5, 0); const Rn=_qc2.setFromEuler(_eu).clone();
+  const Rneck=Rt2.clone().multiply(Rn), Rhead=Rneck.clone().multiply(Rn);
+  q.neck=(q.neck||new THREE.Quaternion()).copy(Rneck).multiply(Q.neck);
+  q.Head=(q.Head||new THREE.Quaternion()).copy(Rhead).multiply(Q.Head);
+  /* joint positions down the spine */
+  const at=(name,parentName,R,out)=>out.copy(P[name]).sub(P[parentName]).applyQuaternion(R).add(p[parentName]);
+  p.Hips=(p.Hips||new THREE.Vector3()).copy(pel);
+  p.Spine02=at("Spine02","Hips",Rpel,p.Spine02||new THREE.Vector3());
+  p.Spine01=at("Spine01","Spine02",Rt0,p.Spine01||new THREE.Vector3());
+  p.Spine=at("Spine","Spine01",Rt1,p.Spine||new THREE.Vector3());
+  /* legs */
+  const up=new THREE.Vector3(0,1,0).transformDirection(_st2root);
+  for(const [sd,ank,toe,sx] of [["Left",aF,tF,+1],["Right",aB,tB,-1]]){
+    const hipJ=at(sd+"UpLeg","Hips",Rpel,p[sd+"UpLeg"]||(p[sd+"UpLeg"]=new THREE.Vector3()));
+    /* knee over the toes, splayed a little toward its own end of the board */
+    const toeDir=_t5.subVectors(toe,ank); toeDir.y=0; toeDir.normalize();
+    const pole=_t6.copy(toeDir).addScaledVector(_t7.set(sx,0,0),0.25).normalize();
+    const knee=p[sd+"Leg"]||(p[sd+"Leg"]=new THREE.Vector3()), ankR=p[sd+"Foot"]||(p[sd+"Foot"]=new THREE.Vector3());
+    ik2(hipJ,ank,ik.thigh,ik.shin,pole,knee,ankR);
+    const bendDir=_t7.subVectors(knee,hipJ).add(_t4.subVectors(knee,ankR)).normalize();
+    q[sd+"UpLeg"]=frameQ(_t4.subVectors(knee,hipJ),bendDir,q[sd+"UpLeg"]||new THREE.Quaternion()).multiply(O[sd+"UpLeg"]);
+    q[sd+"Leg"]=frameQ(_t4.subVectors(ankR,knee),bendDir,q[sd+"Leg"]||new THREE.Quaternion()).multiply(O[sd+"Leg"]);
+    /* foot: toes where the stance says, sole flat to the deck */
+    q[sd+"Foot"]=frameQ(_t4.subVectors(toe,ankR),up,q[sd+"Foot"]||new THREE.Quaternion()).multiply(O[sd+"Foot"]);
+  }
+  /* arms: targets in the CHEST frame, always outside the torso */
+  const bal = (grind||manual) ? 1 : 0;
+  for(const [sd,sx] of [["Left",+1],["Right",-1]]){
+    q[sd+"Shoulder"]=(q[sd+"Shoulder"]||new THREE.Quaternion()).copy(Rt2).multiply(Q[sd+"Shoulder"]);
+    p[sd+"Shoulder"]=at(sd+"Shoulder","Spine",Rt2,p[sd+"Shoulder"]||new THREE.Vector3());
+    const shJ=at(sd+"Arm",sd+"Shoulder",Rt2,p[sd+"Arm"]||(p[sd+"Arm"]=new THREE.Vector3()));
+    const swing=Math.sin(perfT*1.7+(sx>0?0:1.3))*0.03;
+    /* relaxed: hands ~35deg off the body, elbows soft; balancing lifts and widens them */
+    let ox = sx*(0.17 + bal*0.13 + (air?0.08:0) + pw*0.02), oy = -0.40 + bal*0.16 + (air?0.16:0) + crouch*0.06 + swing,
+        oz = 0.10 + (air?0.06:0) + crouch*0.06 + pw*(sx<0?-0.10:0.06);
+    const hand=_t5.set(sp(sd+"hx",ox,dt), sp(sd+"hy",oy,dt), sp(sd+"hz",oz,dt)).applyQuaternion(Rt2).add(shJ);
+    /* GRAB: the grabbing hand goes to the board edge (Melon/Method: front hand, heel
+       edge; Indy: back hand, toe edge); the torso fold above brings it in reach */
+    if(sk.grab && grabL>0.01){
+      const g=sk.grab.name, front = g!=="Indy";
+      if((front&&sx>0)||(!front&&sx<0)){
+        const edge = g==="Indy" ? toRoot(-0.12, deck, -0.02, _t6) : toRoot(0.12, deck, 0.05, _t6);
+        hand.lerp(edge, grabL);
+      }
+    }
+    if(bw>0.001) hand.lerp(_t6.set(sx*0.30, gY+0.03, -0.30), bw);
+    const pole=_t6.set(sx*0.25,-0.55,-0.8).applyQuaternion(Rt2);
+    const elb=p[sd+"ForeArm"]||(p[sd+"ForeArm"]=new THREE.Vector3()), hR=p[sd+"Hand"]||(p[sd+"Hand"]=new THREE.Vector3());
+    ik2(shJ,hand,ik.uarm,ik.farm,pole,elb,hR);
+    const bendDir=_t7.subVectors(elb,shJ).add(_t4.subVectors(elb,hR)).normalize();
+    q[sd+"Arm"]=frameQ(_t4.subVectors(elb,shJ),bendDir,q[sd+"Arm"]||new THREE.Quaternion()).multiply(O[sd+"Arm"]);
+    q[sd+"ForeArm"]=frameQ(_t4.subVectors(hR,elb),bendDir,q[sd+"ForeArm"]||new THREE.Quaternion()).multiply(O[sd+"ForeArm"]);
+  }
+  /* write local transforms, parent before child */
+  const loc=(name,parentQ)=>{ B[name].quaternion.copy(_qa2.copy(parentQ).invert().multiply(q[name])); };
+  B.Hips.position.copy(pel).applyMatrix4(ik.armInv);
+  loc("Hips",ik.armQ);
+  loc("Spine02",q.Hips); loc("Spine01",q.Spine02); loc("Spine",q.Spine01); loc("neck",q.Spine); loc("Head",q.neck);
+  for(const sd of ["Left","Right"]){
+    loc(sd+"UpLeg",q.Hips); loc(sd+"Leg",q[sd+"UpLeg"]); loc(sd+"Foot",q[sd+"Leg"]);
+    loc(sd+"Shoulder",q.Spine); loc(sd+"Arm",q[sd+"Shoulder"]); loc(sd+"ForeArm",q[sd+"Arm"]);
+  }
+}
 /* ---- OUTFIT RE-DYE ----
    Per vertex, the bone that drives it says what it IS: spine/shoulders/arms =
    top, legs = trousers, hips split by bind height, hands/head/feet untouched
@@ -3584,7 +3809,7 @@ function recolorOutfit(mesh, outfit){
 }
 function unloadCharacterModel(){
   if(!charModel) return;
-  rig.remove(charModel.root);
+  if(charModel.root.parent) charModel.root.parent.remove(charModel.root);
   charModel.root.traverse(o=>{
     if(o.geometry) o.geometry.dispose();
     const m=o.material; if(!m) return;
@@ -3644,12 +3869,12 @@ function loadCharacterModel(id){
       const legLen=wp(bThigh).distanceTo(wp(bShin))+wp(bShin).distanceTo(wp(bFoot));
       if(legLen>1e-3) s=(LEG1+LEG2)/legLen;
     }
-    root.scale.setScalar(s);
+    root.scale.setScalar(RIDER_SCALE);   /* v3: native scale — the model IS a 1.69m person; fitting it to the box rig's legs made a 2.0m giant on a 0.96m deck */
     /* park it so the model's hips land on the control rig's hips (y=1.26),
        which is what keeps the legIK deck contact lining up.
        NOTE: getWorldPosition already accounts for the scale set above — do not
        multiply by s again here, that double-scales and drops the model ~0.2 low. */
-    root.position.y = HIPS_Y - (bHips ? wp(bHips).y : 0);
+    root.position.set(0,0,0);
     root.rotation.y = MODEL_YAW;
     root.traverse(o=>{ if(o.isMesh||o.isSkinnedMesh){ o.castShadow=true; o.receiveShadow=true; o.frustumCulled=false;
       /* ---- v3: LIGHT THE RIDER ----
@@ -3680,12 +3905,14 @@ function loadCharacterModel(id){
     root.traverse(o=>{ if(o.isSkinnedMesh){ try{ o.geometry=toCreasedNormals(o.geometry, 55*Math.PI/180); }catch(e){ console.warn('[character] normals kept',e); } } });
     { const c=CHARACTERS.find(q=>q.id===id); if(c&&c.outfit) root.traverse(o=>{ if(o.isSkinnedMesh) recolorOutfit(o,c.outfit); }); }
     const boxes=boxMeshes();
-    rig.add(root);
+    /* v3: the model hangs off the SKATER, facing the toe edge, and is posed by
+       solveRider() directly on its own skeleton — not by copying a box rig */
+    skater.add(root); root.rotation.set(0,-Math.PI/2,0); root.updateMatrixWorld(true);
     boxes.forEach(m=>m.visible=false);
     /* parent before child: each bone's aim is solved in its parent's space, so a
        stale parent would poison everything below it */
     pairs.sort((a,b)=>a.depth-b.depth);
-    charModel={root, pairs, boxes};
+    charModel={root, pairs, boxes, ik:setupRiderIK(root)};
     charLoading=false;
   }, undefined, (err)=>{
     console.warn('[character] load failed, keeping the blocky rig:', err);
@@ -3804,7 +4031,7 @@ function poseRig(crouch, lean, flipPhase, dt){
   head.rotation.x = spring("hx", P0.headX, dt);
   rig.rotation.x = lean + impact.kick;         /* carve lean + the landing jolt */
   rig.rotation.z = -crouch*0.06 + P0.rigZ;
-  syncCharacter();     /* mirror the pose onto the generated skeleton, if loaded */
+  if(!(charModel&&charModel.ik)) syncCharacter();     /* legacy path only if the new solver couldn't bind */
 }
 /* the library itself. Everything is a DELTA on the neutral roll pose, so a state
    with no entry here is exactly the old behaviour. */
@@ -3856,9 +4083,10 @@ function updateImpact(dt){
     else{
       /* overshoot 1.7: an underdamped return, not a linear ease */
       const e=1 - Math.exp(-6.2*u)*Math.cos(u*Math.PI*1.7);
-      const sy=0.80+(1-0.80)*e, sxz=1.14+(1-1.14)*e;
-      skater.scale.set(sxz, sy, sxz);
-      impact.kick = 0.35*(1-e);
+      /* v3: NO non-uniform squash on the rider — scaling a realistic human to
+         (1.14,0.80) on every landing is what read as a deformed body. The
+         weight of a landing lives in the knees (crouch) and a small spine jolt. */
+      impact.kick = 0.14*(1-e);
     }
   }
   impact.kick *= Math.max(0, 1-dt*9);
@@ -4168,7 +4396,7 @@ function onResize(){
 /* =======================================================================
    9. INPUT / AUDIO / STATE  (gameplay preserved)
    ======================================================================= */
-const held={ollie:false,trick:false,left:false,right:false,manual:false}; const edges=new Set();
+const held={ollie:false,trick:false,left:false,right:false,manual:false,push:false,brake:false}; const edges=new Set();
 /* optional tilt steering (mobile): gamma is left/right tilt in portrait. iOS 13+
    needs a permission request fired from a user gesture (the Drop In tap). */
 let tiltSteer=0, tiltOn=false, tiltEvents=0, tiltWatch=0;
@@ -4236,8 +4464,8 @@ document.addEventListener("change", e=>{
 });
 function press(a){ if(!held[a])edges.add(a); held[a]=true; }
 function rel(a){ held[a]=false; }
-const KEY={" ":"ollie",ArrowUp:"ollie",w:"ollie",W:"ollie",ArrowLeft:"left",a:"left",A:"left",
-  ArrowRight:"right",d:"right",D:"right",j:"trick",J:"trick",k:"manual",K:"manual",ArrowDown:"manual",s:"manual",S:"manual"};
+const KEY={" ":"ollie",ArrowUp:"push",w:"push",W:"push",ArrowLeft:"left",a:"left",A:"left",
+  ArrowRight:"right",d:"right",D:"right",j:"trick",J:"trick",k:"manual",K:"manual",ArrowDown:"brake",s:"manual",S:"manual",Shift:"push"};
 addEventListener("keydown",e=>{const a=KEY[e.key];if(a){e.preventDefault();if(!e.repeat)press(a);}});
 addEventListener("keyup",e=>{const a=KEY[e.key];if(a){e.preventDefault();rel(a);}});
 function bindTouch(){ document.querySelectorAll("#touch .btn").forEach(b=>{const a=b.dataset.act;
@@ -4250,7 +4478,8 @@ function bindTouch(){ document.querySelectorAll("#touch .btn").forEach(b=>{const
   b.addEventListener("pointercancel",up); b.addEventListener("lostpointercapture",up);
   }); }
 if(matchMedia("(pointer:coarse)").matches){ document.getElementById("touch").classList.add("show");
-  document.getElementById("kbHelp").innerHTML="<b>Touch</b> — steer/spin on the left · flip, manual/grab, ollie on the right"; }
+  document.getElementById("kbHelp").innerHTML="<b>Touch</b> — steer &amp; push on the left · flip, grab/grind/manual, ollie on the right";
+  { const h=document.getElementById("hint"); if(h) h.innerHTML="Hold <b>PUSH</b> to roll · hold &amp; release <b>OLLIE</b> to pop"; } }
 
 let AC=null,master=null,rollGain=null,rollOsc=null,grindGain=null,musicGain=null,sfxBus=null;
 /* ---- v3 SOUND ----
@@ -4318,6 +4547,7 @@ const sfx={
   bank(v){ const big=v>=10000?2:(v>=3000?1:0); const base=[523.25,659.25,783.99,1046.5];
     base.slice(0,2+big).forEach((f,i)=>blip(f,0.16+big*0.05,"square",0.16,i*0.07)); },
   goal(){ [659.25,830.61,987.77,1318.5].forEach((f,i)=>setTimeout(()=>blip(f,.18,"triangle",.2),i*70)); },
+  push(){ nzHit(0.11,650,0.7,0.16,260); thump(90,55,0.06,0.10); },   /* sole scuffing the concrete */
   seam(sp){ nzHit(0.018,2900,2.5,Math.min(0.16,0.03+sp*0.006)); thump(180,120,0.03,Math.min(0.12,sp*0.005)); },
 };
 /* the continuous bed, driven from step(): speed, surface, state */
@@ -4424,14 +4654,14 @@ function unlockAudio(){ audioInit(); _silentUnlock(); if(!AC)return; resumeAudio
 document.addEventListener("visibilitychange",()=>{ if(!document.hidden) resumeAudio(); });
 
 const sk={};
-function resetSkater(){ sk.pos=new THREE.Vector3(0,surfH(0,-40),-40); sk.yaw=0; sk.vy=0; sk.speed=T.cruise; sk.state="roll";
+function resetSkater(){ sk.pos=new THREE.Vector3(6,surfH(6,-40),-40); sk.yaw=0; sk.vy=0; sk.speed=0; sk.state="roll";
   sk.flip=0; sk.flipRem=0; sk.axis=FLIPAXIS.Kickflip; sk.spinAcc=0; sk.balance=0; sk.grace=0; sk.bailT=0;
   sk.rail=null; sk.railT=0; sk.railDir=1; sk._tip=0; sk._ft=false;
   sk.crouch=0; sk.crouchT=0; sk.lean=0;
   sk.steer=0; sk.tuck=0; sk.pushOn=false; sk.pushT=0;
   /* v3: air carries its own momentum, so a spin no longer bends the flight path */
-  sk.vel=new THREE.Vector3(0,0,T.cruise); sk.spinNet=0; sk.airT=0; sk.chargeT=0; sk.ollieWas=false;
-  sk.yawVis=0; sk.nrm=new THREE.Vector3(0,1,0); sk.revertWin=0; sk.airFrom=""; sk.lipY=0;
+  sk.vel=new THREE.Vector3(0,0,0); sk.spinNet=0; sk.airT=0; sk.chargeT=0; sk.ollieWas=false;
+  sk.fakie=false; sk.yawVis=0; sk.nrm=new THREE.Vector3(0,1,0); sk.revertWin=0; sk.airFrom=""; sk.lipY=0;
   camYaw=0; }
 const combo={active:false,tricks:[],base:0,counts:{}};
 const special={meter:0,on:false,t:0};
@@ -4439,7 +4669,7 @@ const state={phase:"ready",score:0,best:0,time:RUN_TIME,letters:0,hitStop:0,shak
 let perfT=0, frameIdx=0;
 function comboStart(){ if(!combo.active){combo.active=true;combo.tricks=[];combo.base=0;combo.counts={};} }
 /* the repeat key: a Double Kickflip is still a kickflip, a 360 Fakie still a 360 */
-function trickKey(name){ return String(name).replace(/^(Double |Triple |Quad )/,"").replace(/ Fakie$/,"").replace(/^Air .*/,"Air"); }
+function trickKey(name){ return String(name).replace(/^(Fakie )/,"").replace(/^(Double |Triple |Quad )/,"").replace(/ Fakie$/,"").replace(/^Air .*/,"Air"); }
 function addTrick(name,pts){ comboStart(); const k=trickKey(name), n=combo.counts[k]||0; combo.counts[k]=n+1;
   const deg=DEGRADE[Math.min(n,DEGRADE.length-1)]; sk.grabDeg=deg;
   const mult=special.on?2:1; const p=Math.round(pts*mult*deg);
@@ -4544,9 +4774,13 @@ function startGame(){ audioInit();resumeAudio();
   special.meter=0;special.on=false;special.t=0;el("stokeWrap").classList.remove("hot");
   for(const L of letterObjs){ L.got=false; L.anim=-1; L.mesh.visible=true; L.mesh.material.opacity=1; L.mesh.position.y=L.base; }
   document.querySelectorAll("#letters span").forEach(s=>s.classList.remove("got"));
-  state.stats=newStats(); sk.to=null; sk.lastRail=null; state.phase="playing";state.score=0;_scoreShown=0;_lastScore=-1;state.best=0;state.time=RUN_TIME;state.letters=0;state.hitStop=0;state.shake=0;
+  state.stats=newStats(); sk.to=null; sk.lastRail=null; state.clockOn=false; { const h=el("hint"); if(h) h.classList.remove("gone"); } state.phase="playing";state.score=0;_scoreShown=0;_lastScore=-1;state.best=0;state.time=RUN_TIME;state.letters=0;state.hitStop=0;state.shake=0;
   el("start").classList.add("hide"); el("over").classList.add("hide");
-  refreshGoals();updateCombo(); }
+  refreshGoals();updateCombo();
+  /* v3: the chase rig SNAPS behind the rider on Drop In — it used to swoop in from
+     the 46m menu orbit, so the first two seconds framed a tiny rider from overhead */
+  applyTransform(1/60); window.__freezeCam=false; updateCamera(1);
+  clearTimeout(window.__hintT); window.__hintT=setTimeout(()=>{ const h=el("hint"); if(h) h.classList.add("gone"); }, 7000); }
 window.__startGame=startGame;
 function endGame(){ if(combo.active)bankCombo(); state.phase="over";
   el("fScore").textContent=Math.round(state.score).toLocaleString();
@@ -4590,7 +4824,9 @@ function overKicker(){ for(const k of kickers){ if(Math.hypot(sk.pos.x-k.pos.x,s
    ======================================================================= */
 function step(dt){
   perfT+=dt;
-  state.time-=dt; if(state.time<=0){state.time=0;endGame();return;}
+  /* the two-minute clock starts on your first push or pop, not on Drop In */
+  if(!state.clockOn && (held.push||held.ollie||edges.size)){ state.clockOn=true; const h=el("hint"); if(h) h.classList.add("gone"); }
+  if(state.clockOn){ state.time-=dt; if(state.time<=0){state.time=0;endGame();return;} }
   if(special.on){ special.t-=dt*T.stokeDrain; if(special.t<=0){special.on=false;special.meter=0;el("stokeWrap").classList.remove("hot");} }
   const ev=new Set(edges); edges.clear();
   if(sk.state!=="air"){ sk.spinRate=(sk.spinRate||0)*0.82; sk.flipRate=0; }
@@ -4615,14 +4851,13 @@ function step(dt){
   switch(sk.state){
     case "roll":{
       const r=rideGround(dt, steer, 1);
-      if(r==="air") break;
+      if(r==="air"||sk.state!=="roll") break;
       if(combo.active){ sk.grace-=dt; if(sk.grace<=0) bankCombo(); }
       /* REVERT: tap MANUAL as you land on a transition to keep the line alive */
       if(sk.revertWin>0 && combo.active && ev.has("manual")){
-        sk.revertWin=0; addTrick("Revert",100); sk.grace=T.comboGrace+0.6; sfx.trick(); }
+        sk.revertWin=0; addTrick("Revert",100); sk.grace=T.comboGrace+0.6; sfx.trick(); sk.fakie=!sk.fakie; }
       const flatHere=Math.abs(slopeAt(sk.pos.x,sk.pos.z,Math.sin(sk.yaw),Math.cos(sk.yaw)))<0.3;
-      if(overKicker()){ pop(T.kicker*(held.ollie?1.12:1)); }
-      else if(wantPop){ pop(T.ollie*popPow); }
+      if(wantPop){ pop(T.ollie*popPow); }
       else if(ev.has("manual") && flatHere && sk.revertWin<=0 && sk.speed>4){ enterManual(); }
       break; }
     case "air":{
@@ -4643,14 +4878,17 @@ function step(dt){
           const add=Math.round(sk.flipPts*0.9*(special.on?2:1)*(ft.deg||1));
           ft.name=(special.on?"✦":"")+STACK[sk.flipN]+sk.flipBase; combo.base+=add; ft.pts+=add; updateCombo(); trickCall(ft.name,"×"+combo.tricks.length); sfx.trick();
         } else if(sk.flipRem<=0.6) {
-          const nm=FLIP_BY[dirK]; sk.axis=FLIPAXIS[nm]||FLIPAXIS.Kickflip;
+          const nm=FLIP_BY[dirK]; sk.axis=FLIPAXIS[nm]||FLIPAXIS.Kickflip; const fk=sk.fakie?"Fakie ":"";
           sk.flipRem+=Math.PI*2; sk.flipBase=nm; sk.flipN=0; sk.flipId=(sk.flipId||0)+1;
           sk.flipPts = nm==="Pop Shove-it"?120:150;
-          addTrick(nm, sk.flipPts); sk.flipIdx=combo.tricks.length-1; combo.tricks[sk.flipIdx].flipId=sk.flipId;
+          addTrick(fk+nm, sk.flipPts); sk.flipIdx=combo.tricks.length-1; combo.tricks[sk.flipIdx].flipId=sk.flipId;
         }
       }
       /* GRAB: MANUAL in the air. Held = paid by the tenth of a second. */
-      if(ev.has("manual") && !sk.grab){ const nm=GRAB_BY[dirK];
+      /* K toward a rail means GRIND: hold the grab back 0.22s in case you're about to lock on */
+      if(ev.has("manual") && !sk.grab){ const nr0=nearestRail(); if(nr0.rail && nr0.dist<3 && sk.pos.y-nr0.rail.y>-0.3) sk.grabPend=0.22; }
+      if(sk.grabPend>0){ sk.grabPend-=dt; if(sk.grabPend<=0 && held.manual && !sk.grab){ ev.add("manual"); } }
+      if(ev.has("manual") && !sk.grab && !(sk.grabPend>0) && !railLockable(nearestRail())){ const nm=GRAB_BY[dirK];
         sk.grab={name:nm,t:0,acc:0}; addTrick(nm,110); sk.grabIdx=combo.tricks.length-1; sk.grab.deg=combo.tricks[sk.grabIdx].deg||1; sfx.grab(); }
       if(sk.grab){
         if(held.manual){ sk.grab.t+=dt; sk.grab.acc+=dt;
@@ -4664,7 +4902,7 @@ function step(dt){
         const u=sk.flipRem/(Math.PI*2);
         /* floor at 12 rad/s: below that a kickflip in a 0.45s hang time turns
            through so little that it reads as the board wobbling, not flipping */
-        const rate=Math.max(12, T.flipSpeed*(0.55+1.75*Math.min(1,u)));
+        const rate=Math.max(16, T.flipSpeed*(0.55+1.75*Math.min(1,u)));   /* a kickflip lands in ~0.3s of a 0.6s ollie */
         const d=Math.min(rate*dt,sk.flipRem); sk.flip+=d; sk.flipRem-=d; if(sk.flipRem<=0) sfx.flipCatch();
         sk.flipRate=rate;
       } else sk.flipRate=0;
@@ -4673,30 +4911,34 @@ function step(dt){
          at the end cap and banked thousands of free points), and only lock on
          inside the rail, not on its end cap */
       if(sk.railCoolT>0) sk.railCoolT-=dt;
-      if(sk.vy<4 && nr.rail && nr.dist<1.9 && Math.abs(sk.pos.y-nr.rail.y)<1.5
-         && nr.t>0.25 && nr.t<nr.rail.len-0.25 && !(sk.railCoolT>0 && nr.rail===sk.railCool)){ enterGrind(nr); break; }
+      /* v3: a grind is a DECISION — press GRIND (the K / grab button) as you come
+         down onto an orange edge. It used to lock on by itself. */
+      if(ev.has("manual")) sk.grindReqT=0.3; else if(sk.grindReqT>0) sk.grindReqT-=dt;
+      if((held.manual||sk.grindReqT>0) && railLockable(nr)){ enterGrind(nr); break; }
       const h=surfH(sk.pos.x,sk.pos.z);
       if(sk.pos.y<=h){
         /* clipped the SIDE of a ramp below its surface: glance off it, don't
            teleport up onto a 3m deck */
         if(h-sk.pos.y>0.45 && h-surfH(opx,opz)>0.45){
-          sk.pos.x=opx; sk.pos.z=opz; sk.vel.x*=-0.25; sk.vel.z*=-0.25;
+          sk.pos.x=opx; sk.pos.z=opz;
+          if(Math.hypot(sk.vel.x,sk.vel.z)>4.5){ bail("Hit the ledge"); break; }
+          sk.vel.x=0; sk.vel.z=0;
         } else landGround();
       }
       break; }
     case "grind":{
-      const r=sk.rail; sk.railT += sk.railDir*T.grindSpeed*dt;
+      const r=sk.rail; sk.grindV=Math.max(2.5,(sk.grindV||T.grindSpeed)-0.9*dt); sk.railT += sk.railDir*sk.grindV*dt;
       if(sk.railT<0||sk.railT>r.len){ endGrindStat(); sk.state="air"; sk.vy=0; sk.airFrom="rail"; sk.railCool=r; sk.railCoolT=0.4; sk.lastRail=r; markTakeoff();
-        sk.vel.set(r.dir.x*sk.railDir*T.grindSpeed,0,r.dir.z*sk.railDir*T.grindSpeed); sk.speed=T.grindSpeed; break; }
+        sk.vel.set(r.dir.x*sk.railDir*sk.grindV,0,r.dir.z*sk.railDir*sk.grindV); sk.speed=sk.grindV; break; }
       sk.pos.set(r.a.x+r.dir.x*sk.railT, r.y, r.a.z+r.dir.z*sk.railT);
       sk.yaw=Math.atan2(r.dir.x*sk.railDir, r.dir.z*sk.railDir);
       grindPts(dt); drift(dt,ev); if(sk.state!=="grind") break; fxGrind(dt); sk.grindT=(sk.grindT||0)+dt;
       if(ev.has("trick")){ sk.gsw=((sk.gsw||0)+1)%GRIND_SWITCH.length; addTrick(GRIND_SWITCH[sk.gsw],130); sk.balV*=0.5; }
-      if(wantPop){ endGrindStat(); sk.speed=T.grindSpeed; sk.railCool=r; sk.railCoolT=0.4; sk.lastRail=r; pop(T.ollie*popPow); }
+      if(wantPop){ endGrindStat(); sk.speed=sk.grindV; sk.railCool=r; sk.railCoolT=0.4; sk.lastRail=r; pop(T.ollie*popPow); }
       break; }
     case "manual":{
       const r=rideGround(dt, steer, 0.6);
-      if(r==="air") break;
+      if(r==="air"||sk.state!=="manual") break;
       sk.manT=(sk.manT||0)+dt;
       if(!sk.manPaid && sk.manT>=0.3){ sk.manPaid=true; addTrick("Manual",60); }
       if(sk.manPaid) manualPts(dt);
@@ -4710,7 +4952,7 @@ function step(dt){
       if(rideGround(dt, 0, 0, true)==="fall"){ sk.vy=(sk.vy||0)-T.gravity*dt; sk.pos.y+=sk.vy*dt;
         const hb=surfH(sk.pos.x,sk.pos.z); if(sk.pos.y<=hb){ sk.pos.y=hb; if(sk.vy<-6){ sfx.bonk(); state.shake=Math.max(state.shake,0.3);} sk.vy=0; } }
       else sk.vy=0;
-      if(sk.state==="bail" && sk.bailT<=0){ sk.state="roll"; sk.speed=Math.max(sk.speed,T.cruise*0.6); sk.flip=0; } break; }
+      if(sk.state==="bail" && sk.bailT<=0){ sk.state="roll"; sk.speed=Math.max(sk.speed,1.5); sk.flip=0; } break; }
   }
   /* solid wall block, run right after the state machine moves sk.pos — skip
      "grind" only, since that state's position is fully rail-driven (see
@@ -4720,6 +4962,8 @@ function step(dt){
   /* crouch scalar: anticipation on hold, snap on pop, tuck in air, spike on land */
   let target=0;
   if(sk.state==="air") target=0.75;
+  else if(sk.state==="grind") target=0.5;
+  else if(sk.state==="manual") target=0.3;
   else if(sk.state==="bail") target=1.0;
   else if(held.ollie) target=1.0;
   if(sk.crouchT>0){ sk.crouchT-=dt; target=sk.crouchHold; }
@@ -4729,18 +4973,25 @@ function step(dt){
   sk.tuck += ((sk.state==="air"?1:0)-sk.tuck)*Math.min(1, dt/0.12);
   sk.grabL = (sk.grabL||0) + (((sk.state==="air"&&sk.grab)?1:0)-(sk.grabL||0))*Math.min(1, dt/0.09);
   /* push cycle: back foot down to the concrete, kicks a dust puff on contact */
-  const wantPush = (sk.state==="roll" && sk.crouch<0.35 && !held.ollie);
+  /* PUSH: only while the player holds it. Each back-foot contact (55% into the
+     cycle) is one kick of speed, smaller the faster you already are — the way
+     real pushing tops out around 30 km/h. First contact comes 0.2s after you
+     press, so it never feels laggy from a standstill. */
+  const flatHereP=Math.abs(slopeAt(sk.pos.x,sk.pos.z,fwd.x,fwd.z))<0.15;
+  const wantPush = (sk.state==="roll" && held.push && flatHereP && !held.ollie);
   if(wantPush){
-    if(!sk.pushOn){ sk.pushOn=true; sk.pushT=0; sk.pushMark=0; }
+    if(!sk.pushOn){ sk.pushOn=true; sk.pushT=PUSH_T*0.35; sk.pushMark=0; }
     const prev=(sk.pushT%PUSH_T)/PUSH_T; sk.pushT+=dt;
     const now=(sk.pushT%PUSH_T)/PUSH_T;
-    if(prev<0.55 && now>=0.55 && sk.speed>3){
-      fxPuff(sk.pos.x - fwd.x*0.9, surfH(sk.pos.x,sk.pos.z), sk.pos.z - fwd.z*0.9, 4, 1.4);
+    if(prev<0.55 && now>=0.55){
+      sk.pushBoostT=0.25; sk.pushBoost=T.pushKick*(1-0.55*sk.speed/T.pushMax)/0.25;   /* a push is a 0.25s drive, not a teleport */
+      fxPuff(sk.pos.x - fwd.x*0.9, surfH(sk.pos.x,sk.pos.z), sk.pos.z - fwd.z*0.9, 4, 1.0);
+      if(sfx.push) sfx.push();
     }
   } else sk.pushOn=false;
   /* continuous rear-contact dust — a 20Hz chalk trickle off the back truck so
      the rider always looks like he is actually moving over concrete */
-  if((sk.state==="roll"||sk.state==="manual") && sk.speed>10){
+  if((sk.state==="roll"||sk.state==="manual") && sk.speed>6){
     _rollAcc+=dt/0.12;
     while(_rollAcc>=1){ _rollAcc-=1;
       /* one chalk puff at EACH rear wheel, 0.28m either side of the truck */
@@ -4804,25 +5055,31 @@ function rideGround(dt, steer, turnMul, passive){
   const along=slopeAt(sk.pos.x,sk.pos.z,fx,fz);
   const inv=1/Math.sqrt(1+along*along), sinA=along*inv, cosA=inv;
   sk.speed -= (sinA>0?T.slopeUp:T.slopeG)*sinA*dt;
+  /* PUMP: hold PUSH while dropping down a transition to compress and gain speed */
+  if(!passive && held.push && sinA<-0.15) sk.speed += 2.6*(-sinA)*dt;
   /* the slope ACROSS your heading bends the line downhill — you can't hold a
      traverse across a 60deg face at constant height any more */
   gradAt(sk.pos.x,sk.pos.z,_g2); const gl=Math.hypot(_g2.x,_g2.z);
   if(gl>0.15){ const rx=-Math.cos(sk.yaw), rz=Math.sin(sk.yaw);
     const latS=-(_g2.x*rx+_g2.z*rz)/Math.sqrt(1+gl*gl);
     sk.yaw -= T.slopeG*latS/Math.max(4,Math.abs(sk.speed))*dt; fx=Math.sin(sk.yaw); fz=Math.cos(sk.yaw); }
-  if(gl<0.12){
-    if(!passive && sk.speed<T.cruise) sk.speed += (T.cruise-sk.speed)*Math.min(1,dt*1.6);
-    else if(sk.speed>T.cruise) sk.speed -= (sk.speed-T.cruise)*Math.min(1,dt*0.35);
-  }
+  /* NO AUTOPILOT: the board used to push itself up to cruise forever, so the
+     game played itself. Now wheels just roll: urethane friction slowly bleeds
+     speed, the brake drags a foot, and speed only comes from pushing (the push
+     cycle in step()) or from gravity on a ramp. */
+  if(sk.speed>0){ sk.speed=Math.max(0, sk.speed - (T.rollFric + (held.brake&&!passive?T.brake:0) + sk.speed*sk.speed*0.0035)*dt); }
+  if(sk.pushBoostT>0 && !passive){ const dd=Math.min(dt,sk.pushBoostT); sk.speed+=sk.pushBoost*dd; sk.pushBoostT-=dd; }
   sk.speed=Math.min(sk.speed,T.maxSpeed);
   /* ran out of speed climbing: KICKTURN. The visual yaw eases the 180 so it reads
      as a pivot on the back truck, not a snap. */
-  if(sk.speed<0){ sk.yaw+=Math.PI; sk.speed=-sk.speed; fx=-fx; fz=-fz; sk.kickturn=0.35; }
+  /* ran out of speed on a ramp: you roll back down FAKIE (the board doesn't turn
+     round by itself any more — that's what a Revert is for) */
+  if(sk.speed<0){ if(gl>0.12){ sk.yaw+=Math.PI; sk.fakie=!sk.fakie; sk.speed=-sk.speed; fx=-fx; fz=-fz; } else sk.speed=0; }
   const px=sk.pos.x, pz=sk.pos.z, py=sk.pos.y;
   const hs=sk.speed*cosA;
   sk.pos.x+=fx*hs*dt; sk.pos.z+=fz*hs*dt;
   const h=surfH(sk.pos.x,sk.pos.z);
-  if(h-py>0.32){                     /* a face you can't roll up: glance off it */
+  if(h-py>0.32 || (_boxHit && h-py>0.04)){   /* a face you can't roll up (any ledge/stair riser counts): glance off it */
     sk.pos.x=px; sk.pos.z=pz;
     /* the face normal, read from the cliff itself (which side got taller) */
     const e=0.25, hx=surfH(px+e,pz)-surfH(px-e,pz), hz=surfH(px,pz+e)-surfH(px,pz-e);
@@ -4830,10 +5087,11 @@ function rideGround(dt, steer, turnMul, passive){
     let tx=fx-nx*dn*1.9, tz=fz-nz*dn*1.9;          /* reflect, a little soft */
     if(Math.hypot(tx,tz)<0.2){ tx=-fx; tz=-fz; }
     sk.yaw=Math.atan2(tx,tz); sk.speed*=0.45;
+    if(!passive && dn>0.6 && sk.speed/0.45>5.5){ bail("Slammed into it"); return "block"; }
     if(!passive && dn>0.5){ state.shake=Math.max(state.shake,0.2); if(typeof sfx!=="undefined"&&sfx.bonk) sfx.bonk(); }
     return "block"; }
   if(passive && py-h>0.02){ sk.pos.y=py; return "fall"; }  /* a bail FALLS off edges (see the bail state), it never becomes an air */
-  if(py-h>0.30){                     /* rolled off an edge: you're airborne */
+  if(py-h>0.14){                     /* rolled off an edge (a curb, a stair, a coping): you're airborne */
     sk.state="air"; sk.airFrom="edge"; sk.vel.set(fx*hs,0,fz*hs); sk.lipQ=null; markTakeoff(px,pz,py);
     sk.vy=Math.min(0, sk.speed*sinA); sk.spinNet=0; sk.airT=0; sk.pos.y=py;
     return "air"; }
@@ -4884,10 +5142,13 @@ function pop(v){
   sk.vy=v+Math.max(0,sk.speed*along*inv);
   sk.state="air"; sk.airFrom=sk.airFrom==="rail"?"rail":"pop"; sk.spinNet=0; sk.airT=0; sk.lipBoost=false; sk.lipQ=null; markTakeoff();
   comboStart(); sfx.ollie(); sk.crouch=-0.15; sk.crouchT=0; }
+function railLockable(nr){ return !!(nr.rail && sk.vy<2.5 && nr.dist<1.3 && sk.pos.y-nr.rail.y<0.9 && sk.pos.y-nr.rail.y>-0.35
+  && nr.t>0.25 && nr.t<nr.rail.len-0.25 && !(sk.railCoolT>0 && nr.rail===sk.railCool)); }
 function enterGrind(nr){
   /* RAIL TRANSFER: off one rail and onto a different one without touching down */
   if(sk.lastRail && sk.lastRail!==nr.rail && combo.active) addTrick("Rail Transfer",350);
-  sk.grindT=0; sk.grab=null; sk.spinNet=0; sk.spinAcc=0; sk.flipRem=0; sk.flip=0; sk.lipQ=null; sk.state="grind"; sk.rail=nr.rail; sk.railT=nr.t; sk.vy=0;
+  sk.grindV=Math.max(4, Math.min(11, Math.hypot(sk.vel.x,sk.vel.z)));
+  sk.grindT=0; sk.grab=null; sk.grabPend=0; sk.spinNet=0; sk.spinAcc=0; sk.flipRem=0; sk.flip=0; sk.lipQ=null; sk.state="grind"; sk.rail=nr.rail; sk.railT=nr.t; sk.vy=0;
   const align=(new THREE.Vector3(Math.sin(sk.yaw),0,Math.cos(sk.yaw))).dot(nr.rail.dir); sk.railDir=align>=0?1:-1;
   sk.balance=0; sk.balV=0; sk.balT=0; sk._tip=0;
   /* the grind is chosen by HOW YOU MEET THE RAIL — the board's angle to it when
@@ -4965,16 +5226,18 @@ function landGround(){
   let dirYaw;
   if(hsp<1.2) dirYaw = gl>0.15 ? Math.atan2(-_g2.x,-_g2.z) : sk.yaw;   /* fell straight down: roll downhill */
   else dirYaw=Math.atan2(v.x,v.z);
-  sk.vy=0; sk.landImpact=impactV;
+  sk.vy=0; sk.landImpact=impactV; sk.grabPend=0;
   fxLand(sk.pos.x, sk.pos.y, sk.pos.z); impactHit();
   if(sk.flipRem>T.landTol){ bail("Flip not finished"); return; }
-  const ad=Math.abs(wrapA(sk.yaw-dirYaw)), moving=v.length()>2.5;
+  const boardYaw=sk.yaw+(sk.fakie?Math.PI:0);
+  const ad=Math.abs(wrapA(boardYaw-dirYaw)), moving=v.length()>2.5;
   if(moving && ad>T.landAngle && ad<Math.PI-T.landAngle){ bail("Landed sideways"); return; }
   sk.fakieLand = moving && ad>=Math.PI/2;
+  if(moving) sk.fakie = sk.fakieLand;      /* land backwards -> ride away fakie, no auto-turn */
   /* LANDING QUALITY — a skill read on every make, not just make/bail */
   { const off = moving ? Math.min(ad, Math.PI-ad) : 0, late = sk.flipRem;
     if(combo.active && combo.tricks.length && sk.airT>0.3){
-      if(off<0.21 && late<0.08){ combo.base=Math.round(combo.base*1.1); landCall("PERFECT",false); }
+      if(off<0.12 && late<0.03 && sk.airT>0.45){ combo.base=Math.round(combo.base*1.1); landCall("PERFECT",false); }
       else if(off>0.61 || late>0.35){ combo.base=Math.round(combo.base*0.9); landCall("SKETCHY",true); } } }
   if(moving) sk.yaw=dirYaw;                  /* the visual yaw eases this for a fakie roll-away */
   sk.speed=Math.min(T.maxSpeed, Math.max(v.length(), 0));
@@ -5013,8 +5276,8 @@ function applyTransform(dt){
      he leans into the wall; in the air he rights himself over ~0.4s. The visual
      yaw eases big jumps (kickturns, fakie roll-aways) into a readable pivot while
      tracking spins 1:1. */
-  { const h=dt||1/120, d=wrapA(sk.yaw-sk.yawVis);
-    sk.yawVis = Math.abs(d)>0.9 ? sk.yawVis+d*Math.min(1,h*13) : sk.yaw;
+  { const h=dt||1/120, face=sk.yaw+(sk.fakie?Math.PI:0), d=wrapA(face-sk.yawVis);
+    sk.yawVis = Math.abs(d)>0.9 ? sk.yawVis+d*Math.min(1,h*11) : face;
     /* in the air the rider rights himself FAST (~0.15s) — carrying the wall's
        60-80deg lean into the air read as a physics failure, lying sideways mid-air */
     let tr=14;
@@ -5030,15 +5293,28 @@ function applyTransform(dt){
     skater.quaternion.copy(_qTilt).multiply(_qYaw); }
   const wob=(sk.state==="grind"||sk.state==="manual")?sk.balance*0.3:0;
   /* the deck's long axis is Z: roll about Z = kickflip, yaw about Y = shuvit */
-  const pitch = (sk.state==="manual") ? -0.35 : 0;
+  /* v3: the OLLIE reads as an ollie — the tail snaps and the board kicks ~25deg
+     nose-up in the first 0.1s, then the front foot drags it level by 0.24s */
+  const popU = (sk.state==="air" && sk.airFrom!=="lip" && sk.airFrom!=="edge") ? Math.min(1,(sk.airT||0)/0.24) : 1;
+  const pitch = (sk.state==="manual") ? -0.35 : (popU<1 ? -0.46*Math.sin(Math.PI*popU)*(1-popU*0.35) : 0);
+  sk.bpitch = pitch;
   /* THE BOARD IS THE ANKLE ANCHOR. Lifting it toward the chest is what drives the
      air tuck; the IK then folds the legs around it, so deck and shoes cannot
      separate no matter what the flip is doing. */
   board.position.y = boardLift();
   board.rotation.set(pitch, sk.flip*sk.axis.y, sk.flip*sk.axis.z + wob);
+  /* v3 SLAM: on a bail the board shoots out from under the rider and ends up on
+     its edge; the rider (solveRider) drops onto the concrete, then gets back up */
+  { const u = sk.state==="bail" ? 1-(sk.bailT/T.bailLock) : 1;
+    const want = sk.state==="bail" ? (u<0.72 ? 1 : Math.max(0,1-(u-0.72)/0.28)) : 0;
+    sk.bailW=(sk.bailW||0)+(want-(sk.bailW||0))*Math.min(1,(dt||1/120)*(want>(sk.bailW||0)?9:6));
+    const bw=sk.bailW;
+    if(bw>0.001){ board.position.z += 1.25*bw; board.position.x += -0.42*bw; board.position.y = board.position.y*(1-bw) + 0.07*bw;
+      board.rotation.z += 1.45*bw; board.rotation.y += 0.6*bw; } }
   /* the board flips UNDER a stable body — only a small counter-lean */
   poseRig(Math.max(0,Math.min(1,sk.crouch)), sk.lean - Math.sin(sk.flip)*0.12, sk.flip, dt||1/120);
   if(sk.state==="bail"){ rig.rotation.x = 1.1; hips.position.y = 0.55; }
+  if(charModel&&charModel.ik) solveRider(dt||1/120);
 
   const gy=surfH(sk.pos.x,sk.pos.z);
   const h=Math.max(0,sk.pos.y-gy);
@@ -5057,9 +5333,9 @@ const CAM={
   /* raised off 1.78: at eye level with the deck, every 1.4m ledge in the park is a
      wall across the frame. 2.20 with the aim point pulled down keeps the horizon on
      the same third but looks INTO the yard instead of along it. */
-  height:()=>CAM.portrait()?3.20:2.20,
-  dist:()=>CAM.portrait()?5.8:5.0,
-  look:()=>CAM.portrait()?2.30:1.42,   /* horizon lands on 0.36-0.44 of frame */
+  height:()=>CAM.portrait()?2.30:1.85,
+  dist:()=>CAM.portrait()?4.5:4.1,    /* v3: the rider is life-size now (1.7m, was 2m): come in to match */
+  look:()=>CAM.portrait()?1.42:1.22,   /* horizon lands on 0.36-0.44 of frame */
 };
 const _cam=new THREE.Vector3(), _look=new THREE.Vector3(), _tmp=new THREE.Vector3(),
       _lead=new THREE.Vector3(), _right=new THREE.Vector3(), _off=new THREE.Vector3();
@@ -5090,8 +5366,10 @@ function updateCamera(dt){
      the tail toward the board's roll axis, drops to just above the deck so the
      board silhouettes against SKY instead of concrete, dollies in and widens.
      0.12s ease in, slower ease out so the landing settles. */
-  const wantAir = (sk.state==="air") ? 1 : 0;
-  trickCam += (wantAir-trickCam)*Math.min(1, dt/(wantAir?0.12:0.26));
+  /* v3: only BIG air (off a coping, or 1.3m+ clear) earns the trick cam, and it eases
+     in over ~0.35s. On every flat ollie it used to swing 2m sideways and drop 1m. */
+  const wantAir = (sk.state==="air" && (sk.airFrom==="lip" || sk.pos.y-surfH(sk.pos.x,sk.pos.z)>1.3)) ? 1 : 0;
+  trickCam += (wantAir-trickCam)*Math.min(1, dt/(wantAir?0.35:0.5));
   const tc = trickCam*trickCam*(3-2*trickCam);
   /* ---- HERO FRAMING ON GRIND / MANUAL ----
      The rider filled about 10% of frame height mid-SMITH, which is why two very
@@ -5099,7 +5377,7 @@ function updateCamera(dt){
      point 0.35m and he fills ~22% instead. */
   const wantHero=(sk.state==="grind"||sk.state==="manual")?1:0;
   heroCam += (wantHero-heroCam)*Math.min(1, dt*(wantHero?4.0:2.2));
-  const dist=Math.max(2.4,(CAM.dist() + airC*0.18 + Math.max(0,sk.vy)*0.12)*(1-tc) + 4.4*tc - heroCam*1.6);
+  const dist=Math.max(2.4,(CAM.dist() + airC*0.18 + Math.max(0,sk.vy)*0.12)*(1-tc) + 3.9*tc - heroCam*1.2);
 
   /* ~6deg orbit easing toward the nearest obstacle inside 20u, so ramps and rails
      present three-quarter instead of head-on */
@@ -5166,7 +5444,7 @@ function updateCamera(dt){
   /* FOV KICK — punches out over 0.12s the instant a trick lands in the combo and
      falls back over 0.5s, so the moment of the trick has its own optical signature */
   if(fovKick>0) fovKick=Math.max(0, fovKick-dt/0.5);
-  const want = Math.min(base+9, base + Math.max(0, sk.speed-11)*1.15) - (camPinch>0?3:0)
+  const want = Math.min(base+7, base + Math.max(0, sk.speed-6)*1.1) - (camPinch>0?3:0)
              + tc*8.0 + fovKick*fovKick*11.0;
   const nf = camera.fov + (want-camera.fov)*Math.min(1,dt*(camPinch>0||tc>0.01||fovKick>0?14:3));
   if(Math.abs(nf-camera.fov)>0.01){ camera.fov=nf; camera.updateProjectionMatrix(); }
@@ -5235,7 +5513,7 @@ function updateBalanceHUD(){
   const on = state.phase==="playing" && (sk.state==="grind"||sk.state==="manual");
   if(on!==_balOn){ _balOn=on; el("bal").classList.toggle("on",on); }
   if(on){ el("bal").lastChild.style.left=(50+Math.max(-1,Math.min(1,sk.balance))*50).toFixed(1)+"%"; }
-  const lbl = sk.state==="air" ? "GRAB" : "MANUAL";
+  const lbl = sk.state==="air" ? (railLockable(nearestRail())?"GRIND":"GRAB") : "MANUAL";
   if(lbl!==_manLbl){ _manLbl=lbl; const m=el("manBtn"); if(m) m.textContent=lbl; }
 }
 function updateCombo(){ const c=el("combo"); if(!combo.active||!combo.tricks.length){c.classList.remove("on");return;}
@@ -5320,7 +5598,7 @@ window.__pose=(name)=>{
 window.__setFrame=(c,l)=>{ window.__freezeCam=true;
   camera.position.set(c[0],c[1],c[2]); camera.lookAt(l[0],l[1],l[2]); };
 /* v3 test hooks: the headless physics harness drives and reads the sim here */
-window.__dbg={ pick:(i)=>applyCharacter(i), charReady:()=>!!charModel&&!charLoading, sk:()=>sk, state:()=>state, combo:()=>combo, T, held, edges, surfH, QUARTERS, rails, kickers,
+window.__dbg={ bail:(w)=>bail(w||"test"), pick:(i)=>applyCharacter(i), charReady:()=>!!charModel&&!charLoading, sk:()=>sk, state:()=>state, combo:()=>combo, T, held, edges, surfH, QUARTERS, rails, kickers,
   place:(x,z,yaw,speed)=>{ sk.pos.set(x,surfH(x,z),z); sk.yaw=yaw; sk.yawVis=yaw; sk.speed=speed; sk.state="roll";
     sk.vy=0; sk.vel.set(Math.sin(yaw)*speed,0,Math.cos(yaw)*speed); camYaw=yaw; sk.flipRem=0; sk.flip=0; },
   step:(n)=>{ for(let i=0;i<n;i++) step(DT); } };
@@ -5345,10 +5623,18 @@ window.__camShot=(name)=>{
   else { updateCamera(1); }
 };
 
+/* v3: compile every material up front. Particle pools, rings and the flip trail
+   start hidden, so their shaders used to compile on the FIRST ollie — a 350ms hitch
+   that made the first pop look like the rider teleported mid-air. */
+function warmShaders(){
+  try{ const hidden=[]; scene.traverse(o=>{ if(o.visible===false){ hidden.push(o); o.visible=true; } });
+    renderer.compile(scene,camera); composer.render();
+    hidden.forEach(o=>o.visible=false); }catch(e){ console.warn('[warm]',e); }
+}
 async function boot(){
   try{
     await buildScene();
-    buildRoster(); refreshGoals();
+    buildRoster(); refreshGoals(); warmShaders();
     bindTouch(); resetSkater(); applyTransform(1/60); updateKeyLight();
     el("load").style.display="none"; el("start").classList.remove("hide");
     window.__booted=true;
