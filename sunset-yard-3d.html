@@ -1054,8 +1054,10 @@ function occludeRider(mat){
          float al = dot(fv/max(fd,1e-3), sv/max(sd,1e-3));
          /* a tight ~9-degree cone with a hard shoulder: the hole is the size of the
             rider and its dithered edge is a thin ring, not a field of static */
-         float cut = smoothstep(0.9760, 0.9975, al)
-                   * (1.0 - smoothstep(sd-1.30, sd-0.40, fd));
+         /* v3: only masses well IN FRONT of the rider — it used to eat the ramp he was
+            riding, leaving a stippled black halo round him on every transition */
+         float cut = smoothstep(0.9840, 0.9978, al)
+                   * (1.0 - smoothstep(sd-1.90, sd-1.20, fd));
          if(cut > 0.004 && dithScreen() < cut) discard;
        }`);
   });
@@ -1745,7 +1747,7 @@ function buildPark(){
      chase rig ends up nose-first against, it evaporates inside 2.6m instead of
      filling the frame with brown concrete. Range is tight so it never fires on
      anything the player is meant to see. */
-  for(const k of ["conc","concS","trans","deckflat","paint","wax","chalk","railM","steel","copper","mint","tile"])
+  for(const k of ["conc","concS","deckflat","paint","wax","chalk","railM","steel","copper","mint","tile"])   /* not "trans": you ride those */
     occludeRider(MATS[k]);
   for(const k in BUCKET){
     const list=BUCKET[k]; if(!list.length) continue;
