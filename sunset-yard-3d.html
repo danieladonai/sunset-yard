@@ -191,6 +191,14 @@
   .char-card.sel .cname b{color:var(--orange);}
   #load{position:absolute;inset:0;display:grid;place-items:center;color:var(--conc);font-size:13px;letter-spacing:.24em;
     text-transform:uppercase;text-align:center;padding:24px;background:#241E33;}
+  /* v3 BALANCE METER — the needle every grind and manual bail used to hide */
+  #bal{position:absolute;left:50%;top:172px;width:min(56vw,230px);height:12px;transform:translateX(-50%) skewX(-8deg);
+    background:linear-gradient(90deg,#FF3B47 0,#F0562A 14%,rgba(36,30,51,.7) 30%,rgba(36,30,51,.7) 70%,#F0562A 86%,#FF3B47 100%);
+    border:1px solid rgba(243,237,225,.55);opacity:0;transition:opacity .12s;}
+  #bal.on{opacity:1;}
+  #bal b{position:absolute;left:50%;top:-3px;bottom:-3px;width:2px;background:rgba(243,237,225,.35);}
+  #bal i{position:absolute;top:-5px;bottom:-5px;width:5px;margin-left:-2px;left:50%;background:#F3EDE1;box-shadow:0 0 6px #fff;}
+  @media (max-width:520px){ #bal{top:232px;} }
   @media (prefers-reduced-motion:reduce){*{transition:none!important;}}
 </style>
 
@@ -224,6 +232,7 @@
       </div>
     </div>
     <div class="flash" id="flash"></div>
+    <div id="bal" aria-hidden="true"><b></b><i></i></div>
     <button id="muteBtn" type="button" aria-label="Toggle music">🔊</button>
   </div>
   <div id="touch">
@@ -232,19 +241,19 @@
       <button class="btn arrow" data-act="right" aria-label="steer right"><span class="tri r"></span></button>
     </div>
     <div class="pad right">
-      <button class="btn word" data-act="trick" aria-label="Trick">TRICK</button>
-      <button class="btn word" data-act="manual" aria-label="Manual">MANUAL</button>
+      <button class="btn word" data-act="trick" aria-label="Flip">FLIP</button>
+      <button class="btn word" data-act="manual" aria-label="Manual or grab" id="manBtn">MANUAL</button>
       <button class="btn ollie" data-act="ollie" aria-label="Ollie">OLLIE</button>
     </div>
   </div>
   <div class="overlay hide" id="start">
     <div class="brand">Sunset<br><em>Yard</em></div>
     <div class="tag">Late sun on concrete · two-minute line</div>
-    <div class="help">You roll forward automatically. <b>Steer</b> left/right to carve — and in the air,
-      steering <b>spins</b> you. <b>OLLIE</b> to jump, <b>TRICK</b> for flips &amp; grabs (finish a flip before
-      you land or you bail), ride the orange edges to <b>grind</b>, hold <b>MANUAL</b> to link tricks across
-      flat ground. Keep one combo alive — the multiplier climbs.</div>
-    <div class="help" id="kbHelp"><b>Touch:</b> ◀ ▶ steer/spin · OLLIE · TRICK · MANUAL &nbsp;&nbsp;<b>Keys:</b> ←/→ steer · Space ollie · J/K trick · S manual</div>
+    <div class="help">You roll forward on your own. <b>Steer</b> to carve; in the air steering <b>spins</b> you.
+      Hold <b>OLLIE</b> to load, let go to pop. Ride up a ramp and you launch off the coping. In the air, <b>FLIP</b>
+      (hold ◀ or ▶ to pick which; tap again to double it) and hold <b>GRAB</b>. Land on the orange edges to <b>grind</b>;
+      <b>MANUAL</b> links tricks across the flat. Land straight, finish your flip, keep the combo alive.</div>
+    <div class="help" id="kbHelp"><b>Keys:</b> ←/→ steer · Space ollie · J flip · K grab/manual</div>
     <div style="display:flex;gap:22px;flex-wrap:wrap;align-items:center;justify-content:center;">
     <label class="help" style="display:flex;gap:9px;align-items:center;justify-content:center;cursor:pointer;user-select:none;margin:0;"><input type="checkbox" id="tiltChk" style="width:18px;height:18px;accent-color:var(--orange);"> Tilt phone to steer <span id="tiltNote" style="opacity:.55">(beta)</span></label>
     <label class="help" style="display:flex;gap:9px;align-items:center;justify-content:center;cursor:pointer;user-select:none;margin:0;"><input type="checkbox" id="musicChk" checked style="width:18px;height:18px;accent-color:var(--orange);"> Sound</label>
@@ -341,12 +350,23 @@ const T = {
   ollieMin:0.78,    /* a quick tap pops 78% of a full ollie; a 0.28s crouch pops 100% */
 };
 const RUN_TIME=120, BOUND=78;
-const FLIPS=["Kickflip","Heelflip","360 Flip","Impossible","Hardflip","Varial"];
-const GRABS=["Melon","Indy","Nosegrab","Stalefish","Method","Tailgrab"];
+/* ---- v3 TRICK BOOK ----
+   Every trick used to be a coin-flip: TRICK picked a random name, so nothing you
+   did with your thumbs changed what came out. Now the direction you hold at the
+   press CHOOSES the trick, pressing again mid-flip stacks it (double, triple — if
+   you have the hang time), grabs are HELD and pay for as long as you hold them,
+   and grinds are picked by the angle you lock onto the rail at. */
+const FLIPS=["Kickflip","Heelflip","Pop Shove-it","Hardflip","Varial","Impossible"];
+const GRABS=["Melon","Indy","Method","Stalefish","Nosegrab","Tailgrab"];
 const GRINDNM=["50-50","Boardslide","Nosegrind","Crooked","Smith","Feeble"];
+const FLIP_BY={0:"Kickflip",1:"Heelflip",2:"Pop Shove-it"};        /* neutral / left / right */
+const GRAB_BY={0:"Melon",1:"Indy",2:"Method"};
+const GRIND_SWITCH=["Crooked","Nosegrind","Tailslide","Overcrook"];     /* FLIP on the rail cycles these */
+const STACK=["","Double ","Triple ","Quad "];
+const DEGRADE=[1,0.7,0.45,0.25,0.12];     /* the same trick again in one combo pays less */
 /* per-trick rotation axes so a kickflip actually rolls about the deck's long axis */
 const FLIPAXIS={ "Kickflip":{y:0,z:1}, "Heelflip":{y:0,z:-1}, "360 Flip":{y:1,z:1},
-  "Varial":{y:1,z:1}, "Impossible":{y:-1,z:1}, "Hardflip":{y:0.5,z:1} };
+  "Varial":{y:1,z:1}, "Impossible":{y:-1,z:1}, "Hardflip":{y:0.5,z:1}, "Pop Shove-it":{y:0.5,z:0} };
 
 /* ---------------- globals ---------------- */
 let renderer, scene, camera, clock, composer, finalPass, bloomPass=null, TIER="high";
@@ -3663,9 +3683,16 @@ function POSE(){
   const lt=sk.lastTrick||"";
   if(sk.state==="air"){
     /* GRAB: the rear hand reaches for the deck and the torso folds over it */
-    if(GRABS.indexOf(lt)>=0){ p.torsoX=0.65; p.shX=-0.55; p.shZ=0.5; p.headX=0.3; p.hipY=-0.04; }
+    /* only while the grab is actually HELD now — it used to stick for the whole air */
+    if(sk.grab){ p.torsoX=0.65; p.shX=-0.55; p.shZ=0.5; p.headX=0.3; p.hipY=-0.04;
+      if(sk.grab.name==="Indy"){ p.torsoZ=0.18; p.shZ=0.75; }
+      else if(sk.grab.name==="Method"){ p.torsoX=0.35; p.torsoZ=-0.30; p.shTwist=0.6; p.headY=0.4; p.bLift=0.12; } }
   } else if(sk.state==="grind"){
-    if(lt==="Boardslide"||lt==="Crooked"){
+    if(/slide/i.test(lt)){
+      /* the body is already turned across the rail (see applyTransform), so this
+         is just the squat and the counter-wound shoulders of a slide */
+      p.shTwist=0.45; p.shZ=0.9; p.fLift=0.10; p.bLift=0.10; p.hipY=-0.08; p.torsoX=0.22; p.headY=0.7;
+    } else if(lt==="Crooked"||lt==="Overcrook"){
       /* shoulders square across the rail and counter-wound against the hips —
          the deep upper-body twist that says "sideways", with both knees split */
       p.shTwist=1.35; p.shZ=1.35; p.rigYaw=0.30;
@@ -4076,7 +4103,7 @@ document.addEventListener("change", e=>{
 function press(a){ if(!held[a])edges.add(a); held[a]=true; }
 function rel(a){ held[a]=false; }
 const KEY={" ":"ollie",ArrowUp:"ollie",w:"ollie",W:"ollie",ArrowLeft:"left",a:"left",A:"left",
-  ArrowRight:"right",d:"right",D:"right",j:"trick",J:"trick",k:"trick",K:"trick",ArrowDown:"manual",s:"manual",S:"manual"};
+  ArrowRight:"right",d:"right",D:"right",j:"trick",J:"trick",k:"manual",K:"manual",ArrowDown:"manual",s:"manual",S:"manual"};
 addEventListener("keydown",e=>{const a=KEY[e.key];if(a){e.preventDefault();if(!e.repeat)press(a);}});
 addEventListener("keyup",e=>{const a=KEY[e.key];if(a){e.preventDefault();rel(a);}});
 function bindTouch(){ document.querySelectorAll("#touch .btn").forEach(b=>{const a=b.dataset.act;
@@ -4089,7 +4116,7 @@ function bindTouch(){ document.querySelectorAll("#touch .btn").forEach(b=>{const
   b.addEventListener("pointercancel",up); b.addEventListener("lostpointercapture",up);
   }); }
 if(matchMedia("(pointer:coarse)").matches){ document.getElementById("touch").classList.add("show");
-  document.getElementById("kbHelp").innerHTML="<b>Touch</b> — steer/spin (left) · ollie, trick, manual (right)"; }
+  document.getElementById("kbHelp").innerHTML="<b>Touch</b> — steer/spin on the left · flip, manual/grab, ollie on the right"; }
 
 let AC=null,master=null,rollGain=null,rollOsc=null,grindGain=null,musicGain=null;
 function audioInit(){ if(AC)return; try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){return;}
@@ -4207,24 +4234,29 @@ function resetSkater(){ sk.pos=new THREE.Vector3(0,surfH(0,-40),-40); sk.yaw=0; 
   sk.vel=new THREE.Vector3(0,0,T.cruise); sk.spinNet=0; sk.airT=0; sk.chargeT=0; sk.ollieWas=false;
   sk.yawVis=0; sk.nrm=new THREE.Vector3(0,1,0); sk.revertWin=0; sk.airFrom=""; sk.lipY=0;
   camYaw=0; }
-const combo={active:false,tricks:[],base:0};
+const combo={active:false,tricks:[],base:0,counts:{}};
 const special={meter:0,on:false,t:0};
 const state={phase:"ready",score:0,best:0,time:RUN_TIME,letters:0,hitStop:0,shake:0};
 let perfT=0, frameIdx=0;
-function comboStart(){ if(!combo.active){combo.active=true;combo.tricks=[];combo.base=0;} }
-function addTrick(name,pts){ comboStart(); const mult=special.on?2:1; const p=Math.round(pts*mult);
-  combo.tricks.push({name:special.on?"✦"+name:name}); combo.base+=p; stokeAdd(T.stokePerTrick); sfx.trick(); updateCombo();
+function comboStart(){ if(!combo.active){combo.active=true;combo.tricks=[];combo.base=0;combo.counts={};} }
+/* the repeat key: a Double Kickflip is still a kickflip, a 360 Fakie still a 360 */
+function trickKey(name){ return String(name).replace(/^(Double |Triple |Quad )/,"").replace(/ Fakie$/,"").replace(/^Air .*/,"Air"); }
+function addTrick(name,pts){ comboStart(); const k=trickKey(name), n=combo.counts[k]||0; combo.counts[k]=n+1;
+  const deg=DEGRADE[Math.min(n,DEGRADE.length-1)]; sk.grabDeg=deg;
+  const mult=special.on?2:1; const p=Math.round(pts*mult*deg);
+  combo.tricks.push({name:special.on?"✦"+name:name, pts:p, deg}); combo.base+=p; stokeAdd(T.stokePerTrick*deg); sfx.trick(); updateCombo();
   fovKick=1; sk.lastTrick=name;
   { const t=el("comboTotal"); if(t){ t.classList.remove("pop"); void t.offsetWidth; t.classList.add("pop"); } }
   trickCall(name, "×"+combo.tricks.length); }
 function comboValue(){ return combo.base*Math.max(1,combo.tricks.length); }
-function bankCombo(){ if(!combo.active)return; const v=comboValue();
+function snapCombo(landed){ state.lastCombo={tricks:combo.tricks.map(t=>t.name), value:comboValue(), landed}; }
+function bankCombo(){ if(!combo.active)return; const v=comboValue(); snapCombo(true);
   if(v>0){ state.score+=v; if(v>state.best)state.best=v; sfx.bank(); flash(v.toLocaleString()+" BANKED");
     /* SCORE stops reading 0 next to a live 52,000: the plate punches and the digits
        roll up over ~0.35s (see the _scoreShown chase in updateHUD) */
     _scoreHit=0.35; const s=el("scoreV"); if(s) s.classList.add("hit"); }
-  combo.active=false;combo.tricks=[];combo.base=0; updateCombo(); refreshGoals(); }
-function loseCombo(){ combo.active=false;combo.tricks=[];combo.base=0; updateCombo(); }
+  combo.active=false;combo.tricks=[];combo.base=0;combo.counts={}; updateCombo(); refreshGoals(); }
+function loseCombo(){ if(combo.active&&combo.tricks.length) snapCombo(false); combo.active=false;combo.tricks=[];combo.base=0;combo.counts={}; updateCombo(); }
 function stokeAdd(n){ if(special.on)return; special.meter=Math.min(1,special.meter+n);
   if(special.meter>=1){ special.on=true;special.t=1;el("stokeWrap").classList.add("hot"); flash("STOKED! 2×"); } }
 
@@ -4296,7 +4328,7 @@ function step(dt){
       const flatHere=Math.abs(slopeAt(sk.pos.x,sk.pos.z,Math.sin(sk.yaw),Math.cos(sk.yaw)))<0.3;
       if(overKicker()){ pop(T.kicker*(held.ollie?1.12:1)); }
       else if(wantPop){ pop(T.ollie*popPow); }
-      else if(held.manual && combo.active && flatHere && sk.revertWin<=0){ sk.state="manual"; sk.balance=0; }
+      else if(ev.has("manual") && flatHere && sk.revertWin<=0 && sk.speed>4){ enterManual(); }
       break; }
     case "air":{
       sk.airT+=dt;
@@ -4307,10 +4339,30 @@ function step(dt){
       sk.yaw += spinD; sk.spinNet += spinD; sk.spinAcc += Math.abs(spinD);
       if(sk.airT<=dt*1.5 || sk.pos.y>sk.peakY) sk.peakY=sk.pos.y;
       sk.spinRate = steer*T.spin;      /* signed body spin — drives cam roll + blur */
-      if(ev.has("trick")){ sk._ft=!sk._ft;
-        if(sk._ft){ const nm=FLIPS[(RNG()*FLIPS.length)|0]; sk.axis=FLIPAXIS[nm]||FLIPAXIS.Kickflip;
-          sk.flipRem+=Math.PI*2; addTrick(nm,150); }
-        else addTrick(GRABS[(RNG()*GRABS.length)|0],160); }
+      const dirK = held.left&&!held.right ? 1 : (held.right&&!held.left ? 2 : 0);
+      if(ev.has("trick")){
+        /* a second press while the board is still turning STACKS the flip */
+        if(sk.flipRem>0.6 && sk.flipBase && sk.flipN<3){
+          sk.flipN++; sk.flipRem+=Math.PI*2;
+          const t=combo.tricks[combo.tricks.length-1];
+          if(t && t.flipId===sk.flipId){ const add=Math.round(sk.flipPts*0.9*(special.on?2:1));
+            t.name=STACK[sk.flipN]+sk.flipBase; combo.base+=add; t.pts+=add; updateCombo(); trickCall(t.name,"×"+combo.tricks.length); sfx.trick(); }
+        } else {
+          const nm=FLIP_BY[dirK]; sk.axis=FLIPAXIS[nm]||FLIPAXIS.Kickflip;
+          sk.flipRem+=Math.PI*2; sk.flipBase=nm; sk.flipN=0; sk.flipId=(sk.flipId||0)+1;
+          sk.flipPts = nm==="Pop Shove-it"?120:150;
+          addTrick(nm, sk.flipPts); combo.tricks[combo.tricks.length-1].flipId=sk.flipId;
+        }
+      }
+      /* GRAB: MANUAL in the air. Held = paid by the tenth of a second. */
+      if(ev.has("manual") && !sk.grab){ const nm=GRAB_BY[dirK];
+        sk.grab={name:nm,t:0,acc:0}; addTrick(nm,110); sk.grabIdx=combo.tricks.length-1; }
+      if(sk.grab){
+        if(held.manual){ sk.grab.t+=dt; sk.grab.acc+=dt;
+          if(sk.grab.acc>=0.1){ sk.grab.acc-=0.1; const add=Math.round(38*(special.on?2:1)*(sk.grabDeg||1));
+            combo.base+=add; const t=combo.tricks[sk.grabIdx]; if(t){ t.pts+=add; } updateCombo(); } }
+        else sk.grab=null;
+      }
       /* eased flip drive: the deck snaps off the foot and decelerates into the
          catch instead of turning at one constant rate like a rotisserie */
       if(sk.flipRem>0){
@@ -4344,7 +4396,7 @@ function step(dt){
       sk.pos.set(r.a.x+r.dir.x*sk.railT, r.y, r.a.z+r.dir.z*sk.railT);
       sk.yaw=Math.atan2(r.dir.x*sk.railDir, r.dir.z*sk.railDir);
       grindPts(dt); drift(dt,ev); fxGrind(dt);
-      if(ev.has("trick")){ addTrick(GRINDNM[(RNG()*GRINDNM.length)|0],120); }
+      if(ev.has("trick")){ sk.gsw=((sk.gsw||0)+1)%GRIND_SWITCH.length; addTrick(GRIND_SWITCH[sk.gsw],130); sk.balV*=0.5; }
       if(wantPop){ sk.speed=T.grindSpeed; sk.railCool=r; sk.railCoolT=0.4; pop(T.ollie*popPow); }
       break; }
     case "manual":{
@@ -4437,7 +4489,7 @@ function step(dt){
     if(sk.pos.distanceTo(L.mesh.position)<3.4){ L.got=true; L.anim=0; state.letters++; state.score+=500; sfx.letter();
       const i=["S","K","A","T","E"].indexOf(L.ch); if(i>=0)document.querySelectorAll("#letters span")[i].classList.add("got"); refreshGoals(); } }
 
-  applyTransform(dt); updateCamera(dt); updateHUD();
+  applyTransform(dt); updateCamera(dt); updateHUD(); updateBalanceHUD();
 }
 /* ---- GROUND RIDE (v3) ----
    One integrator for every wheels-down state. Gravity acts ALONG the surface, so
@@ -4519,14 +4571,38 @@ function pop(v){
   sk.vy=v+Math.max(0,sk.speed*along*inv);
   sk.state="air"; sk.airFrom=sk.airFrom==="rail"?"rail":"pop"; sk.spinNet=0; sk.airT=0; sk.lipBoost=false;
   comboStart(); sfx.ollie(); sk.crouch=-0.15; sk.crouchT=0; }
-function enterGrind(nr){ sk.state="grind"; sk.rail=nr.rail; sk.railT=nr.t; sk.vy=0;
+function enterGrind(nr){ sk.grab=null; sk.state="grind"; sk.rail=nr.rail; sk.railT=nr.t; sk.vy=0;
   const align=(new THREE.Vector3(Math.sin(sk.yaw),0,Math.cos(sk.yaw))).dot(nr.rail.dir); sk.railDir=align>=0?1:-1;
-  sk.balance=0; addTrick(GRINDNM[(RNG()*GRINDNM.length)|0],220); }
+  sk.balance=0; sk.balV=0; sk.balT=0; sk._tip=0;
+  /* the grind is chosen by HOW YOU MEET THE RAIL — the board's angle to it when
+     you lock on, which your air spin controls. Straight = 50-50, angled = a
+     truck-and-edge grind, square across = a slide. Front/back side of the rail
+     picks the variant. */
+  const bf=Math.sin(sk.yaw)*nr.rail.dir.x+Math.cos(sk.yaw)*nr.rail.dir.z;   /* |cos| of the approach angle */
+  const ang=Math.acos(Math.min(1,Math.abs(bf)));
+  const side=((sk.pos.x-nr.rail.a.x)*nr.rail.dir.z-(sk.pos.z-nr.rail.a.z)*nr.rail.dir.x)>0;
+  let nm, pts;
+  if(ang<0.42){ nm=(sk.lastTrick==="Nosegrind"||bf<0)?"Nosegrind":"50-50"; pts=220; }
+  else if(ang<1.05){ nm=side?"Smith":"Feeble"; pts=270; }
+  else { nm=side?"Boardslide":"Lipslide"; pts=300; }
+  sk.grindSlide=ang>=1.05;
+  addTrick(nm, pts); sk.gsw=-1; }
 let gAcc=0; function grindPts(dt){ gAcc+=dt; if(gAcc>=0.35){gAcc=0;combo.base+=Math.round(40*(special.on?2:1));updateCombo();} }
 let mAcc=0; function manualPts(dt){ mAcc+=dt; if(mAcc>=0.4){mAcc=0;combo.base+=Math.round(22*(special.on?2:1));updateCombo();} }
+/* ---- BALANCE (v3) ----
+   The old needle drifted at one constant rate with NOTHING on screen, so a grind
+   or manual bail came out of nowhere. Now it's an inverted pendulum you can see:
+   the further it leans, the faster it falls, it gets touchier the longer you
+   hold the line, and you steer against it (lean right -> press left). */
 function drift(dt,ev){ if(!sk._tip)sk._tip=RNG()<.5?-1:1;
-  sk.balance+=sk._tip*T.balanceDrift*dt*0.6; if(held.left)sk.balance-=T.balanceFix*dt; if(held.right)sk.balance+=T.balanceFix*dt;
-  if(Math.abs(sk.balance)>1) bail(); }
+  sk.balT=(sk.balT||0)+dt; sk.balV=sk.balV||0;
+  const hard=1+sk.balT*0.28;
+  sk.balV += (sk.balance*2.4 + sk._tip*0.55)*hard*dt*T.balanceDrift;
+  if(held.left)  sk.balV -= T.balanceFix*2.2*dt;
+  if(held.right) sk.balV += T.balanceFix*2.2*dt;
+  sk.balV *= Math.max(0,1-dt*1.8);
+  sk.balance += sk.balV*dt;
+  if(Math.abs(sk.balance)>1) bail(sk.state==="grind"?"Fell off the rail":"Lost the manual"); }
 /* LATERAL WALL BLOCK — see the WALLS note above groundH(). Run once per frame
    after the state machine has moved sk.pos. For every registered footprint the
    skater is standing inside (and below the top of), push straight out to the
@@ -4596,8 +4672,11 @@ function landGround(){
      shake is what separates "stomped it" from "the pose changed" */
   state.shake=Math.max(state.shake, 0.25);
   if(n>=3){ state.hitStop=0.09; state.shake=0.35; }
-  if(held.manual && gl<0.3){ sk.state="manual"; sk.balance=0; comboStart(); } else { sk.state="roll"; sk.grace=T.comboGrace; } }
-function bail(why){ sfx.bail(); flash(why?("BAIL · "+why):"BAIL!",true); loseCombo(); fxBail(sk.pos.x,sk.pos.y,sk.pos.z); sk.state="bail"; sk.bailT=T.bailLock; sk.vy=0; sk.flipRem=0; sk._tip=0;
+  sk.grab=null;
+  if(held.manual && gl<0.3){ enterManual(); } else { sk.state="roll"; sk.grace=T.comboGrace; } }
+/* MANUAL links two tricks across the flat — and can open a line on its own */
+function enterManual(){ sk.state="manual"; sk.balance=0; sk.balV=0; sk.balT=0; sk._tip=0; mAcc=0; addTrick("Manual",60); }
+function bail(why){ sk.grab=null; sfx.bail(); flash(why?("BAIL · "+why):"BAIL!",true); loseCombo(); fxBail(sk.pos.x,sk.pos.y,sk.pos.z); sk.state="bail"; sk.bailT=T.bailLock; sk.vy=0; sk.flipRem=0; sk._tip=0;
   state.hitStop=0.09; state.shake=0.35; }
 
 /* =======================================================================
@@ -4616,7 +4695,12 @@ function applyTransform(dt){
     if(sk.state==="air"||sk.state==="grind") _nrmT.set(0,1,0);
     else { gradAt(sk.pos.x,sk.pos.z,_g2); _nrmT.set(-_g2.x,1,-_g2.z).normalize(); tr=22; }
     sk.nrm.lerp(_nrmT, Math.min(1,h*tr)).normalize();
-    _qTilt.setFromUnitVectors(_UP, sk.nrm); _qYaw.setFromAxisAngle(_UP, sk.yawVis);
+    /* slides ride ACROSS the rail, edge grinds cocked ~30deg, 50-50s straight */
+    const lt=sk.lastTrick||"";
+    const gOff = sk.state!=="grind" ? 0 :
+      (/slide|Lipslide/i.test(lt) ? Math.PI/2 : (/Smith|Feeble|Crooked|Overcrook/.test(lt) ? 0.5 : 0));
+    sk.gOff = (sk.gOff||0) + (gOff-(sk.gOff||0))*Math.min(1,h*16);
+    _qTilt.setFromUnitVectors(_UP, sk.nrm); _qYaw.setFromAxisAngle(_UP, sk.yawVis + sk.gOff);
     skater.quaternion.copy(_qTilt).multiply(_qYaw); }
   const wob=(sk.state==="grind"||sk.state==="manual")?sk.balance*0.3:0;
   /* the deck's long axis is Z: roll about Z = kickflip, yaw about Y = shuvit */
@@ -4820,6 +4904,14 @@ function updateHUD(){
     if(r){ const u=(combo.active && sk.grace>0) ? Math.max(0,Math.min(1,sk.grace/T.comboGrace))
                                                : (combo.active?1:0);
       r.style.strokeDashoffset=(_ringC*(1-u)).toFixed(2); } } }
+let _balOn=false, _manLbl="";
+function updateBalanceHUD(){
+  const on = state.phase==="playing" && (sk.state==="grind"||sk.state==="manual");
+  if(on!==_balOn){ _balOn=on; el("bal").classList.toggle("on",on); }
+  if(on){ el("bal").lastChild.style.left=(50+Math.max(-1,Math.min(1,sk.balance))*50).toFixed(1)+"%"; }
+  const lbl = sk.state==="air" ? "GRAB" : "MANUAL";
+  if(lbl!==_manLbl){ _manLbl=lbl; const m=el("manBtn"); if(m) m.textContent=lbl; }
+}
 function updateCombo(){ const c=el("combo"); if(!combo.active||!combo.tricks.length){c.classList.remove("on");return;}
   c.classList.add("on");
   /* at most FOUR trick names, then a +N overflow chip. A six-deep rotated chip
