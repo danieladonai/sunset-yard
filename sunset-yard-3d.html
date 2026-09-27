@@ -326,10 +326,19 @@ const SUN_DIR = new THREE.Vector3(0.340,0.145,0.930).normalize();
 const T = {
   cruise:15, accel:12, brake:22, turn:2.3,
   gravity:42, ollie:15, kicker:17,
-  spin:4.2, flipSpeed:9, landTol:0.7,
+  spin:6.4, flipSpeed:9, landTol:0.7,
   balanceDrift:0.8, balanceFix:2.0,
   grindSpeed:17, comboGrace:0.75, bailLock:1.0,
   stokePerTrick:0.13, stokeDrain:1/9,
+  /* v3 transition physics */
+  slopeG:25,        /* gravity along a ramp face going DOWN (m/s^2) */
+  slopeUp:15,       /* ...and climbing: the gap between the two is the pump every rider does */
+  maxSpeed:30,
+  lipSlope:2.0,     /* steeper than this (~63deg) AND flattening just ahead = the coping: launch */
+  lipPop:4.5,       /* free vertical kick off any coping, so a lip air always reads as an air */
+  lipOllie:5.0,     /* extra pop for a held-and-released ollie AT the lip: the skill shot */
+  landAngle:0.87,   /* ~50deg: more off-line than this, forward OR fakie, and you bail */
+  ollieMin:0.78,    /* a quick tap pops 78% of a full ollie; a 0.28s crouch pops 100% */
 };
 const RUN_TIME=120, BOUND=78;
 const FLIPS=["Kickflip","Heelflip","360 Flip","Impossible","Hardflip","Varial"];
@@ -1116,6 +1125,48 @@ function groundH(x,z){
   }
   return y;
 }
+/* ---- RIDEABLE TRANSITIONS (v3 gauntlet) ----
+   The quarters, the spine and the vert wall used to be registered as solid WALLS,
+   so the one thing a skate game is about — carving up a transition and launching
+   off the coping — was impossible. They now live in a PHYSICS-ONLY height field.
+   surfH() is what the skater, the camera floor and every contact effect read;
+   groundH() stays the TERRAIN and still displaces the slab mesh, which must never
+   climb the ramps (it would z-fight every transition face). The profile is the
+   exact transShape() arc the ramp mesh is extruded from, so rider and geometry
+   agree to the millimetre. */
+const QUARTERS=[];
+const VZ=0.30;                        /* horizontal band that fakes a quarter's true vert */
+function addQuarterPhys(x,z,rot,hw,R,vert,plat){
+  QUARTERS.push({x,z,c:Math.cos(rot),s:Math.sin(rot),hw,R,vert,plat,top:R+vert,
+                 rr:Math.hypot(Math.max(R,plat),hw)+0.1});
+}
+function quarterH(x,z){
+  let y=-1e9;
+  for(const q of QUARTERS){
+    const dx=x-q.x, dz=z-q.z;
+    if(dx*dx+dz*dz>q.rr*q.rr) continue;
+    const lx=dx*q.c-dz*q.s, lz=dx*q.s+dz*q.c;       /* world -> quarter-local */
+    if(lz<-q.hw||lz>q.hw||lx>q.R||lx<-q.plat) continue;
+    let h;
+    if(lx<=0) h=q.top;                               /* the deck */
+    else{ const u=q.R-lx; h=q.R-Math.sqrt(Math.max(0,q.R*q.R-u*u));
+      if(q.vert>0 && lx<VZ){ const t=1-lx/VZ; h+=q.vert*t*t*(3-2*t); } }
+    if(h>y) y=h;
+  }
+  return y;
+}
+function surfH(x,z){ const g=groundH(x,z); if(!QUARTERS.length) return g; const q=quarterH(x,z); return q>g?q:g; }
+/* slope along a heading, and the full gradient, of the RIDEABLE surface */
+/* Finite differences that refuse to read a CLIFF as a slope: straddling the side
+   face of a ramp used to report a 40:1 grade, which stalled the skater dead and
+   fired a phantom coping launch at ground level. A step bigger than 0.9m per 5cm
+   is a face, not a surface — take the one-sided difference instead. */
+function _d3(hm,h0,hp,e){ const a=hp-h0, b=h0-hm, J=0.9;
+  if(Math.abs(a)>J && Math.abs(b)>J) return 0; if(Math.abs(a)>J) return b/e; if(Math.abs(b)>J) return a/e; return (hp-hm)/(2*e); }
+function slopeAt(x,z,dx,dz){ const e=0.05;
+  return _d3(surfH(x-dx*e,z-dz*e), surfH(x,z), surfH(x+dx*e,z+dz*e), e); }
+function gradAt(x,z,out){ const e=0.05, h0=surfH(x,z);
+  out.x=_d3(surfH(x-e,z),h0,surfH(x+e,z),e); out.z=_d3(surfH(x,z-e),h0,surfH(x,z+e),e); return out; }
 
 function addRail(x,z,len,rot,h){
   const dir=new THREE.Vector3(Math.sin(rot),0,Math.cos(rot));
@@ -1294,7 +1345,9 @@ function addQuarter(x,z,rot,w,R,vert,plat,copperLip){
      [-w/2,w/2]) as a flat blocker up to the coping height R+vert. That is
      conservative right at the toe (x~=R), where the real mesh height is
      still ~0 — a known limitation, acceptable per the task's scope. */
-  addWall(x,z,rot, -plat,R, -w/2,w/2, R+vert);
+  /* v3: RIDEABLE. The wall-block this used to register is gone; the transition
+     lives in surfH() now (see QUARTERS above groundH). */
+  addQuarterPhys(x,z,rot, w/2, R,vert,plat);
   const g=new THREE.ExtrudeGeometry(transShape(R,vert,plat),
     {depth:w,bevelEnabled:true,bevelSize:0.05,bevelThickness:0.05,bevelSegments:1,curveSegments:16});
   g.translate(0,0,-w/2); uvScale(g,0.60);
@@ -1324,7 +1377,7 @@ function addVertWall(x,z,rot,totalW,R,vert,plat){
     /* WALL BLOCK for this half of the vert wall — same footprint convention
        as addQuarter (this segment IS a quarter-pipe transition, just paired
        with its mirror across the channel). See the note above WALLS. */
-    addWall(px,pz,rot, -plat,R, -segW/2,segW/2, R+vert);
+    addQuarterPhys(px,pz,rot, segW/2, R,vert,plat);   /* v3: rideable, not a wall */
     const g=new THREE.ExtrudeGeometry(transShape(R,vert,plat),
       {depth:segW,bevelEnabled:true,bevelSize:0.05,bevelThickness:0.05,bevelSegments:1,curveSegments:16});
     g.translate(0,0,-segW/2); uvScale(g,0.60);
@@ -1475,6 +1528,13 @@ function addBowl(){
   push("deckflat", drain, M(BOWL.x, BOWL.floor+0.03, BOWL.z, 0));
 }
 
+/* A spine is two quarters back to back: each one's deck would sit on top of
+   the other one's transition face. Strip the decks so the shared coping is a
+   knife edge you can roll over (a spine transfer) or launch off. */
+function spineFix(){
+  for(const a of QUARTERS) for(const b of QUARTERS){
+    if(a!==b && Math.abs(a.x-b.x)<0.01 && Math.abs(a.z-b.z)<0.01 && a.c*b.c+a.s*b.s<-0.99){ a.plat=0.001; b.plat=0.001; }
+  } }
 function buildPark(){
   /* perimeter retaining banks — the yard is poured against them */
   addBank(0,-BOUND+7,0,60); addBank(0,BOUND-7,Math.PI,60);
@@ -1597,6 +1657,7 @@ function buildPark(){
   }
   buildFenceSteel();
   buildTags();
+  spineFix();
 }
 /* ---- MID-FIELD DECALS ----
    The big ledges and the bowl wall were blank 30%-of-frame rectangles. These are
@@ -2911,7 +2972,7 @@ function updatePool(pool,dt){
     const dg=1-Math.min(0.9,drag[i]*dt);
     vel[i*3]*=dg; vel[i*3+1]*=dg; vel[i*3+2]*=dg;
     pos[i*3]+=vel[i*3]*dt; pos[i*3+1]+=vel[i*3+1]*dt; pos[i*3+2]+=vel[i*3+2]*dt;
-    const gy=groundH(pos[i*3],pos[i*3+2]);
+    const gy=surfH(pos[i*3],pos[i*3+2]);
     if(pos[i*3+1]<gy+0.02){ pos[i*3+1]=gy+0.02; vel[i*3+1]*=-0.22; vel[i*3]*=0.6; vel[i*3+2]*=0.6; }
     const t=1-life[i]/max[i];
     col[i*4  ]+=(c1[i*3  ]-col[i*4  ])*Math.min(1,dt*7);
@@ -2973,7 +3034,7 @@ function fxGrind(dt){
      flat under the truck is the cheapest way to say the sparks have a source. */
   if(grindGlow){
     grindGlow.visible=true;
-    grindGlow.position.set(_gp.x, groundH(_gp.x,_gp.z)+0.025, _gp.z);
+    grindGlow.position.set(_gp.x, surfH(_gp.x,_gp.z)+0.025, _gp.z);
     grindGlow.material.opacity=0.35;
   }
   bloomBump=Math.max(bloomBump,0.60);
@@ -3084,7 +3145,7 @@ function updateFX(dt){
     rollRib.visible=rollAlpha>0.008;
     const fx=Math.sin(sk.yaw), fz=Math.cos(sk.yaw);
     const cx=sk.pos.x-fx*0.66, cz=sk.pos.z-fz*0.66;
-    const cy=groundH(cx,cz)+0.022;
+    const cy=surfH(cx,cz)+0.022;
     if(rolling){
       _rollSeed+=dt;
       if(_rollSeed>=0.028){ _rollSeed=0;
@@ -4137,11 +4198,15 @@ function unlockAudio(){ audioInit(); _silentUnlock(); if(!AC)return; resumeAudio
 document.addEventListener("visibilitychange",()=>{ if(!document.hidden) resumeAudio(); });
 
 const sk={};
-function resetSkater(){ sk.pos=new THREE.Vector3(0,groundH(0,-40),-40); sk.yaw=0; sk.vy=0; sk.speed=T.cruise; sk.state="roll";
+function resetSkater(){ sk.pos=new THREE.Vector3(0,surfH(0,-40),-40); sk.yaw=0; sk.vy=0; sk.speed=T.cruise; sk.state="roll";
   sk.flip=0; sk.flipRem=0; sk.axis=FLIPAXIS.Kickflip; sk.spinAcc=0; sk.balance=0; sk.grace=0; sk.bailT=0;
   sk.rail=null; sk.railT=0; sk.railDir=1; sk._tip=0; sk._ft=false;
   sk.crouch=0; sk.crouchT=0; sk.lean=0;
-  sk.steer=0; sk.tuck=0; sk.pushOn=false; sk.pushT=0; }
+  sk.steer=0; sk.tuck=0; sk.pushOn=false; sk.pushT=0;
+  /* v3: air carries its own momentum, so a spin no longer bends the flight path */
+  sk.vel=new THREE.Vector3(0,0,T.cruise); sk.spinNet=0; sk.airT=0; sk.chargeT=0; sk.ollieWas=false;
+  sk.yawVis=0; sk.nrm=new THREE.Vector3(0,1,0); sk.revertWin=0; sk.airFrom=""; sk.lipY=0;
+  camYaw=0; }
 const combo={active:false,tricks:[],base:0};
 const special={meter:0,on:false,t:0};
 const state={phase:"ready",score:0,best:0,time:RUN_TIME,letters:0,hitStop:0,shake:0};
@@ -4208,19 +4273,39 @@ function step(dt){
   if(rollGain){ rollGain.gain.value=(state.phase==="playing"&&sk.state!=="bail")?0.05:0; }
   if(grindGain){ grindGain.gain.value=(sk.state==="grind")?0.06:0; }
 
+  /* ---- CHARGED OLLIE ----
+     Pop fires on RELEASE: hold to crouch (the rig already sinks while the button
+     is down), let go to pop. A quick tap still pops 78% so touch play never feels
+     mushy; a 0.28s crouch pops the full height. A press+release that both landed
+     between two steps still counts as a tap. */
+  if(held.ollie) sk.chargeT=Math.min(0.6,(sk.chargeT||0)+dt);
+  const released=(sk.ollieWas && !held.ollie) || (ev.has("ollie") && !held.ollie);
+  const popPow = T.ollieMin + (1-T.ollieMin)*Math.min(1,(sk.chargeT||0)/0.28);
+  const wantPop = released && sk.state!=="air" && sk.state!=="bail";
+  sk.ollieWas=held.ollie; if(!held.ollie) sk.chargeT=0;
+  if(sk.revertWin>0) sk.revertWin-=dt;
+
   switch(sk.state){
     case "roll":{
-      sk.speed += (T.cruise-sk.speed)*Math.min(1,dt*2);
-      sk.yaw += steer*T.turn*dt;
-      sk.pos.addScaledVector(fwd, sk.speed*dt); sk.pos.y=groundH(sk.pos.x,sk.pos.z);
+      const r=rideGround(dt, steer, 1);
+      if(r==="air") break;
       if(combo.active){ sk.grace-=dt; if(sk.grace<=0) bankCombo(); }
-      if(overKicker()){ pop(T.kicker); }
-      else if(ev.has("ollie")){ pop(T.ollie); }
-      else if(held.manual && combo.active){ sk.state="manual"; sk.balance=0; }
+      /* REVERT: tap MANUAL as you land on a transition to keep the line alive */
+      if(sk.revertWin>0 && combo.active && (ev.has("manual")||held.manual)){
+        sk.revertWin=0; addTrick("Revert",100); sk.grace=T.comboGrace+0.6; sfx.trick(); }
+      const flatHere=Math.abs(slopeAt(sk.pos.x,sk.pos.z,Math.sin(sk.yaw),Math.cos(sk.yaw)))<0.3;
+      if(overKicker()){ pop(T.kicker*(held.ollie?1.12:1)); }
+      else if(wantPop){ pop(T.ollie*popPow); }
+      else if(held.manual && combo.active && flatHere && sk.revertWin<=0){ sk.state="manual"; sk.balance=0; }
       break; }
     case "air":{
-      sk.vy-=T.gravity*dt; sk.pos.y+=sk.vy*dt; sk.pos.addScaledVector(fwd,sk.speed*dt);
-      sk.yaw += steer*T.spin*dt; sk.spinAcc += Math.abs(steer*T.spin*dt);
+      sk.airT+=dt;
+      const opx=sk.pos.x, opz=sk.pos.z;
+      sk.vy-=T.gravity*dt; sk.pos.y+=sk.vy*dt;
+      sk.pos.x+=sk.vel.x*dt; sk.pos.z+=sk.vel.z*dt;
+      const spinD=steer*T.spin*dt;
+      sk.yaw += spinD; sk.spinNet += spinD; sk.spinAcc += Math.abs(spinD);
+      if(sk.airT<=dt*1.5 || sk.pos.y>sk.peakY) sk.peakY=sk.pos.y;
       sk.spinRate = steer*T.spin;      /* signed body spin — drives cam roll + blur */
       if(ev.has("trick")){ sk._ft=!sk._ft;
         if(sk._ft){ const nm=FLIPS[(RNG()*FLIPS.length)|0]; sk.axis=FLIPAXIS[nm]||FLIPAXIS.Kickflip;
@@ -4237,28 +4322,42 @@ function step(dt){
         sk.flipRate=rate;
       } else sk.flipRate=0;
       const nr=nearestRail();
-      if(sk.vy<4 && nr.rail && nr.dist<1.9 && Math.abs(sk.pos.y-nr.rail.y)<1.5){ enterGrind(nr); break; }
-      if(sk.pos.y<=groundH(sk.pos.x,sk.pos.z)){ landGround(); }
+      /* v3: never re-catch the rail you just came off (it re-entered every frame
+         at the end cap and banked thousands of free points), and only lock on
+         inside the rail, not on its end cap */
+      if(sk.railCoolT>0) sk.railCoolT-=dt;
+      if(sk.vy<4 && nr.rail && nr.dist<1.9 && Math.abs(sk.pos.y-nr.rail.y)<1.5
+         && nr.t>0.25 && nr.t<nr.rail.len-0.25 && !(sk.railCoolT>0 && nr.rail===sk.railCool)){ enterGrind(nr); break; }
+      const h=surfH(sk.pos.x,sk.pos.z);
+      if(sk.pos.y<=h){
+        /* clipped the SIDE of a ramp below its surface: glance off it, don't
+           teleport up onto a 3m deck */
+        if(h-sk.pos.y>0.9 && h-surfH(opx,opz)>0.9){
+          sk.pos.x=opx; sk.pos.z=opz; sk.vel.x*=-0.25; sk.vel.z*=-0.25;
+        } else landGround();
+      }
       break; }
     case "grind":{
       const r=sk.rail; sk.railT += sk.railDir*T.grindSpeed*dt;
-      if(sk.railT<0||sk.railT>r.len){ sk.state="air"; sk.vy=0; break; }
+      if(sk.railT<0||sk.railT>r.len){ sk.state="air"; sk.vy=0; sk.airFrom="rail"; sk.railCool=r; sk.railCoolT=0.4;
+        sk.vel.set(r.dir.x*sk.railDir*T.grindSpeed,0,r.dir.z*sk.railDir*T.grindSpeed); sk.speed=T.grindSpeed; break; }
       sk.pos.set(r.a.x+r.dir.x*sk.railT, r.y, r.a.z+r.dir.z*sk.railT);
       sk.yaw=Math.atan2(r.dir.x*sk.railDir, r.dir.z*sk.railDir);
       grindPts(dt); drift(dt,ev); fxGrind(dt);
       if(ev.has("trick")){ addTrick(GRINDNM[(RNG()*GRINDNM.length)|0],120); }
-      if(ev.has("ollie")){ pop(T.ollie); }
+      if(wantPop){ sk.speed=T.grindSpeed; sk.railCool=r; sk.railCoolT=0.4; pop(T.ollie*popPow); }
       break; }
     case "manual":{
-      sk.speed += (T.cruise-sk.speed)*Math.min(1,dt*2); sk.yaw+=steer*T.turn*0.6*dt;
-      sk.pos.addScaledVector(fwd,sk.speed*dt); sk.pos.y=groundH(sk.pos.x,sk.pos.z);
+      const r=rideGround(dt, steer, 0.6);
+      if(r==="air") break;
       manualPts(dt); drift(dt,ev);
-      if(ev.has("ollie")){ pop(T.ollie); }
+      if(wantPop){ pop(T.ollie*popPow); }
       else if(!held.manual){ sk.state="roll"; sk.grace=T.comboGrace; }
       break; }
     case "bail":{
-      sk.pos.y=groundH(sk.pos.x,sk.pos.z); sk.bailT-=dt; sk.speed*=0.9;
-      if(sk.bailT<=0){ sk.state="roll"; sk.speed=T.cruise*0.6; sk.flip=0; } break; }
+      sk.bailT-=dt; sk.speed*=Math.max(0,1-dt*5);
+      rideGround(dt, 0, 0, true);
+      if(sk.state==="bail" && sk.bailT<=0){ sk.state="roll"; sk.speed=Math.max(sk.speed,T.cruise*0.6); sk.flip=0; } break; }
   }
   /* solid wall block, run right after the state machine moves sk.pos — skip
      "grind" only, since that state's position is fully rail-driven (see
@@ -4282,7 +4381,7 @@ function step(dt){
     const prev=(sk.pushT%PUSH_T)/PUSH_T; sk.pushT+=dt;
     const now=(sk.pushT%PUSH_T)/PUSH_T;
     if(prev<0.55 && now>=0.55 && sk.speed>3){
-      fxPuff(sk.pos.x - fwd.x*0.9, groundH(sk.pos.x,sk.pos.z), sk.pos.z - fwd.z*0.9, 4, 1.4);
+      fxPuff(sk.pos.x - fwd.x*0.9, surfH(sk.pos.x,sk.pos.z), sk.pos.z - fwd.z*0.9, 4, 1.4);
     }
   } else sk.pushOn=false;
   /* continuous rear-contact dust — a 20Hz chalk trickle off the back truck so
@@ -4294,7 +4393,7 @@ function step(dt){
       const rx=-fwd.z, rz=fwd.x;
       for(const s of [-1,1]){
         const px=sk.pos.x-fwd.x*0.68+rx*s*0.28, pz=sk.pos.z-fwd.z*0.68+rz*s*0.28;
-        emit(FXd, px+(RNG()-0.5)*0.16, groundH(px,pz)+0.05, pz+(RNG()-0.5)*0.16,
+        emit(FXd, px+(RNG()-0.5)*0.16, surfH(px,pz)+0.05, pz+(RNG()-0.5)*0.16,
           -fwd.x*1.5+(RNG()-0.5)*0.7, 0.45+RNG()*0.35, -fwd.z*1.5+(RNG()-0.5)*0.7,
           0.55, 0.16, 0xCFC3AE, 0xC0B2A0, -3.0, 0.20, 2.6, 1.7);
       }
@@ -4320,7 +4419,7 @@ function step(dt){
      edge overrun (Chebyshev >74) or corner drift (radius >75), separates the two
      cleanly: on a bank both read ~equal and stay near zero, in a corner the
      radius runs 20m ahead of the Chebyshev and the term bites. */
-  if(sk.state!=="grind"){
+  if(sk.state==="roll"||sk.state==="manual"){
     const rr=Math.hypot(sk.pos.x,sk.pos.z);
     const mm=Math.max(Math.abs(sk.pos.x),Math.abs(sk.pos.z));
     const k=Math.min(1,Math.max(0,(rr-46)/22));
@@ -4340,7 +4439,86 @@ function step(dt){
 
   applyTransform(dt); updateCamera(dt); updateHUD();
 }
-function pop(v){ sk.vy=v; sk.state="air"; comboStart(); sfx.ollie(); sk.crouch=-0.15; sk.crouchT=0; }
+/* ---- GROUND RIDE (v3) ----
+   One integrator for every wheels-down state. Gravity acts ALONG the surface, so
+   you slow climbing a transition and pump speed dropping back in; the auto-push
+   only works on the flat. Returns "air" if the ride ended airborne. */
+const _g2={x:0,z:0}, _nrmT=new THREE.Vector3(), _v3=new THREE.Vector3();
+function rideGround(dt, steer, turnMul, passive){
+  sk.yaw += steer*T.turn*turnMul*dt;
+  let fx=Math.sin(sk.yaw), fz=Math.cos(sk.yaw);
+  const along=slopeAt(sk.pos.x,sk.pos.z,fx,fz);
+  const inv=1/Math.sqrt(1+along*along), sinA=along*inv, cosA=inv;
+  sk.speed -= (sinA>0?T.slopeUp:T.slopeG)*sinA*dt;
+  if(Math.abs(along)<0.12){
+    if(!passive && sk.speed<T.cruise) sk.speed += (T.cruise-sk.speed)*Math.min(1,dt*1.6);
+    else if(sk.speed>T.cruise) sk.speed -= (sk.speed-T.cruise)*Math.min(1,dt*0.35);
+  }
+  sk.speed=Math.min(sk.speed,T.maxSpeed);
+  /* ran out of speed climbing: KICKTURN. The visual yaw eases the 180 so it reads
+     as a pivot on the back truck, not a snap. */
+  if(sk.speed<0){ sk.yaw+=Math.PI; sk.speed=-sk.speed; fx=-fx; fz=-fz; sk.kickturn=0.35; }
+  const px=sk.pos.x, pz=sk.pos.z, py=sk.pos.y;
+  const hs=sk.speed*cosA;
+  sk.pos.x+=fx*hs*dt; sk.pos.z+=fz*hs*dt;
+  const h=surfH(sk.pos.x,sk.pos.z);
+  if(h-py>0.45){                     /* a face you can't roll up: glance off it */
+    sk.pos.x=px; sk.pos.z=pz;
+    /* the face normal, read from the cliff itself (which side got taller) */
+    const e=0.25, hx=surfH(px+e,pz)-surfH(px-e,pz), hz=surfH(px,pz+e)-surfH(px,pz-e);
+    const nl=Math.hypot(hx,hz)||1, nx=hx/nl, nz=hz/nl, dn=fx*nx+fz*nz;
+    let tx=fx-nx*dn*1.9, tz=fz-nz*dn*1.9;          /* reflect, a little soft */
+    if(Math.hypot(tx,tz)<0.2){ tx=-fx; tz=-fz; }
+    sk.yaw=Math.atan2(tx,tz); sk.speed*=0.45;
+    if(!passive && dn>0.5){ state.shake=Math.max(state.shake,0.2); if(typeof sfx!=="undefined"&&sfx.bonk) sfx.bonk(); }
+    return "block"; }
+  if(py-h>0.30){                     /* rolled off an edge: you're airborne */
+    sk.state="air"; sk.airFrom="edge"; sk.vel.set(fx*hs,0,fz*hs);
+    sk.vy=Math.min(0, sk.speed*sinA); sk.spinNet=0; sk.airT=0; sk.pos.y=py;
+    return "air"; }
+  sk.pos.y=h;
+  sk.vel.set(fx*hs,0,fz*hs);
+  /* COPING = steep under you AND the surface flattens out (deck) or falls away
+     (spine) just ahead. Keying off steepness alone launched the rider halfway up
+     the vert wall; this rides the full 4.2m to the lip. */
+  if(!passive){
+    const a2=slopeAt(sk.pos.x,sk.pos.z,fx,fz);
+    if(a2>T.lipSlope){ const LA=0.07, hA=surfH(sk.pos.x+fx*LA, sk.pos.z+fz*LA);
+      /* the next 7cm rises far less than this slope predicts: deck, spine
+         knife-edge, or the bowl's eased vert band — you're at the lip */
+      /* and you actually CLIMBED to get here — rules out skating onto a ramp's
+         low side edge, which reads steep across the seam */
+      if(hA-h < a2*LA*0.3 && h-surfH(sk.pos.x-fx*1.0, sk.pos.z-fz*1.0)>0.6){ launchLip(fx,fz); return "air"; } }
+  } else if(slopeAt(sk.pos.x,sk.pos.z,fx,fz)>2.5){ sk.speed=0; }
+  return "";
+}
+/* ---- COPING LAUNCH ----
+   Reaching the lip converts surface speed into height. The into-the-ramp part of
+   the horizontal velocity is cancelled (plus a small pull-back) so a vert air
+   comes down on the transition, while the along-the-coping part is kept, so a
+   carved line up the wall still travels. Holding OLLIE into the lip and letting
+   go is the skill shot: T.lipOllie of extra pop. */
+function launchLip(fx,fz){
+  gradAt(sk.pos.x,sk.pos.z,_g2);
+  const gl=Math.hypot(_g2.x,_g2.z)||1, nx=_g2.x/gl, nz=_g2.z/gl;    /* uphill */
+  const sp=Math.max(0,sk.speed);
+  const vx=fx*sp, vz=fz*sp, vn=vx*nx+vz*nz;
+  sk.vel.set(vx-nx*vn-nx*0.9, 0, vz-nz*vn-nz*0.9);
+  const charged = held.ollie || sk.ollieWas;
+  const charge = charged ? Math.min(1,(sk.chargeT||0)/0.28) : 0;
+  sk.vy = sp*0.85 + T.lipPop + (charged ? T.lipOllie*(0.55+0.45*charge) : 0);
+  sk.state="air"; sk.airFrom="lip"; sk.lipY=sk.pos.y; sk.spinNet=0; sk.airT=0;
+  if(charged){ sk.lipBoost=true; held.ollie=false; sk.ollieWas=false; sk.chargeT=0; } else sk.lipBoost=false;
+  comboStart(); sfx.ollie(); sk.crouch=-0.15; sk.crouchT=0;
+}
+function pop(v){
+  const fx=Math.sin(sk.yaw), fz=Math.cos(sk.yaw);
+  const along=slopeAt(sk.pos.x,sk.pos.z,fx,fz), inv=1/Math.sqrt(1+along*along);
+  const hs=Math.max(0,sk.speed)*inv;
+  sk.vel.set(fx*hs,0,fz*hs);
+  sk.vy=v+Math.max(0,sk.speed*along*inv);
+  sk.state="air"; sk.airFrom=sk.airFrom==="rail"?"rail":"pop"; sk.spinNet=0; sk.airT=0; sk.lipBoost=false;
+  comboStart(); sfx.ollie(); sk.crouch=-0.15; sk.crouchT=0; }
 function enterGrind(nr){ sk.state="grind"; sk.rail=nr.rail; sk.railT=nr.t; sk.vy=0;
   const align=(new THREE.Vector3(Math.sin(sk.yaw),0,Math.cos(sk.yaw))).dot(nr.rail.dir); sk.railDir=align>=0?1:-1;
   sk.balance=0; addTrick(GRINDNM[(RNG()*GRINDNM.length)|0],220); }
@@ -4376,28 +4554,70 @@ function resolveWalls(){
     sk.speed *= 0.5;
   }
 }
-function landGround(){ sk.pos.y=groundH(sk.pos.x,sk.pos.z); sk.vy=0;
+/* ---- LANDING (v3) ----
+   Project the full 3D velocity onto the surface you hit: a flat landing keeps
+   your horizontal speed, a landing on a transition turns the fall INTO speed
+   (that is what pumping is). Then judge the board against the line you're now
+   travelling: within 50deg forward, or within 50deg of backwards (you roll away
+   fakie and the rider pivots round), is a make — anything sideways is a bail, and
+   the bail tells you why. */
+function wrapA(a){ return Math.atan2(Math.sin(a),Math.cos(a)); }
+function landGround(){
+  const h=surfH(sk.pos.x,sk.pos.z); sk.pos.y=h;
+  gradAt(sk.pos.x,sk.pos.z,_g2);
+  const N=_nrmT.set(-_g2.x,1,-_g2.z).normalize();
+  const v=_v3.set(sk.vel.x, sk.vy, sk.vel.z);
+  const impactV=-v.dot(N);
+  v.addScaledVector(N,-v.dot(N));
+  const hsp=Math.hypot(v.x,v.z), gl=Math.hypot(_g2.x,_g2.z);
+  let dirYaw;
+  if(hsp<1.2) dirYaw = gl>0.15 ? Math.atan2(-_g2.x,-_g2.z) : sk.yaw;   /* fell straight down: roll downhill */
+  else dirYaw=Math.atan2(v.x,v.z);
+  sk.vy=0; sk.landImpact=impactV;
   fxLand(sk.pos.x, sk.pos.y, sk.pos.z); impactHit();
-  if(sk.flipRem>T.landTol){ bail(); return; }
+  if(sk.flipRem>T.landTol){ bail("Flip not finished"); return; }
+  const ad=Math.abs(wrapA(sk.yaw-dirYaw)), moving=v.length()>2.5;
+  if(moving && ad>T.landAngle && ad<Math.PI-T.landAngle){ bail("Landed sideways"); return; }
+  sk.fakieLand = moving && ad>=Math.PI/2;
+  if(moving) sk.yaw=dirYaw;                  /* the visual yaw eases this for a fakie roll-away */
+  sk.speed=Math.min(T.maxSpeed, Math.max(v.length(), 0));
   sk.flip=0; sk.flipRem=0;
-  const spins=Math.floor(sk.spinAcc/(Math.PI*2)); if(spins>=1) addTrick((spins*360)+"° Spin",150*spins);
+  /* spins count in half-turns off the NET rotation, so wiggling left-right in
+     the air no longer banks a free 360 */
+  const halfs=Math.round(Math.abs(sk.spinNet)/Math.PI);
+  if(halfs>=1) addTrick((halfs*180)+(sk.fakieLand?" Fakie":""),75*halfs*(halfs>=2?1.25:1));
+  if(sk.airFrom==="lip" && gl>0.35){ const above=Math.max(0,(sk.peakY||0)-(sk.lipY||0));
+    if(above>0.4) addTrick("Air "+above.toFixed(1)+"m", Math.round(80+above*90)); }
+  if(gl>0.35 && combo.active) sk.revertWin=0.32;   /* landed on transition: revert window */
   const n=combo.tricks.length;
-  sk.spinAcc=0; sk._tip=0; sfx.land(Math.max(1,n));
+  sk.spinAcc=0; sk.spinNet=0; sk._tip=0; sfx.land(Math.max(1,n));
   sk.crouch=1.0; sk.crouchHold=1.0; sk.crouchT=0.18;
   /* every landing gets weight now, not just 3+ combos: a short 0.25 decaying
      shake is what separates "stomped it" from "the pose changed" */
   state.shake=Math.max(state.shake, 0.25);
   if(n>=3){ state.hitStop=0.09; state.shake=0.35; }
-  if(held.manual){ sk.state="manual"; sk.balance=0; comboStart(); } else { sk.state="roll"; sk.grace=T.comboGrace; } }
-function bail(){ sfx.bail(); flash("BAIL!",true); loseCombo(); fxBail(sk.pos.x,sk.pos.y,sk.pos.z); sk.state="bail"; sk.bailT=T.bailLock; sk.vy=0; sk.flipRem=0; sk._tip=0;
+  if(held.manual && gl<0.3){ sk.state="manual"; sk.balance=0; comboStart(); } else { sk.state="roll"; sk.grace=T.comboGrace; } }
+function bail(why){ sfx.bail(); flash(why?("BAIL · "+why):"BAIL!",true); loseCombo(); fxBail(sk.pos.x,sk.pos.y,sk.pos.z); sk.state="bail"; sk.bailT=T.bailLock; sk.vy=0; sk.flipRem=0; sk._tip=0;
   state.hitStop=0.09; state.shake=0.35; }
 
 /* =======================================================================
    11. TRANSFORMS / CAMERA
    ======================================================================= */
+const _UP=new THREE.Vector3(0,1,0), _qTilt=new THREE.Quaternion(), _qYaw=new THREE.Quaternion();
 function applyTransform(dt){
   skater.position.copy(sk.pos);
-  skater.rotation.set(0,sk.yaw,0);
+  /* v3: the rider stands on the SURFACE, not on a world-up datum — up a quarter
+     he leans into the wall; in the air he rights himself over ~0.4s. The visual
+     yaw eases big jumps (kickturns, fakie roll-aways) into a readable pivot while
+     tracking spins 1:1. */
+  { const h=dt||1/120, d=wrapA(sk.yaw-sk.yawVis);
+    sk.yawVis = Math.abs(d)>0.9 ? sk.yawVis+d*Math.min(1,h*13) : sk.yaw;
+    let tr=3.2;
+    if(sk.state==="air"||sk.state==="grind") _nrmT.set(0,1,0);
+    else { gradAt(sk.pos.x,sk.pos.z,_g2); _nrmT.set(-_g2.x,1,-_g2.z).normalize(); tr=22; }
+    sk.nrm.lerp(_nrmT, Math.min(1,h*tr)).normalize();
+    _qTilt.setFromUnitVectors(_UP, sk.nrm); _qYaw.setFromAxisAngle(_UP, sk.yawVis);
+    skater.quaternion.copy(_qTilt).multiply(_qYaw); }
   const wob=(sk.state==="grind"||sk.state==="manual")?sk.balance*0.3:0;
   /* the deck's long axis is Z: roll about Z = kickflip, yaw about Y = shuvit */
   const pitch = (sk.state==="manual") ? -0.35 : 0;
@@ -4410,7 +4630,7 @@ function applyTransform(dt){
   poseRig(Math.max(0,Math.min(1,sk.crouch)), sk.lean - Math.sin(sk.flip)*0.12, sk.flip, dt||1/120);
   if(sk.state==="bail"){ rig.rotation.x = 1.1; hips.position.y = 0.55; }
 
-  const gy=groundH(sk.pos.x,sk.pos.z);
+  const gy=surfH(sk.pos.x,sk.pos.z);
   const h=Math.max(0,sk.pos.y-gy);
   contact.position.set(sk.pos.x, gy+0.03, sk.pos.z);
   const cs=Math.max(0.35, 1-h*0.055); contact.scale.set(cs,cs,cs);
@@ -4433,13 +4653,22 @@ const CAM={
 };
 const _cam=new THREE.Vector3(), _look=new THREE.Vector3(), _tmp=new THREE.Vector3(),
       _lead=new THREE.Vector3(), _right=new THREE.Vector3(), _off=new THREE.Vector3();
-let camOrbit=0, trickCam=0, camRoll=0, camSun=0, camOcc=0, fovKick=0, heroCam=0;
+let camYaw=0, camOrbit=0, trickCam=0, camRoll=0, camSun=0, camOcc=0, fovKick=0, heroCam=0;
 function updateCamera(dt){
   if(window.__freezeCam) return;
-  const fwd=new THREE.Vector3(Math.sin(sk.yaw),0,Math.cos(sk.yaw));
-  _right.set(-Math.cos(sk.yaw),0,Math.sin(sk.yaw));
+  /* v3: the rig follows the line you're TRAVELLING, not the way the board faces.
+     In a vert air it holds (you're going straight up) so the transition stays in
+     frame; after a kickturn or fakie roll-away it swings round over ~1s instead
+     of whipping through the ramp. */
+  { const hv=Math.hypot(sk.vel.x,sk.vel.z);
+    const want = sk.state==="air" ? (hv>5 ? Math.atan2(sk.vel.x,sk.vel.z) : camYaw) : sk.yaw;
+    const d=wrapA(want-camYaw);
+    const rate = sk.state==="air" ? 1.4 : (Math.abs(d)>1.6 ? 2.6 : 7.0);
+    camYaw += d*Math.min(1,dt*rate); }
+  const fwd=new THREE.Vector3(Math.sin(camYaw),0,Math.cos(camYaw));
+  _right.set(-Math.cos(camYaw),0,Math.sin(camYaw));
   const steer=sk.steer||0;
-  const gy=groundH(sk.pos.x,sk.pos.z);
+  const gy=surfH(sk.pos.x,sk.pos.z);
   /* AIRBORNE LIFT IS CLAMPED. Unclamped, the look point climbed faster than the
      camera did, the rig pitched UP on every ollie and the frame went 61% empty
      sky. Clamped lift + a look-Y bleed keeps the horizon on 0.36-0.44 in every
@@ -4489,7 +4718,7 @@ function updateCamera(dt){
   camSun += (sunPush-camSun)*Math.min(1,dt*2.2);
   _cam.addScaledVector(_right, camSun);
   _cam.addScaledVector(_right, -steer*1.6);                 /* lateral whip into the carve */
-  _cam.y=Math.max(_cam.y, groundH(_cam.x,_cam.z)+1.0);
+  _cam.y=Math.max(_cam.y, surfH(_cam.x,_cam.z)+1.0);
   /* ---- OCCLUSION CLEARANCE ----
      A chase rig staring at the back of a ledge is not a shot. Probe the deck-level
      sightline; if a mass the rider is NOT standing on crosses it, LIFT the rig over
@@ -4667,15 +4896,20 @@ function frame(){
    ======================================================================= */
 window.__pose=(name)=>{
   if(!skater) return;
-  if(name==="air"){ sk.state="air"; sk.pos.y=groundH(sk.pos.x,sk.pos.z)+3.2; sk.vy=6; sk.crouch=0.75; sk.tuck=1; sk.flip=1.2; sk.axis=FLIPAXIS.Kickflip; }
+  if(name==="air"){ sk.state="air"; sk.pos.y=surfH(sk.pos.x,sk.pos.z)+3.2; sk.vy=6; sk.crouch=0.75; sk.tuck=1; sk.flip=1.2; sk.axis=FLIPAXIS.Kickflip; }
   else if(name==="grind"){ const r=rails[0]; sk.state="grind"; sk.rail=r; sk.railT=r.len*0.5;
     sk.pos.set(r.a.x+r.dir.x*sk.railT, r.y, r.a.z+r.dir.z*sk.railT); sk.yaw=Math.atan2(r.dir.x,r.dir.z); sk.crouch=0.55; }
-  else if(name==="manual"){ sk.state="manual"; sk.pos.y=groundH(sk.pos.x,sk.pos.z); sk.crouch=0.5; }
-  else if(name==="land"){ sk.state="roll"; sk.pos.y=groundH(sk.pos.x,sk.pos.z); sk.crouch=1.0; }
+  else if(name==="manual"){ sk.state="manual"; sk.pos.y=surfH(sk.pos.x,sk.pos.z); sk.crouch=0.5; }
+  else if(name==="land"){ sk.state="roll"; sk.pos.y=surfH(sk.pos.x,sk.pos.z); sk.crouch=1.0; }
   applyTransform(1/60); updateCamera(1);
 };
 window.__setFrame=(c,l)=>{ window.__freezeCam=true;
   camera.position.set(c[0],c[1],c[2]); camera.lookAt(l[0],l[1],l[2]); };
+/* v3 test hooks: the headless physics harness drives and reads the sim here */
+window.__dbg={ sk:()=>sk, state:()=>state, combo:()=>combo, T, held, edges, surfH, QUARTERS, rails, kickers,
+  place:(x,z,yaw,speed)=>{ sk.pos.set(x,surfH(x,z),z); sk.yaw=yaw; sk.yawVis=yaw; sk.speed=speed; sk.state="roll";
+    sk.vy=0; sk.vel.set(Math.sin(yaw)*speed,0,Math.cos(yaw)*speed); camYaw=yaw; sk.flipRem=0; sk.flip=0; },
+  step:(n)=>{ for(let i=0;i<n;i++) step(DT); } };
 window.__rinfo=()=>({calls:renderer.info.render.calls,tris:renderer.info.render.triangles,progs:renderer.info.programs.length});
 window.__fidx=()=>frameIdx;
 window.__scene=()=>scene;
