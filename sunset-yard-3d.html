@@ -427,7 +427,7 @@ const CHARACTERS=[
      was the same salmon as her skin and Rio was one orange from neck to ankle,
      so both read as bare skin / a jumpsuit rather than clothes. null = keep. */
   {id:'lowpoly-woman',  style:'Street',  name:'Nova', skin:0x6E4A34, hair:0x241712, top:0x9B3FE0, bottom:0x2FBFA8, hairScale:1.20,
-    outfit:{shirt:0x37477A, shirtRef:0.30, pants:null}},
+    outfit:{shirt:0x37477A, shirtRef:0.30, pants:0x7E3522, pantsRef:0.075}},
   {id:'lowpoly-man',    style:'Street',  name:'Rio',  skin:0x8A5A3C, hair:0x1E1712, top:0x2FA6C8, bottom:0x6B6350, hairScale:0.82,
     outfit:{shirt:0x2C7F9E, shirtRef:0.26, pants:0x5E5A48, pantsRef:0.26}},
 ];
@@ -483,7 +483,7 @@ const DECK_TOP=0.030*BOARD_S, SOLE_DROP=0.114;   /* SOLE_DROP is the shoe, not t
 /* v3: the tuck and the grab lift the board a REAL distance toward the chest
    (26cm / +16cm more), in metres — scaled by BOARD_S it was 9cm, which with the
    hips rising 14cm at the same time actually STRAIGHTENED the legs in the air. */
-function boardLift(){ return DECK_Y0*BOARD_S + (sk.tuck||0)*0.26 + (sk.grabL||0)*0.16; }
+function boardLift(){ return DECK_Y0*BOARD_S + (sk.tuck||0)*0.26 + (sk.grabL||0)*0.27; }
 /* Hip height above the sole while riding. Held constant because it is the
    CHARACTER's geometry, not the board's — and it is why HIPS_Y has to follow the
    deck down: the legs already sit 96% extended, so lowering the board on its own
@@ -3767,7 +3767,7 @@ function solveRider(dt){
   }
   /* pelvis */
   const legL=ik.thigh+ik.shin;
-  const k = 0.93 - crouch*0.22 - (grind?0.05:0) - (manual?0.04:0) - pw*(0.10 + 0.10*(sk.pushDip||0));   /* standing knee dips into each stroke */
+  const k = 0.93 - crouch*0.19 - (grind?0.05:0) - (manual?0.04:0) - pw*(0.10 + 0.10*(sk.pushDip||0));   /* standing knee dips into each stroke */
   const midx=(aF.x+aB.x)*0.5, midz=(aF.z+aB.z)*0.5, lowY=Math.min(aF.y,aB.y);
   const spanX=Math.max(0,Math.abs(aF.x-aB.x)*0.5-ik.hipW*0.5);
   const reachY=Math.sqrt(Math.max(0.04,(legL*k)*(legL*k)-spanX*spanX));
@@ -3783,7 +3783,7 @@ function solveRider(dt){
   q.Hips=(q.Hips||new THREE.Quaternion()).copy(Rpel).multiply(Q.Hips);
   /* spine: lean into the line, shoulders square toward the nose, head watches the path */
   const chestYaw = 0.0 + pw*0.10 + (grind&&/slide/i.test(sk.lastTrick||"")?0.2:0);
-  const bend = (0.10 + crouch*0.22 + (air?0.18:0) + grabL*0.45 + ((grind||manual)?0.05:0) + pw*(0.10+0.10*(sk.pushDip||0)))*(1-bw) + 0.30*bw;
+  const bend = (0.10 + crouch*0.22 + (air?0.18:0) + grabL*0.78 + ((grind||manual)?0.05:0) + pw*(0.10+0.10*(sk.pushDip||0)))*(1-bw) + 0.30*bw;
   const sideB = (manual?0.10:0) - sk.lean*0.12 + wob*0.6;
   _eu.set(sp("sb",bend,dt)/3, sp("sy",chestYaw,dt)/3, sp("sr",sideB,dt)/3); const Rsp=_qb2.setFromEuler(_eu).clone();
   const Rt0=Rpel.clone().multiply(Rsp), Rt1=Rt0.clone().multiply(Rsp), Rt2=Rt1.clone().multiply(Rsp);
@@ -3807,7 +3807,7 @@ function solveRider(dt){
     const hipJ=at(sd+"UpLeg","Hips",Rpel,p[sd+"UpLeg"]||(p[sd+"UpLeg"]=new THREE.Vector3()));
     /* knee over the toes, splayed a little toward its own end of the board */
     const toeDir=_t5.subVectors(toe,ank); toeDir.y=0; toeDir.normalize();
-    const pole=_t6.copy(toeDir).addScaledVector(_t7.set(sx,0,0),0.25).normalize();
+    const pole=_t6.copy(toeDir).addScaledVector(_t7.set(sx,0,0),0.10).normalize();   /* knees over toes; a wide splay tore the crotch mesh */
     if(sx<0 && pw>0.01) pole.addScaledVector(_t7.set(0,0,1),0.7*pw).normalize();   /* pushing knee tracks out, clear of the standing leg */
     const knee=p[sd+"Leg"]||(p[sd+"Leg"]=new THREE.Vector3()), ankR=p[sd+"Foot"]||(p[sd+"Foot"]=new THREE.Vector3());
     ik2(hipJ,ank,ik.thigh,ik.shin,pole,knee,ankR);
@@ -3827,8 +3827,8 @@ function solveRider(dt){
     const shJ=at(sd+"Arm",sd+"Shoulder",Rt2,p[sd+"Arm"]||(p[sd+"Arm"]=new THREE.Vector3()));
     const swing=Math.sin(perfT*1.7+(sx>0?0:1.3))*0.03;
     /* relaxed: hands ~35deg off the body, elbows soft; balancing lifts and widens them */
-    let ox = sx*(0.17 + bal*0.13 + (air?0.08:0) + pw*0.02), oy = -0.40 + bal*0.16 + (air?0.16:0) + crouch*0.06 + swing,
-        oz = 0.10 + (air?0.06:0) + crouch*0.06 + pw*(sx<0?-0.10:0.06);
+    let ox = sx*(0.13 + bal*0.15 + (air?0.08:0) + pw*0.02), oy = -0.31 + bal*0.10 + (air?0.12:0) + crouch*0.05 + swing,
+        oz = 0.19 + (sx>0?0.06:-0.03) + (air?0.05:0) + crouch*0.05 + pw*(sx<0?-0.12:0.06);   /* bent elbows, lead hand forward */
     const hand=_t5.set(sp(sd+"hx",ox,dt), sp(sd+"hy",oy,dt), sp(sd+"hz",oz,dt)).applyQuaternion(Rt2).add(shJ);
     /* GRAB: the grabbing hand goes to the board edge (Melon/Method: front hand, heel
        edge; Indy: back hand, toe edge); the torso fold above brings it in reach */
@@ -3882,7 +3882,7 @@ function recolorOutfit(mesh, outfit){
   const LEG=/^(LeftUpLeg|RightUpLeg|LeftLeg|RightLeg)$/i;
   const hi=names.findIndex(n=>/^Hips$/i.test(n));
   const hipY = hi>=0 ? new THREE.Matrix4().copy(sk.boneInverses[hi]).invert().elements[13] : 0;
-  const lin=(hex,ref)=>{ const c=new THREE.Color(hex); return [c.r/ref,c.g/ref,c.b/ref]; };
+  const lin=(hex,ref)=>{ const c=new THREE.Color(hex); return [c.r,c.g,c.b,ref]; };
   const shirt = outfit.shirt!=null ? lin(outfit.shirt,outfit.shirtRef||0.3) : null;
   const pants = outfit.pants!=null ? lin(outfit.pants,outfit.pantsRef||0.12) : null;
   const si=g.attributes.skinIndex, sw=g.attributes.skinWeight, pos=g.attributes.position, n=pos.count;
@@ -3891,7 +3891,7 @@ function recolorOutfit(mesh, outfit){
     let best=-1, bw=-1; for(let k=0;k<4;k++){ const w=sw.getComponent(i,k); if(w>bw){ bw=w; best=si.getComponent(i,k); } }
     const nm=names[best]||"";
     let cls = TOP.test(nm) ? shirt : (LEG.test(nm) ? pants : (/^Hips$/i.test(nm) ? (pos.getY(i)>hipY-0.15 ? shirt : pants) : null));
-    if(cls){ out[i*4]=cls[0]; out[i*4+1]=cls[1]; out[i*4+2]=cls[2]; out[i*4+3]=1; }
+    if(cls){ out[i*4]=cls[0]; out[i*4+1]=cls[1]; out[i*4+2]=cls[2]; out[i*4+3]=cls[3]; }
   }
   g.setAttribute("aRecolor", new THREE.BufferAttribute(out,4));
   const mats=Array.isArray(mesh.material)?mesh.material:[mesh.material];
@@ -3902,7 +3902,10 @@ function recolorOutfit(mesh, outfit){
         float sat=(mx-mn)/(mx+1e-4);
         float warm=step(c.g,c.r)*step(c.b,c.r)*smoothstep(0.35,0.6,sat);
         float lum=dot(c,vec3(0.2126,0.7152,0.0722));
-        diffuseColor.rgb=mix(c, vRecolor.rgb*lum, vRecolor.a*warm); }`);
+        /* keep the texture's folds, but clamp the brightness ratio: the salmon shirt hem
+           that sits on the hips used to come through as bare-looking skin */
+        float f=clamp(lum/max(vRecolor.a,1e-3), 0.55, 1.45);
+        diffuseColor.rgb=mix(c, vRecolor.rgb*f, step(0.001,vRecolor.a)*warm); }`);
   }; m.customProgramCacheKey=()=>"sy-recolor"; m.needsUpdate=true; });
 }
 function unloadCharacterModel(){
