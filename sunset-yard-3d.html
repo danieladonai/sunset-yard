@@ -5753,7 +5753,7 @@ function bailBoardStep(dt){
   if(v>0){ const nv=Math.max(0,v-3.2*dt); B.vx*=nv/v; B.vz*=nv/v; }
   const nx=B.x+B.vx*dt, nz=B.z+B.vz*dt;
   if(surfH(nx,nz)-surfH(B.x,B.z)>0.3){ B.vx*=-0.3; B.vz*=-0.3; } else { B.x=nx; B.z=nz; }
-  B.y=surfH(B.x,B.z)+0.05; B.roll=Math.min(1.5,B.roll+dt*6); B.spin+=v*dt*0.6;
+  { let hb=surfH(B.x,B.z); if(_boxHit && hb-groundH(B.x,B.z)>0.45) hb=groundH(B.x,B.z); B.y=hb+0.05; }   /* never parks on a barricade/fence collider */ B.roll=Math.min(1.5,B.roll+dt*6); B.spin+=v*dt*0.6;
   /* the reset hides under a short fade: black by 0.12s before the lock ends, then
      you're up, stopped, board under your feet */
   const f=el("fade");
