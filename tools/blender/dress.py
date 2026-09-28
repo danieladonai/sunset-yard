@@ -68,13 +68,13 @@ sleeve_end = ua0 + (ua1 - ua0) * 0.62 if S["sleeve"] == "tee" else fa1 - 0.03
 waist = pel + 0.085
 
 neck_z = (arm.matrix_world @ B["neck_01"].head_local).z + 0.015
-HEM = dict(shirt_bottom=waist - 0.035, pants_top=waist + 0.03, pants_hem=ank + 0.10, shoe_top=ank + 0.065)
+HEM = dict(shirt_bottom=waist - 0.035, pants_top=waist + 0.03, pants_hem=ank + 0.045, shoe_top=ank + 0.075)
 def region(p, d):
     """which garments cover this point (a point can sit in two: the tee overlaps the waistband)"""
     out = set()
     if (d.startswith(("spine_", "clavicle_", "pelvis", "upperarm_")) or (d == "neck_01" and p.z < neck_z)) and p.z > HEM["shirt_bottom"] - 0.03 and abs(p.x) < sleeve_end + 0.03:
         if not (d.startswith("thigh_")): out.add("Shirt")
-    if d.startswith(("thigh_", "calf_", "pelvis")) and p.z < HEM["pants_top"] + 0.03 and p.z > HEM["pants_hem"] - 0.03: out.add("Pants")
+    if d.startswith(("thigh_", "calf_", "pelvis", "foot_")) and p.z < HEM["pants_top"] + 0.03 and p.z > HEM["pants_hem"] - 0.03: out.add("Pants")
     if (d.startswith(("foot_", "ball_", "calf_"))) and p.z < HEM["shoe_top"] + 0.03: out.add("Shoe")
     return out
 vreg = [region(body.matrix_world @ v.co, dom(v)) for v in me.vertices]
@@ -91,6 +91,8 @@ def shell(kind, push, hem, extra=None):
     kill = [f for f in bm.faces if not all(kind in vreg[v.index] for v in f.verts)]
     bmesh.ops.delete(bm, geom=kill, context='FACES')
     loose = [v for v in bm.verts if not v.link_faces]; bmesh.ops.delete(bm, geom=loose, context='VERTS')
+    # the body is split along its UV seams: weld them, or the garment is loose panels that drift apart
+    bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=0.002)
     bm.normal_update()
     # soften the anatomy under the cloth (no abs through a tee), then push out
     base = {v.index: v.co.copy() for v in bm.verts}
@@ -114,19 +116,40 @@ def shell(kind, push, hem, extra=None):
     bpy.ops.object.modifier_apply(modifier="hem")
     return o
 
-SMOOTH = dict(Shirt=10, Pants=5, Shoe=6)
+SMOOTH = dict(Shirt=10, Pants=9, Shoe=18)
 CUTS = dict(
   Shirt=[((0,0,HEM["shirt_bottom"]), (0,0,-1)), ((sleeve_end,0,0), (1,0,0)), ((-sleeve_end,0,0), (-1,0,0))],
   Pants=[((0,0,HEM["pants_top"]), (0,0,1)), ((0,0,HEM["pants_hem"]), (0,0,-1))],
   Shoe=[((0,0,HEM["shoe_top"]), (0,0,1))])
-shirt = shell("Shirt", S["sfit"], 0.006)
-pants = shell("Pants", S["pfit"], 0.006)
+knee_z = (arm.matrix_world @ B["calf_l"].head_local).z
+thigh_x = abs((arm.matrix_world @ B["thigh_l"].head_local).x)
+chest_z = (arm.matrix_world @ B["spine_03"].head_local).z
+def baggy_pants(v):
+    # straight-leg skate fit: below mid-thigh the leg widens toward the hem instead of hugging the calf
+    p = v.co; top = knee_z + 0.18
+    if p.z < top:
+        u = min(1.0, (top - p.z) / (top - HEM["pants_hem"]))
+        ax = Vector((thigh_x * (1 if p.x > 0 else -1) * (1 - 0.25*u), 0.03, p.z))
+        d = Vector((p.x - ax.x, p.y - ax.y, 0))
+        if d.length > 1e-4: p += d.normalized() * (0.030 * u ** 0.8)
+def boxy_tee(v):
+    # a tee hangs straight down from the chest: fill the waist in toward the chest's width
+    p = v.co
+    if HEM["shirt_bottom"] < p.z < chest_z and abs(p.x) < sleeve_end * 0.6:
+        u = 1 - (p.z - HEM["shirt_bottom"]) / (chest_z - HEM["shirt_bottom"])
+        d = Vector((p.x, p.y - 0.01, 0))
+        if d.length > 1e-4: p += d.normalized() * (0.028 * u)
+shirt = shell("Shirt", S["sfit"], 0.006, boxy_tee)
+pants = shell("Pants", S["pfit"], 0.006, baggy_pants)
 # shoes: chunkier than the bare foot, flat sole
 def shoe_shape(v):
     p = v.co
     if p.z < 0.02: p.z = min(p.z, -0.004)         # flatten + thicken the sole down to the ground
-shoe = shell("Shoe", 0.022, 0.008, shoe_shape)
-# sole material on the lowest band
+shoe = shell("Shoe", 0.026, 0.008, shoe_shape)
+# sole material on the lowest band: cut a clean line first so the sole edge is straight
+sbm = bmesh.new(); sbm.from_mesh(shoe.data)
+bmesh.ops.bisect_plane(sbm, geom=sbm.verts[:]+sbm.edges[:]+sbm.faces[:], plane_co=(0,0,0.022), plane_no=(0,0,1))
+sbm.to_mesh(shoe.data); sbm.free()
 shoe.data.materials.append(M["Sole"])
 for poly in shoe.data.polygons:
     zc = sum((shoe.matrix_world @ shoe.data.vertices[i].co).z for i in poly.vertices) / len(poly.vertices)
@@ -134,11 +157,13 @@ for poly in shoe.data.polygons:
 
 # hide the bare body where it is fully covered, so nothing pokes through the cloth
 bm = bmesh.new(); bm.from_mesh(me)
+d_of = [dom(v) for v in me.vertices]
 def inside(i):
     p = body.matrix_world @ me.vertices[i].co; r = vreg[i]
     if "Shirt" in r and p.z > HEM["shirt_bottom"] + 0.05 and abs(p.x) < sleeve_end - 0.05 and p.z < neck_z - 0.04: return True
-    if "Pants" in r and HEM["pants_hem"] + 0.05 < p.z < HEM["pants_top"] - 0.03: return True
-    if "Shoe" in r and p.z < HEM["shoe_top"] - 0.04: return True
+    if "Pants" in r and HEM["pants_hem"] - 0.02 < p.z < HEM["pants_top"] - 0.03: return True   # the shoe covers below the hem
+    if "Shoe" in r and p.z < HEM["shoe_top"] - 0.005: return True
+    if d_of[i].startswith(("calf_", "foot_", "ball_")) and p.z < HEM["shoe_top"]: return True
     return False
 cover = [f for f in bm.faces if all(inside(v.index) for v in f.verts)]
 bmesh.ops.delete(bm, geom=cover, context='FACES'); bm.to_mesh(me); bm.free()
