@@ -3990,7 +3990,9 @@ function updateRider4(dt){
   const roll = st==="roll";
   const pushOn = !!(sk.pushOn && roll);
   const wPush = r4s("push", pushOn?1:0, dt, pushOn?13:(roll?5:16));
-  const wCrouch = r4s("crouch", Math.max(0,Math.min(1,sk.crouch||0))*(air?0:1), dt, 16);
+  /* speed stance: the faster you roll the lower you ride (weight down, arms out a touch) */
+  const spd = roll ? Math.max(0,Math.min(1,((sk.speed||0)-5)/7))*0.32 : 0;
+  const wCrouch = r4s("crouch", Math.max(spd, Math.max(0,Math.min(1,sk.crouch||0)))*(air?0:1), dt, 16);
   const tuck = Math.max(0,Math.min(1,sk.tuck||0)), g = Math.max(0,Math.min(1,sk.grabL||0));
   const flipOn = air && (sk.flipRem||0)>0.2;
   const wFlip = r4s("flip", flipOn?1:0, dt, flipOn?20:10) * tuck;
@@ -4000,7 +4002,8 @@ function updateRider4(dt){
   const wGrabI = indy ? g : 0, wGrabM = indy ? 0 : g;
   const wTuck = Math.max(0, tuck - g - wFlip);
   const wManual = r4s("man", st==="manual"?1:0, dt, 10), wGrind = r4s("grind", st==="grind"?1:0, dt, 14);
-  const lean = roll ? (sk.lean||0)/0.35 : 0;
+  /* carve pose follows the lean the turn actually needs (speed x turn rate), not the stick */
+  const lean = roll ? Math.max(-1,Math.min(1,(sk.roll||0)/0.30)) : 0;
   const wToe = r4s("toe", Math.max(0, lean)*0.9*(1-wPush), dt, 8), wHeel = r4s("heel", Math.max(0,-lean)*0.9*(1-wPush), dt, 8);
   /* a slam FALLS: the weight follows gravity (t^2 over ~0.34s) instead of a linear morph */
   R.bailT = bw>0.001 ? (R.bailT||0)+dt : 0;

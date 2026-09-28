@@ -2,7 +2,7 @@
 //   node record.js <outDir> [script] [char 0|1] [w h]
 // Scripts drive held/edges per video frame. Compose to mp4 with tools/blender/compose.py (or seq2mp4.py).
 const puppeteer=require('puppeteer-core'); const fs=require('fs');
-const [out, script='tour', ch='0', W='960', H='540']=process.argv.slice(2); fs.mkdirSync(out,{recursive:true});
+const [out, script='tour', ch='0', W='960', H='540', CAMMODE='chase']=process.argv.slice(2); fs.mkdirSync(out,{recursive:true});
 const SCRIPTS={
   // spawn lane: push up to speed, carve, ollie, kickflip, grab off the kicker-free flat, manual, bail
   tour: [
@@ -26,6 +26,7 @@ await pg.goto('http://localhost:8765/sunset-yard-3d.html?shot&q=high',{waitUntil
 await pg.evaluate((c)=>{ window.__dbg.pick(+c); window.__startGame(); },ch); await pg.waitForFunction('window.__dbg.charReady()',{timeout:60000});
 await new Promise(r=>setTimeout(r,1500));
 const S=SCRIPTS[script];
+await pg.evaluate((m)=>{ window.__camMode=m; },CAMMODE);
 await pg.evaluate((S)=>{ window.__recHold=true; const D=window.__dbg; for(const k in D.held)D.held[k]=false; D.edges.clear(); D.state().phase='playing'; D.state().time=120; D.state().free=true;
   const p=S.find(e=>e.place); if(p) D.place(...p.place);
   const r=S.find(e=>e.rail!==undefined); if(r){ const rl=D.rails.filter(q=>q.y<=1)[r.rail]; const px=-rl.dir.z, pz=rl.dir.x;
@@ -38,6 +39,8 @@ for(let fr=0; fr/30<END; fr++){
     for(const e of S){ if(e.t===undefined||e.t>t||e.t<=t-1/30) continue;
       (e.hold||[]).forEach(k=>{ if(!H[k]) E.add(k); H[k]=true; }); (e.rel||[]).forEach(k=>H[k]=false); (e.tap||[]).forEach(k=>E.add(k)); if(e.js) eval(e.js); }
     const pr=S.find(e=>e.prompt); if(pr && !window.__pr && document.getElementById('manBtn').textContent==='GRIND'){ E.add(pr.prompt); window.__pr=1; }
+    if(window.__camMode==='side'){ const s=D.sk(), yv=s.yaw, rx=-Math.cos(yv), rz=Math.sin(yv), v=s.speed/30; const fx=Math.sin(yv)*v, fz=Math.cos(yv)*v;
+      window.__setFrame([s.pos.x+fx+rx*3.4, s.pos.y+1.0, s.pos.z+fz+rz*3.4],[s.pos.x+fx, s.pos.y+0.75, s.pos.z+fz]); }
     window.__advance(2); },S,t);
   await pg.screenshot({path:`${out}/f${String(n++).padStart(4,'0')}.png`});
 }
