@@ -257,7 +257,7 @@ def clip_push(L=32):
     k = K
     bk += [(17, x0 - v*PUSH_PLANT - 0.10, ANK + 0.12*k, 86, 34), (21, -0.30, ANK + 0.135*k, 84, 14),
            (25, -0.04, ANK + 0.10*k, 86, 2), (29, 0.15, ANK + 0.04*k, 88, -2), (31, 0.165, ANK + 0.008, 88, 0), (32, x0, ANK, 88, 0)]
-    pel = {0:(0.08,-0.07,PZ(0.83)), 7:(0.07,-0.075,PZ(0.80)), 14:(0.04,-0.08,PZ(0.785)), 19:(0.07,-0.07,PZ(0.82)), 26:(0.095,-0.065,PZ(0.85)), 32:(0.08,-0.07,PZ(0.83))}
+    pel = {0:(0.08,-0.07,PZ(0.79)), 7:(0.07,-0.075,PZ(0.76)), 14:(0.04,-0.08,PZ(0.745)), 19:(0.07,-0.07,PZ(0.78)), 26:(0.095,-0.065,PZ(0.81)), 32:(0.08,-0.07,PZ(0.79))}
     ptch = {0:30, 7:34, 14:40, 19:33, 26:26, 32:30}
     fl = (0.20, 0.03, ZD)
     for f, x, z, yaw, pit in bk:
@@ -272,8 +272,8 @@ def clip_push(L=32):
         key("kneeL", f, knee_pole(fl, 78, hip, 0.8)); key("kneeR", f, knee_pole(tuple(C["footR"][0].location), 88, hip, 0.8))
     for f in range(0, L+1, 4):
         s = math.cos(2*math.pi*(f - 14)/L); sc.frame_set(f); hip = Vector(C["pelvis"][0].location)
-        key("handR", f, tuple(hip + Vector((0.10 + 0.26*s, -0.30, 0.06 + 0.12*s))))
-        key("handL", f, tuple(hip + Vector((0.02 - 0.26*s, 0.28, 0.00 - 0.02*s))))
+        key("handR", f, tuple(hip + Vector((0.08 + 0.28*s, -0.40, -0.04 + 0.12*s))))
+        key("handL", f, tuple(hip + Vector((0.04 - 0.24*s, 0.38, -0.06 - 0.02*s))))
         key("elbowR", f, tuple(hip + Vector((-0.4, -0.7, 0.4)))); key("elbowL", f, tuple(hip + Vector((-0.4, 0.7, 0.4))))
     for fc in fcurves_of(C["footR"][0]):
         if fc.data_path == "location" and fc.array_index == 0:

@@ -1776,8 +1776,10 @@ function buildPark(){
     /* was clipping to flat white right through the middle of every grind frame —
        nothing but the sun core is allowed to blow out. 0.30/0.85 still gives one
        unbroken hot line down the rail without losing the value. */
-    railM: dissolveNear(addFog(Object.assign(new THREE.MeshStandardMaterial({color:0xA79C93,roughness:0.44,metalness:0.85,
-             envMapIntensity:0.85,vertexColors:true}), {userData:{em:0.85}})), 0.6, 1.8),
+    /* v4: satin, worn steel. At roughness 0.44 the sun's specular put the whole tube over the
+       bloom threshold, so every rail read as a white neon bar and hid the truck on it */
+    railM: dissolveNear(addFog(Object.assign(new THREE.MeshStandardMaterial({color:0x938A83,roughness:0.62,metalness:0.8,
+             envMapIntensity:0.55,vertexColors:true}), {userData:{em:0.55}})), 0.6, 1.8),
     steel: addFog(new THREE.MeshStandardMaterial({color:P.steel,roughnessMap:TEX.wear,roughness:0.32,metalness:0.92,vertexColors:true,flatShading:true})),
     copper:addFog(Object.assign(new THREE.MeshStandardMaterial({color:P.copper,roughness:0.24,metalness:1.0,
              envMapIntensity:1.30,vertexColors:true}), {userData:{em:1.30}})),
@@ -5770,9 +5772,12 @@ function applyTransform(dt){
     /* in the air the rider rights himself FAST (~0.15s) — carrying the wall's
        60-80deg lean into the air read as a physics failure, lying sideways mid-air */
     let tr=14;
-    if(lipAir){ _nrmT.copy(sk.lipNrm).lerp(_UP,0.35).normalize(); tr=8; }   /* stay tipped in toward the wall */
+    if(lipAir){ _nrmT.copy(sk.lipNrm).lerp(_UP,0.35).normalize(); tr=8;   /* stay tipped in toward the wall */
+      if(_nrmT.y<0.707){ const hl=Math.hypot(_nrmT.x,_nrmT.z)||1; _nrmT.set(_nrmT.x/hl*0.707, 0.707, _nrmT.z/hl*0.707); } }
     else if(sk.state==="air"||sk.state==="grind") _nrmT.set(0,1,0);
-    else { gradAt(sk.pos.x,sk.pos.z,_g2); _nrmT.set(-_g2.x*0.8,1,-_g2.z*0.8).normalize(); tr=22; }   /* riders stay a touch more upright than the wall */
+    else { gradAt(sk.pos.x,sk.pos.z,_g2); _nrmT.set(-_g2.x*0.8,1,-_g2.z*0.8).normalize(); tr=22;   /* riders stay a touch more upright than the wall */
+      /* v4: never more than 55deg off upright. Laid flat to a vert face, every re-entry read as a dive */
+      if(_nrmT.y<0.707){ const hl=Math.hypot(_nrmT.x,_nrmT.z)||1; _nrmT.set(_nrmT.x/hl*0.707, 0.707, _nrmT.z/hl*0.707); } }
     sk.nrm.lerp(_nrmT, Math.min(1,h*tr)).normalize();
     /* slides ride ACROSS the rail, edge grinds cocked ~30deg, 50-50s straight */
     const lt=sk.lastTrick||"";
