@@ -1,6 +1,11 @@
 <meta charset="utf-8">
 <title>Sunset Yard 3D</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Sunset Yard">
+<meta name="theme-color" content="#1A1526">
 <script type="importmap">{"imports":{
   "three": "./sunset-yard-vendor/three.module.js",
   "three/addons/": "./sunset-yard-vendor/addons/"
@@ -98,6 +103,8 @@
   }
   @media (pointer:coarse){ #goals{bottom:auto!important;top:calc(100px + env(safe-area-inset-top,0));font-size:9px;gap:4px;} #letters span{width:16px;height:16px;font-size:12px;} }
   @media (pointer:coarse) and (max-height:500px){ #goalList{display:none;} }
+  /* v4 phones: just the goal you are on, not the whole ladder over the SKATE letters */
+  @media (pointer:coarse){ #goalList div:not(.count):not(:first-child){display:none;} #goalList .count{opacity:.8;} }
   #goals{position:absolute;left:14px;bottom:calc(14px + env(safe-area-inset-bottom,0));display:flex;flex-direction:column;gap:7px;font-size:11px;}
   /* in-game music toggle — top-right, below the topbar, clear of stoke/combo/pad */
   #muteBtn{position:absolute;pointer-events:auto;top:calc(62px + env(safe-area-inset-top,0));right:14px;
@@ -219,8 +226,8 @@
     text-transform:uppercase;color:#241E33;background:#F0562A;opacity:0;transition:opacity .12s;pointer-events:none;white-space:nowrap;}
   #railHint.on{opacity:.92;}
   @media (max-width:520px){ #railHint{top:256px;} }
-  #fade{position:absolute;inset:0;background:#1A1526;opacity:0;pointer-events:none;transition:opacity .12s linear;z-index:4;}
-  #fade.on{opacity:1;}
+  #fade{position:absolute;inset:0;background:#1A1526;opacity:0;pointer-events:none;transition:opacity .32s ease-out;z-index:4;}
+  #fade.on{opacity:.62;transition:opacity .12s ease-in;}   /* a dip, not a blackout: the reset is a short move */
   #hint{position:absolute;left:50%;top:22%;bottom:auto;transform:translateX(-50%);font-size:13px;letter-spacing:.14em;text-transform:uppercase;
     color:var(--chalk);background:rgba(36,30,51,.72);padding:6px 14px;white-space:nowrap;transition:opacity .4s;pointer-events:none;}
   #hint b{color:var(--orange);} #hint.gone{opacity:0;}
@@ -1457,7 +1464,7 @@ function addPipe(x,z,rot){   /* hero landmark: tipped concrete pipe, half-buried
     MOUNDS.push({x:x+px*s*3.9, z:z+pz*s*3.9, r0:2.2, r1:3.4, y0:0.875, y1:-0.275});
     /* v4: the barrel walls (where the outer shell meets the slab) are solid; the bore stays open */
     addBoxPhys(x+px*s*2.52, z+pz*s*2.52, rot, 3.25, 0.48, 3.0);
-    for(const a of [-2.2,0,2.2]) occ(x+Math.cos(rot)*a, z-Math.sin(rot)*a, 1.9, 3.0);   /* the camera lifts over the barrel instead of pressing on it */
+    for(const a of [-2.2,0,2.2]) occ(x+Math.cos(rot)*a, z-Math.sin(rot)*a, 2.9, 3.0);   /* the camera lifts over the barrel instead of pressing on it */
   }
   aoBlobs.push([x,z,4.2]);
 }
@@ -2684,6 +2691,9 @@ function buildBreakers(steelM){
    plastered across the bottom of frame */
 function NEARM(m){ return dissolveNear(addFog(m), 0.7, 2.2); }
 function buildProps(){
+  /* v4: own seed, so the dressing (and its collision) is the SAME park on every device and quality tier.
+     Sharing the global stream meant a phone and a desktop got different prop layouts. */
+  const RNG = mulberry32(0x5EED5);
   const jitter=(mesh,i,amt)=>{ const c=new THREE.Color(1,1,1).multiplyScalar(1+(RNG()-0.5)*amt); mesh.setColorAt(i,c); };
   const place=(geo,mat,list)=>{
     if(!list.length) return {castShadow:false};
@@ -5523,6 +5533,9 @@ function launchLip(fx,fz){
   sk.lipNrm = new THREE.Vector3(-_g2.x,1,-_g2.z).normalize();
   sk.lipYaw0 = sk.yaw; sk.lipDown = Math.atan2(-_g2.x,-_g2.z);
   sk.lipTair = Math.max(0.35, 2*sk.vy/T.gravity);
+  /* only a launch that goes UP the wall comes back down it facing the other way; a carve along a
+     bowl lip keeps its heading (turning those 90deg in the air read as a spin and bailed sideways) */
+  sk.lipArc = Math.abs(wrapA(sk.lipDown - sk.lipYaw0 - Math.PI)) < 0.8;
   if(charged){ sk.lipBoost=true; held.ollie=false; sk.ollieWas=false; sk.chargeT=0; } else sk.lipBoost=false;
   comboStart(); sfx.ollie(); sk.crouch=-0.15; sk.crouchT=0;
 }
@@ -5762,7 +5775,7 @@ function applyTransform(dt){
      yaw eases big jumps (kickturns, fakie roll-aways) into a readable pivot while
      tracking spins 1:1. */
   { const h=dt||1/120; let face=sk.yaw+(sk.fakie?Math.PI:0);
-    const lipAir = sk.state==="air" && sk.airFrom==="lip" && sk.lipNrm && !(sk.lipQ && sk.lipQ.spine);
+    const lipAir = sk.state==="air" && sk.airFrom==="lip" && sk.lipNrm && sk.lipArc && !(sk.lipQ && sk.lipQ.spine);
     if(lipAir){ const u=Math.min(1,(sk.airT||0)/(sk.lipTair*0.9)), e=u*u*(3-2*u);
       face += e*wrapA(sk.lipDown - sk.lipYaw0 - (sk.spinNet||0)); }
     const d=wrapA(face-sk.yawVis);
@@ -5950,7 +5963,17 @@ function _updateCamera(dt){
      cutout dissolve already clears whatever sits in the cone, so stay low and see him */
   { const hd=Math.hypot(_cam.x-sk.pos.x,_cam.z-sk.pos.z), up=_cam.y-sk.pos.y, maxUp=Math.max(CAM.height()+0.35, hd*0.85);
     if(up>maxUp) _cam.y=sk.pos.y+maxUp; }
+  /* v4 TERRAIN SIGHTLINE: the bowl rim, the dock fillet and every ramp are height-field, not
+     registered occluders, so the rig could sink into the coping slab while carving a lip. Walk
+     the rider->camera line; wherever the ground pokes through it, lift the camera until the line
+     clears by 0.35m. Cheap: 10 height reads. */
+  { const hx=sk.pos.x, hy=sk.pos.y+0.9, hz=sk.pos.z; let need=0;
+    for(let i=2;i<=10;i++){ const u=i/10, px=hx+(_cam.x-hx)*u, pz=hz+(_cam.z-hz)*u, ly=hy+(_cam.y-hy)*u;
+      const g=surfH(px,pz)+0.35; if(g>ly) need=Math.max(need,(g-hy)/u - (_cam.y-hy)); }
+    if(need>0) _cam.y+=Math.min(need,4.0); }
   camera.position.lerp(_cam, Math.min(1,dt*(4+tc*6)));
+  /* and never let the lerp itself carry the lens under the surface it is passing */
+  { const g=surfH(camera.position.x,camera.position.z)+0.6; if(camera.position.y<g) camera.position.y=g; }
 
   /* velocity lookahead — the camera leads the line instead of trailing it */
   _tmp.copy(fwd).multiplyScalar(2.4);
