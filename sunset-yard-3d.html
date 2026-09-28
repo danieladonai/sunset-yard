@@ -1223,7 +1223,7 @@ function groundH(x,z){
    climb the ramps (it would z-fight every transition face). The profile is the
    exact transShape() arc the ramp mesh is extruded from, so rider and geometry
    agree to the millimetre. */
-const QUARTERS=[];
+const QUARTERS=[], MOUNDS=[];
 const VZ=0.30;                        /* horizontal band that fakes a quarter's true vert */
 function addQuarterPhys(x,z,rot,hw,R,vert,plat){
   QUARTERS.push({x,z,c:Math.cos(rot),s:Math.sin(rot),hw,R,vert,plat,top:R+vert,
@@ -1244,6 +1244,8 @@ function quarterH(x,z){
     if(h>y){ y=h; _qHit=q; }
   }
   { const kh=kickH(x,z); if(kh>y){ y=kh; _qHit=null; } }
+  for(const m of MOUNDS){ const r=Math.hypot(x-m.x,z-m.z); if(r>=m.r1) continue;
+    const h = r<=m.r0 ? m.y0 : m.y0 + (m.y1-m.y0)*(r-m.r0)/(m.r1-m.r0); if(h>y){ y=h; _qHit=null; } }
   if(!_noBox) for(const b of BOXES){         /* solid ledges, stairs, the manual pad */
     const dx=x-b.x, dz=z-b.z; if(dx*dx+dz*dz>b.rr*b.rr) continue;
     const lx=dx*b.c-dz*b.s, lz=dx*b.s+dz*b.c;
@@ -1256,7 +1258,7 @@ function quarterH(x,z){
    frame as the mesh; hw/hd are LOCAL half-extents. */
 const BOXES=[];
 function addBoxPhys(x,z,rot,hw,hd,top){ BOXES.push({x,z,c:Math.cos(rot),s:Math.sin(rot),hw,hd,top,rr:Math.hypot(hw,hd)+0.1}); }
-function surfH(x,z){ const g=groundH(x,z); if(!QUARTERS.length&&!BOXES.length&&!KICKS.length) return g; const q=quarterH(x,z); return q>g?q:g; }
+function surfH(x,z){ const g=groundH(x,z); if(!QUARTERS.length&&!BOXES.length&&!KICKS.length&&!MOUNDS.length) return g; const q=quarterH(x,z); return q>g?q:g; }
 /* slope along a heading, and the full gradient, of the RIDEABLE surface */
 /* Finite differences that refuse to read a CLIFF as a slope: straddling the side
    face of a ramp used to report a 40:1 grade, which stalled the skater dead and
@@ -1451,6 +1453,10 @@ function addPipe(x,z,rot){   /* hero landmark: tipped concrete pipe, half-buried
     const berm=new THREE.CylinderGeometry(2.2,3.4,1.15,14); uvScale(berm,2.0);
     push("conc", berm, M(x+px*s*3.9, 0.30, z+pz*s*3.9));
     occ(x+px*s*3.9, z+pz*s*3.9, 2.6, 1.2);
+    /* v4: the spoil mound is a rideable bank (the exact frustum of the mesh) */
+    MOUNDS.push({x:x+px*s*3.9, z:z+pz*s*3.9, r0:2.2, r1:3.4, y0:0.875, y1:-0.275});
+    /* v4: the barrel walls (where the outer shell meets the slab) are solid; the bore stays open */
+    addBoxPhys(x+px*s*2.34, z+pz*s*2.34, rot, 3.2, 0.26, 2.6);
   }
   aoBlobs.push([x,z,4.2]);
 }
@@ -2827,7 +2833,8 @@ function buildProps(){
   /* leaned pallet stacks */
   { const l=near(3,11,30).map(p=>[p[0],0.42,p[1],RNG()*6.283,0.28+RNG()*0.16,0,1]);
     const palM=NEARM(new THREE.MeshStandardMaterial({color:0x8C6A4C,roughness:0.88,map:TEX.conc,flatShading:true}));
-    place(uvScale(chamferBox(1.2,0.62,1.0,0.03),1), palM, sit(l)); }
+    place(uvScale(chamferBox(1.2,0.62,1.0,0.03),1), palM, sit(l));
+    for(const p of l) addBoxPhys(p[0],p[2],p[3],0.62,0.55,0.8); }
   /* session kits parked at the foot of each obstacle: bag, boombox, spare deck,
      two bottles. Objects with an owner read as a place; scatter reads as noise. */
   { const kitM=NEARM(new THREE.MeshStandardMaterial({color:P.mint,roughness:0.9,flatShading:true}));
@@ -2847,6 +2854,9 @@ function buildProps(){
       btl.push([bx+1.7,0.11,bz-0.7,0,0,0,1]);
       btl.push([bx+1.9,0.06,bz-1.0,RNG()*3.14,Math.PI/2,0,1]);
     }
+    /* v4: session kits are solid (you bump them, you don't ghost through) */
+    for(const p of bag) addBoxPhys(p[0],p[2],p[3],0.23,0.17,0.46);
+    for(const p of bmb) addBoxPhys(p[0],p[2],p[3],0.35,0.15,0.34);
     if(bag.length){
       place(uvScale(chamferBox(0.42,0.46,0.30,0.04),1), kitM, sit(bag));
       place(uvScale(chamferBox(0.66,0.34,0.26,0.03),1), boxM, sit(bmb));
@@ -2858,6 +2868,7 @@ function buildProps(){
   /* striped A-frame barricades — hard horizontals at knee height, and they give
      the eye a scale reference on an otherwise featureless pour */
   { const bar=[]; for(const p of near(4,15,31,1.2)) bar.push([p[0],0.44,p[1],RNG()*6.283,0,0,1]);
+    for(const b of bar) addBoxPhys(b[0],b[2],b[3],0.9,0.3,0.92);   /* the A-frame legs splay */
     const barM=NEARM(new THREE.MeshStandardMaterial({color:0xffffff,map:TEX.barr,roughness:0.72,flatShading:true}));
     if(bar.length){
       place(uvScale(chamferBox(1.7,0.20,0.10,0.02),1), barM, sit(bar.map(b=>[b[0],0.80,b[2],b[3],0,0,1])));
@@ -5479,6 +5490,11 @@ function launchLip(fx,fz){
   const charge = charged ? Math.min(1,(sk.chargeT||0)/0.28) : 0;
   sk.vy = sp*0.85 + T.lipPop + (charged ? T.lipOllie*(0.55+0.45*charge) : 0);
   sk.state="air"; sk.airFrom="lip"; sk.lipY=sk.pos.y; sk.spinNet=0; sk.airT=0; markTakeoff();
+  /* v4 AIR ARC: remember the wall and where you'll come back down, so the turn happens
+     THROUGH the air instead of in one frame at re-entry */
+  sk.lipNrm = new THREE.Vector3(-_g2.x,1,-_g2.z).normalize();
+  sk.lipYaw0 = sk.yaw; sk.lipDown = Math.atan2(-_g2.x,-_g2.z);
+  sk.lipTair = Math.max(0.35, 2*sk.vy/T.gravity);
   if(charged){ sk.lipBoost=true; held.ollie=false; sk.ollieWas=false; sk.chargeT=0; } else sk.lipBoost=false;
   comboStart(); sfx.ollie(); sk.crouch=-0.15; sk.crouchT=0;
 }
@@ -5662,14 +5678,14 @@ function bailBoardStart(){
    spot wedged riders into stair corners and ledge ends where no push could free them */
 function spotClear(x,z){ if(Math.abs(surfH(x,z)-groundH(x,z))>0.02) return false;
   if(Math.hypot(gradAt(x,z,_g2).x,_g2.z)>0.15) return false;
-  for(let k=0;k<8;k++){ const a=k*Math.PI/4, px=x+Math.cos(a)*0.85, pz=z+Math.sin(a)*0.85; if(Math.abs(surfH(px,pz)-groundH(px,pz))>0.02) return false; }
+  for(const rr of [0.4,0.85,1.3]) for(let k=0;k<8;k++){ const a=k*Math.PI/4, px=x+Math.cos(a)*rr, pz=z+Math.sin(a)*rr; if(Math.abs(surfH(px,pz)-groundH(px,pz))>0.02) return false; }
   return true; }
 function relocateAfterBail(){ const x0=sk.pos.x, z0=sk.pos.z; let bx=x0, bz=z0, found=spotClear(x0,z0);
   for(let r=0.5; !found && r<=5; r+=0.5) for(let k=0;k<16 && !found;k++){ const a=k*Math.PI/8, x=x0+Math.cos(a)*r, z=z0+Math.sin(a)*r; if(spotClear(x,z)){ bx=x; bz=z; found=true; } }
   if(found) sk.pos.set(bx, surfH(bx,bz), bz);
   let best=sk.yaw, bestD=-1e9;
   for(let k=0;k<16;k++){ const a=sk.yaw+k*Math.PI/8; let d=0; const h0=surfH(sk.pos.x,sk.pos.z);
-    for(let s=0.5;s<=6;s+=0.5){ const px=sk.pos.x+Math.sin(a)*s, pz=sk.pos.z+Math.cos(a)*s; if(Math.abs(surfH(px,pz)-h0)>0.15) break; d=s; }
+    for(let s=0.2;s<=6;s+=0.2){ const px=sk.pos.x+Math.sin(a)*s, pz=sk.pos.z+Math.cos(a)*s; if(Math.abs(surfH(px,pz)-h0)>0.15) break; d=s; }
     const score=d-Math.min(k,16-k)*0.12; if(score>bestD){ bestD=score; best=a; } }
   sk.yaw=best; sk.yawVis=best; camYaw=best; sk.fakie=false; sk.speed=0; sk.vel.set(0,0,0);
   applyTransform(1/60); updateCamera(1); }
@@ -5701,14 +5717,19 @@ function applyTransform(dt){
      he leans into the wall; in the air he rights himself over ~0.4s. The visual
      yaw eases big jumps (kickturns, fakie roll-aways) into a readable pivot while
      tracking spins 1:1. */
-  { const h=dt||1/120, face=sk.yaw+(sk.fakie?Math.PI:0), d=wrapA(face-sk.yawVis);
+  { const h=dt||1/120; let face=sk.yaw+(sk.fakie?Math.PI:0);
+    const lipAir = sk.state==="air" && sk.airFrom==="lip" && sk.lipNrm && !(sk.lipQ && sk.lipQ.spine);
+    if(lipAir){ const u=Math.min(1,(sk.airT||0)/(sk.lipTair*0.9)), e=u*u*(3-2*u);
+      face += e*wrapA(sk.lipDown - sk.lipYaw0 - (sk.spinNet||0)); }
+    const d=wrapA(face-sk.yawVis);
     if(sk.yawEaseT>0) sk.yawEaseT-=h;
     if(sk.yawEaseT<=0) sk.slowEase=false;
     sk.yawVis = (Math.abs(d)>0.9 || sk.yawEaseT>0) ? sk.yawVis+d*Math.min(1,h*(sk.slowEase?7:(sk.yawEaseT>0?16:11))) : face;
     /* in the air the rider rights himself FAST (~0.15s) — carrying the wall's
        60-80deg lean into the air read as a physics failure, lying sideways mid-air */
     let tr=14;
-    if(sk.state==="air"||sk.state==="grind") _nrmT.set(0,1,0);
+    if(lipAir){ _nrmT.copy(sk.lipNrm).lerp(_UP,0.35).normalize(); tr=8; }   /* stay tipped in toward the wall */
+    else if(sk.state==="air"||sk.state==="grind") _nrmT.set(0,1,0);
     else { gradAt(sk.pos.x,sk.pos.z,_g2); _nrmT.set(-_g2.x*0.8,1,-_g2.z*0.8).normalize(); tr=22; }   /* riders stay a touch more upright than the wall */
     sk.nrm.lerp(_nrmT, Math.min(1,h*tr)).normalize();
     /* slides ride ACROSS the rail, edge grinds cocked ~30deg, 50-50s straight */
