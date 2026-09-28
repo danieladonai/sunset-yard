@@ -21,6 +21,7 @@ const SCRIPTS={
   quarter: [ {place:[-16,20,0,8.8]}, {t:0.05, hold:['push']}, {t:0.6, rel:['push']}, {t:4.5, end:true} ],
   vert: [ {place:[5,-15.2,-Math.PI/2,10]}, {t:0.1, hold:["push"]}, {t:1.2, rel:["push"]}, {t:5.0, end:true} ],
   quarter2: [ {place:[-16,14,0,9.5]}, {t:4.5, end:true} ],
+  prail: [ {place:[1.9,-44,0,6.5]}, {t:0.45, hold:["ollie"]}, {t:0.7, rel:["ollie"]}, {prompt:"manual"}, {t:4.0, end:true} ],
   grind: [ {rail:0, off:1.0, speed:6.5}, {t:0.05, hold:['push']}, {t:0.5, rel:['push']}, {prompt:'manual'}, {t:4.5, end:true} ],
 };
 (async()=>{ const b=await puppeteer.launch({executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:'new',args:['--use-angle=metal','--enable-gpu','--ignore-gpu-blocklist','--mute-audio']});
@@ -44,7 +45,7 @@ for(let fr=0; fr/30<END; fr++){
     const pr=S.find(e=>e.prompt); if(pr && !window.__pr && document.getElementById('manBtn').textContent==='GRIND'){ E.add(pr.prompt); window.__pr=1; }
     if(window.__camMode==='side'){ const s=D.sk(), yv=s.yaw, rx=-Math.cos(yv), rz=Math.sin(yv), v=s.speed/30; const fx=Math.sin(yv)*v, fz=Math.cos(yv)*v;
       window.__setFrame([s.pos.x+fx+rx*3.4, s.pos.y+1.0, s.pos.z+fz+rz*3.4],[s.pos.x+fx, s.pos.y+0.75, s.pos.z+fz]); }
-    window.__advance(2); },S,t);
+    window.__advance(2); window.__log=(window.__log||[]); const q=D.sk(); window.__log.push([q.state,q.pos.x.toFixed(3),q.pos.y.toFixed(3),q.pos.z.toFixed(3), D.skater().position.x.toFixed(3), D.skater().position.y.toFixed(3)].join(" ")); },S,t);
   await pg.screenshot({path:`${out}/f${String(n++).padStart(4,'0')}.png`});
 }
-console.log('frames',n,'errors',errs); await b.close(); })();
+fs.writeFileSync(out+"/log.txt", (await pg.evaluate(()=>window.__log||[])).map((l,i)=>i+" "+l).join("\n")); console.log('frames',n,'errors',errs); await b.close(); })();

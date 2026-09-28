@@ -491,7 +491,7 @@ const DECK_TOP=0.030*BOARD_S, SOLE_DROP=0.114;   /* SOLE_DROP is the shoe, not t
 /* v3: the tuck and the grab lift the board a REAL distance toward the chest
    (26cm / +16cm more), in metres — scaled by BOARD_S it was 9cm, which with the
    hips rising 14cm at the same time actually STRAIGHTENED the legs in the air. */
-function boardLift(){ return DECK_Y0*BOARD_S + (sk.tuck||0)*0.20 + (sk.grabL||0)*0.27; }
+function boardLift(){ return DECK_Y0*BOARD_S + (sk.tuck||0)*0.20 + (sk.grabL||0)*(0.27 + ((sk.grab&&sk.grab.name!=="Indy")?0.10:0)); }
 /* Hip height above the sole while riding. Held constant because it is the
    CHARACTER's geometry, not the board's — and it is why HIPS_Y has to follow the
    deck down: the legs already sit 96% extended, so lowering the board on its own
@@ -3186,8 +3186,8 @@ function fxGrind(dt){
   if(grindHot){
     grindHot.visible=true;
     grindHot.position.copy(_gp);
-    grindHot.scale.setScalar(0.34+0.10*Math.abs(Math.sin(perfT*131.0)));
-    grindHot.material.opacity=0.55+0.45*Math.abs(Math.sin(perfT*175.9));
+    grindHot.scale.setScalar(0.20+0.06*Math.abs(Math.sin(perfT*131.0)));
+    grindHot.material.opacity=0.30+0.25*Math.abs(Math.sin(perfT*175.9));
   }
   /* ---- GROUND CONTACT DECAL ----
      A grind throws light onto the concrete under it. One additive halo quad laid
@@ -3195,21 +3195,23 @@ function fxGrind(dt){
   if(grindGlow){
     grindGlow.visible=true;
     grindGlow.position.set(_gp.x, surfH(_gp.x,_gp.z)+0.025, _gp.z);
-    grindGlow.material.opacity=0.35;
+    grindGlow.material.opacity=0.22;
   }
-  bloomBump=Math.max(bloomBump,0.60);
+  bloomBump=Math.max(bloomBump,0.10);   /* v4: 0.60 turned both metal rails into light sabres and hid the truck contact */
 }
 let grindHot=null, grindGlow=null;
 function fxLand(x,y,z){
   if(!FXd) return;
-  for(let i=0;i<24;i++){ const a=(i/24)*6.283+RNG()*0.2;
-    emit(FXd, x+Math.cos(a)*0.35, y+0.06, z+Math.sin(a)*0.35,
-      Math.cos(a)*2.8*(0.6+RNG()*0.7), 1.4*(0.5+RNG()), Math.sin(a)*2.8*(0.6+RNG()*0.7),
-      0.55, 0.30, 0xE8C9A0, 0xC9B096, -5, 0.42, 1.6, 1.8); }
+  /* v4: dust scales with how hard you landed; a flat ollie kicks a faint low skirt, not a ring of cotton balls */
+  const imp=Math.abs(sk.landImpact||0), n=Math.round(Math.min(22, 4+imp*1.6)), k=Math.min(1, imp/9);
+  for(let i=0;i<n;i++){ const a=RNG()*6.283;
+    emit(FXd, x+Math.cos(a)*0.3, y+0.03, z+Math.sin(a)*0.3,
+      Math.cos(a)*(1.2+2.2*k)*(0.5+RNG()*0.7), (0.3+0.8*k)*(0.5+RNG()), Math.sin(a)*(1.2+2.2*k)*(0.5+RNG()*0.7),
+      0.45+0.2*k, 0.16+0.10*k, 0xD8BE98, 0xBCA88C, -4, 0.16+0.16*k, 2.2, 1.6); }
   /* the impact itself: a shock ring plus 12 sparks kicked outward-up */
   const r=impactRings.find(o=>o.t<0)||impactRings[0];
   if(r && (sk.landImpact||0)>7.5){ r.t=0; r.m.visible=true; r.m.position.set(x,y+0.05,z); }
-  if(FXs) for(let i=0;i<12;i++){ const a=(i/12)*6.283+RNG()*0.3;
+  if(FXs && imp>9) for(let i=0;i<8;i++){ const a=(i/8)*6.283+RNG()*0.3;   /* only a real slam off something tall sparks the trucks */
     emit(FXs, x+Math.cos(a)*0.3, y+0.10, z+Math.sin(a)*0.3,
       Math.cos(a)*4.0, 2.2+RNG()*1.6, Math.sin(a)*4.0,
       0.28, 0.13, 0xFFF4C4, 0xFFD98F, -13, 1.0, 1.1, 0.18); }
@@ -3992,6 +3994,7 @@ function updateRider4(dt){
   R.root.quaternion.copy(_r4lean.setFromAxisAngle(_r4Z, -(sk.roll||0)*0.85)).multiply(_r4base);
   /* hip spring: landings drive the body down and it rebounds (underdamped, ~0.3s) */
   { const onGround = st!=="air";
+    if(bw>0.001){ R.hipY=0; R.hipV=0; }
     if(R.wasAir && onGround){ R.hipV = (R.hipV||0) - Math.min(1.1, 0.075*Math.abs(sk.landImpact||0)); }
     R.wasAir = st==="air";
     const w=15, z=0.42, h=Math.min(dt,1/60);
@@ -4018,10 +4021,11 @@ function updateRider4(dt){
   const wToe = r4s("toe", Math.max(0, lean)*0.9*(1-wPush), dt, 8), wHeel = r4s("heel", Math.max(0,-lean)*0.9*(1-wPush), dt, 8);
   /* a slam FALLS: the weight follows gravity (t^2 over ~0.34s) instead of a linear morph */
   R.bailT = bw>0.001 ? (R.bailT||0)+dt : 0;
-  const wBail = bw>0.001 ? Math.min(1, Math.pow(R.bailT/0.34, 2)) : 0;
+  const wBail = bw>0.001 ? Math.min(1, (R.bailT||0)/0.06) : 0;   /* the clip itself does the falling */
   const wBrake = r4s("brake", (roll && held.brake && (sk.speed||0)>0.6 && !pushOn) ? 1 : 0, dt, 9);
   let W = { Push_Loop:wPush, Crouch:wCrouch*(1-wPush), Air_Tuck:wTuck, Air_Flip:wFlip, Pop:Math.max(0,Math.min(1,wPop))*(1-wFlip),
-            Grab_Indy:wGrabI, Grab_Melon:wGrabM, Manual:wManual, Brake:wBrake*(1-wPush), Grind:wGrind, Carve_Toe:wToe, Carve_Heel:wHeel, Bail:wBail };
+            Grab_Indy:wGrabI, Grab_Melon:wGrabM, Manual:wManual, Brake:wBrake*(1-wPush), Grind:wGrind, Carve_Toe:wToe, Carve_Heel:wHeel, Bail:0 };
+  if(A.Slam){ W.Slam=wBail; A.Slam.paused=true; A.Slam.time=Math.min(26/30, R.bailT||0); } else W.Bail=wBail;
   let sum=0; for(const k in W) sum+=W[k];
   if(sum>1){ for(const k in W) W[k]/=sum; sum=1; }
   W.Ride_Idle = 1-sum;
@@ -4044,7 +4048,7 @@ function updateRider4(dt){
       const wq=hd.getWorldQuaternion(_r4q2); const nq=q.multiply(wq);
       const pq=hd.parent.getWorldQuaternion(new THREE.Quaternion()).invert(); hd.quaternion.copy(pq.multiply(nq)); } }
   /* ---- residual foot lock ---- */
-  const nomLift = R4.LIFT_TUCK*(W.Air_Tuck+W.Air_Flip) + R4.LIFT_GRAB*(W.Grab_Indy+W.Grab_Melon);
+  const nomLift = R4.LIFT_TUCK*(W.Air_Tuck+W.Air_Flip) + R4.LIFT_GRAB*W.Grab_Indy + (R4.LIFT_GRAB+0.10)*W.Grab_Melon;
   const onL = 1 - Math.min(1, wFlip*1.2 + wBail);
   const onR = 1 - Math.min(1, wFlip*1.2 + wBail + wPush + wBrake);
   if(onL<0.01 && onR<0.01) return;
@@ -5669,7 +5673,8 @@ function enterManual(){ sk.manT=0; sk.manPaid=false; sk.state="manual"; sk.balan
 const _bbV=new THREE.Vector3();
 function bailBoardStart(){
   const bw=board.getWorldPosition(new THREE.Vector3());
-  const tx=sk.state==="air"?sk.vel.x:Math.sin(sk.yaw)*sk.speed, tz=sk.state==="air"?sk.vel.z:Math.cos(sk.yaw)*sk.speed;
+  let tx=sk.state==="air"?sk.vel.x:Math.sin(sk.yaw)*sk.speed, tz=sk.state==="air"?sk.vel.z:Math.cos(sk.yaw)*sk.speed;
+  { const v=Math.hypot(tx,tz); if(v<3.2){ tx+=Math.sin(sk.yaw)*(3.2-v); tz+=Math.cos(sk.yaw)*(3.2-v); } }
   const side=(RNG()<0.5?-1:1)*0.9;
   sk.bb={alive:true, x:bw.x, y:bw.y, z:bw.z, vx:tx*1.15+Math.cos(sk.yaw)*side, vz:tz*1.15-Math.sin(sk.yaw)*side, roll:0, spin:0, t:0};
   sk.fadeDone=false;

@@ -140,6 +140,18 @@ def boxy_tee(v):
         d = Vector((p.x, p.y - 0.01, 0))
         if d.length > 1e-4: p += d.normalized() * (0.028 * u)
 shirt = shell("Shirt", S["sfit"], 0.006, boxy_tee)
+# a tee hangs from the shoulders: move hip/thigh influence onto the lower spine so the hem
+# follows the torso instead of flaring off it when the hips and chest bend apart
+vg = {g.name: g for g in shirt.vertex_groups}
+tgt = vg.get("spine_01") or shirt.vertex_groups.new(name="spine_01")
+for v in shirt.data.vertices:
+    moved = 0.0
+    for g in list(v.groups):
+        n = shirt.vertex_groups[g.group].name
+        if n == "pelvis" or n.startswith("thigh_"):
+            moved += g.weight * (0.75 if n == "pelvis" else 1.0)
+            shirt.vertex_groups[g.group].add([v.index], g.weight * (0.25 if n == "pelvis" else 0.0), "REPLACE")
+    if moved > 0: tgt.add([v.index], moved, "ADD")
 pants = shell("Pants", S["pfit"], 0.006, baggy_pants)
 # shoes: chunkier than the bare foot, flat sole
 def shoe_shape(v):
@@ -160,7 +172,7 @@ bm = bmesh.new(); bm.from_mesh(me)
 d_of = [dom(v) for v in me.vertices]
 def inside(i):
     p = body.matrix_world @ me.vertices[i].co; r = vreg[i]
-    if "Shirt" in r and p.z > HEM["shirt_bottom"] + 0.05 and abs(p.x) < sleeve_end - 0.05 and p.z < neck_z - 0.04: return True
+    if "Shirt" in r and p.z > HEM["shirt_bottom"] + 0.05 and abs(p.x) < sleeve_end - 0.05 and p.z < neck_z - 0.04 and not d_of[i].startswith(("upperarm_", "clavicle_")) and abs(p.x) < ua0 - 0.02: return True   # keep skin under sleeves + armpits
     if "Pants" in r and HEM["pants_hem"] - 0.02 < p.z < HEM["pants_top"] - 0.03: return True   # the shoe covers below the hem
     if "Shoe" in r and p.z < HEM["shoe_top"] - 0.005: return True
     if d_of[i].startswith(("calf_", "foot_", "ball_")) and p.z < HEM["shoe_top"]: return True

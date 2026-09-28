@@ -16,6 +16,7 @@ OUT = sys.argv[-1]
 FPS = 30
 DECK = 0.108
 LIFT_TUCK, LIFT_GRAB = 0.20, 0.47
+MELON_UP = 0.10      # the melon pulls the board 10cm higher, up to the hand
 R = math.radians
 sc = bpy.context.scene; sc.render.fps = FPS
 
@@ -178,13 +179,15 @@ def P_grab(kind):
     if kind == "indy":     # back hand, toe edge, between the feet
         hl, _ = arms_relaxed(pel, 30, spread=0.52, fwdL=0.10, dz=0.30)
         hr = (-0.03, -0.12, DECK + LIFT_GRAB + 0.02)
-        return dict(pel=pel, prot=(20, 34, -6), chest=(26, 46, -8), head=(70, -18),
+        pel = (-0.02, 0.06, PZ(0.79))
+        return dict(pel=pel, prot=(20, 52, -10), chest=(22, 88, -18), head=(66, -52),
                     fL=(0.20, 0.045, z, 30, 0), fR=(-0.23, 0.05, z, 4, 0), aL=(0.90, 0.10, 0.20, 0.95), aR=(-0.03, -0.12, DECK + LIFT_GRAB + 0.02), elbR=(0, 0, 0.1))
     else:                  # melon: front hand reaches behind the front leg to the heel edge
         _, hr = arms_relaxed(pel, 30, spread=0.52, fwdR=0.0, dz=0.32)
         hl = (0.06, 0.15, DECK + LIFT_GRAB + 0.02)
-        return dict(pel=pel, prot=(22, 32, 6), chest=(30, 44, 8), head=(78, -16),
-                    fL=(0.20, 0.045, z, 30, 0), fR=(-0.23, 0.05, z, 4, 0), aL=(0.06, 0.15, DECK + LIFT_GRAB + 0.02), aR=(0.90, 0.10, -0.10, 0.95), elbL=(0, 0.1, 0.15))
+        pel = (-0.02, 0.14, PZ(0.79))
+        return dict(pel=pel, prot=(26, 50, 16), chest=(44, 84, 30), head=(80, -50),
+                    fL=(0.20, 0.045, z + MELON_UP, 30, 0), fR=(-0.23, 0.05, z + MELON_UP, 4, 0), aL=(0.03, 0.10, DECK + LIFT_GRAB + MELON_UP + 0.03), aR=(0.90, 0.10, -0.10, 0.95), elbL=(0, 0.1, 0.15))
 def P_carve(side):
     # toe side (-Y) : knees forward, hips drop over the toe edge. heel side (+Y): sit back over the heels
     s = -1 if side == "toe" else 1
@@ -212,7 +215,29 @@ def P_brake():
     return dict(pel=pel, prot=(74, 20, 0), chest=(84, 22, -2), head=(90, 2),
                 fL=(0.20, 0.03, ZD, 78, 0), fR=(-0.12, -0.20, ANK + 0.004, 84, -6), toeR=-6,
                 aL=(0.55, 0.75, 0.25, 0.93), aR=(0.55, 0.75, 0.05, 0.93), kneeYawR=10)
-POSES = [("Brake", P_brake), ("Crouch", P_crouch), ("Pop", P_pop), ("Air_Tuck", P_tuck), ("Air_Flip", P_flip),
+def clip_slam():
+    """0.9s one-shot: board shoots out, you fall back, hands catch, butt lands, rock, settle"""
+    fl, fr = (0.22, 0.02, ZD, 30, -10), (-0.22, 0.03, ZD, 4, -6)
+    S = [
+     (0,  dict(pel=(0.0, 0.02, PZ(0.90)), prot=(22, -4, 0), chest=(30, -10, 0), head=(76, 0),
+               fL=fl, fR=fr, aL=(0.7, 0.1, 0.45, 0.95), aR=(0.7, 0.15, 0.3, 0.95))),
+     (6,  dict(pel=(0.0, 0.10, PZ(0.66)), prot=(20, -22, 0), chest=(24, -30, 0), head=(50, 22),
+               fL=(0.25, -0.20, ANK + 0.08, 25, -25), fR=(-0.16, -0.18, ANK + 0.14, 0, -22), toeL=-25, toeR=-22,
+               aL=(0.30, 0.40, 0.30), aR=(-0.24, 0.42, 0.30))),
+     (11, dict(pel=(0.0, 0.22, 0.12), prot=(16, -34, 0), chest=(16, -40, 0), head=(24, 32),
+               fL=(0.27, -0.44, ANK + 0.02, 20, -35), fR=(-0.13, -0.40, ANK + 0.16, -8, -20), toeL=-35, toeR=-20,
+               aL=(0.26, 0.50, 0.035), aR=(-0.22, 0.50, 0.035))),
+     (16, dict(pel=(0.0, 0.20, 0.15), prot=(16, -26, 0), chest=(16, -22, 0), head=(20, 20),
+               fL=(0.27, -0.45, ANK + 0.02, 20, -35), fR=(-0.13, -0.38, ANK + 0.20, -8, -14), toeL=-35, toeR=-14,
+               aL=(0.26, 0.48, 0.035), aR=(-0.22, 0.48, 0.035))),
+     (26, dict(pel=(0.0, 0.21, 0.13), prot=(16, -30, 0), chest=(16, -28, 0), head=(20, 30),
+               fL=(0.27, -0.46, ANK + 0.02, 20, -35), fR=(-0.13, -0.40, ANK + 0.18, -8, -16), toeL=-35, toeR=-16,
+               aL=(0.26, 0.49, 0.035), aR=(-0.22, 0.49, 0.035))),
+    ]
+    for f, P in S: pose(f, P)
+    return 26
+clip_slam.anim = True
+POSES = [("Slam", clip_slam), ("Brake", P_brake), ("Crouch", P_crouch), ("Pop", P_pop), ("Air_Tuck", P_tuck), ("Air_Flip", P_flip),
          ("Grab_Indy", lambda: P_grab("indy")), ("Grab_Melon", lambda: P_grab("melon")),
          ("Carve_Toe", lambda: P_carve("toe")), ("Carve_Heel", lambda: P_carve("heel")),
          ("Manual", P_manual), ("Grind", P_grind), ("Bail", P_bail)]
@@ -232,8 +257,8 @@ def clip_push(L=32):
     k = K
     bk += [(17, x0 - v*PUSH_PLANT - 0.10, ANK + 0.12*k, 86, 34), (21, -0.30, ANK + 0.135*k, 84, 14),
            (25, -0.04, ANK + 0.10*k, 86, 2), (29, 0.15, ANK + 0.04*k, 88, -2), (31, 0.165, ANK + 0.008, 88, 0), (32, x0, ANK, 88, 0)]
-    pel = {0:(0.07,-0.07,PZ(0.875)), 7:(0.06,-0.075,PZ(0.855)), 14:(0.03,-0.08,PZ(0.845)), 19:(0.06,-0.07,PZ(0.87)), 26:(0.085,-0.065,PZ(0.89)), 32:(0.07,-0.07,PZ(0.875))}
-    ptch = {0:24, 7:28, 14:32, 19:27, 26:21, 32:24}
+    pel = {0:(0.08,-0.07,PZ(0.83)), 7:(0.07,-0.075,PZ(0.80)), 14:(0.04,-0.08,PZ(0.785)), 19:(0.07,-0.07,PZ(0.82)), 26:(0.095,-0.065,PZ(0.85)), 32:(0.08,-0.07,PZ(0.83))}
+    ptch = {0:30, 7:34, 14:40, 19:33, 26:26, 32:30}
     fl = (0.20, 0.03, ZD)
     for f, x, z, yaw, pit in bk:
         key("footR", f, (x, fy, z), (yaw, pit, 0)); key("toeR", f, None, (yaw, 0 if f <= PUSH_PLANT else pit*0.4, 0))
@@ -247,8 +272,8 @@ def clip_push(L=32):
         key("kneeL", f, knee_pole(fl, 78, hip, 0.8)); key("kneeR", f, knee_pole(tuple(C["footR"][0].location), 88, hip, 0.8))
     for f in range(0, L+1, 4):
         s = math.cos(2*math.pi*(f - 14)/L); sc.frame_set(f); hip = Vector(C["pelvis"][0].location)
-        key("handR", f, tuple(hip + Vector((0.16 + 0.22*s, -0.27, 0.10 + 0.08*s))))
-        key("handL", f, tuple(hip + Vector((0.08 - 0.16*s, 0.22, 0.06 - 0.03*s))))
+        key("handR", f, tuple(hip + Vector((0.10 + 0.26*s, -0.30, 0.06 + 0.12*s))))
+        key("handL", f, tuple(hip + Vector((0.02 - 0.26*s, 0.28, 0.00 - 0.02*s))))
         key("elbowR", f, tuple(hip + Vector((-0.4, -0.7, 0.4)))); key("elbowL", f, tuple(hip + Vector((-0.4, 0.7, 0.4))))
     for fc in fcurves_of(C["footR"][0]):
         if fc.data_path == "location" and fc.array_index == 0:
@@ -260,7 +285,7 @@ def clip_push(L=32):
 def build(name, L_or_fn, cyclic):
     for n, (c, o) in C.items(): c.animation_data_clear()
     for n in FINGERS: PB[n].keyframe_delete if False else None
-    if callable(L_or_fn) and cyclic: L = L_or_fn()
+    if callable(L_or_fn) and (cyclic or getattr(L_or_fn, "anim", False)): L = L_or_fn()
     else: L = 1; P = L_or_fn(); pose(0, P); pose(1, P)
     if cyclic:
         for n, (c, o) in C.items():
@@ -278,6 +303,11 @@ def build(name, L_or_fn, cyclic):
     for pb in PB:
         for c in pb.constraints: c.mute = True
     rep = []
+    sc.frame_set(0)
+    for s_ in "LR":
+        tgt = C["hand"+s_][0].matrix_world.translation
+        got = arm.matrix_world @ PB[MAP["hand"+s_]].head
+        if (tgt-got).length > 0.06: print("REACH", name, s_, "miss", round((tgt-got).length,3))
     for f in range(0, L+1):
         sc.frame_set(f)
         rep.append([round((arm.matrix_world @ PB[MAP["foot"+s]].head).z, 3) for s in "LR"] + [round((arm.matrix_world @ PB[MAP["foot"+s]].head).x, 3) for s in "LR"])
