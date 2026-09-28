@@ -22,6 +22,7 @@ const SCRIPTS={
   vert: [ {place:[5,-15.2,-Math.PI/2,10]}, {t:0.1, hold:["push"]}, {t:1.2, rel:["push"]}, {t:5.0, end:true} ],
   quarter2: [ {place:[-16,14,0,9.5]}, {t:4.5, end:true} ],
   prail: [ {place:[1.9,-44,0,6.5]}, {t:0.45, hold:["ollie"]}, {t:0.7, rel:["ollie"]}, {prompt:"manual"}, {t:4.0, end:true} ],
+  ollie: [ {place:[-2,-44,0,5.5]}, {t:0.5, hold:["ollie"]}, {t:0.8, rel:["ollie"]}, {t:2.0, end:true} ],
   grind: [ {rail:0, off:1.0, speed:6.5}, {t:0.05, hold:['push']}, {t:0.5, rel:['push']}, {prompt:'manual'}, {t:4.5, end:true} ],
 };
 (async()=>{ const b=await puppeteer.launch({executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:'new',args:['--use-angle=metal','--enable-gpu','--ignore-gpu-blocklist','--mute-audio']});

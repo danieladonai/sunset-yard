@@ -15,7 +15,7 @@ from mathutils import Matrix, Vector, Quaternion
 OUT = sys.argv[-1]
 FPS = 30
 DECK = 0.108
-LIFT_TUCK, LIFT_GRAB = 0.20, 0.47
+LIFT_TUCK, LIFT_GRAB = 0.30, 0.47
 MELON_UP = 0.10      # the melon pulls the board 10cm higher, up to the hand
 R = math.radians
 sc = bpy.context.scene; sc.render.fps = FPS
@@ -166,12 +166,12 @@ def P_pop():
     return dict(pel=pel, prot=(24, 10, -4), chest=(34, 14, -4), head=(80, 6),
                 fL=(0.33, 0.045, ZD + 0.05, 42, -18), fR=(-0.33, 0.055, ZD, 4, 10), toeL=0, toeR=0, aL=(0.70, 0.35, 0.30, 0.95), aR=(0.70, 0.40, -0.10, 0.95))
 def P_tuck():
-    z = ZD + LIFT_TUCK; pel = (-0.02, 0.05, PZ(0.90))
-    return dict(pel=pel, prot=(20, 22, 0), chest=(30, 26, 0), head=(76, -10),
+    z = ZD + LIFT_TUCK; pel = (-0.02, 0.06, PZ(0.88))
+    return dict(pel=pel, prot=(20, 30, 0), chest=(30, 34, 0), head=(76, -18),
                 fL=(0.20, 0.045, z, 30, 0), fR=(-0.23, 0.05, z, 4, 0), aL=(0.80, 0.45, 0.35, 0.93), aR=(0.80, 0.50, -0.05, 0.93))
 def P_flip():
     # feet off the board over the flip: front foot flicked out toward the nose/heel side, back foot up
-    z = ZD + LIFT_TUCK + 0.14; pel = (-0.02, 0.05, PZ(0.93))
+    z = ZD + LIFT_TUCK + 0.10; pel = (-0.02, 0.05, PZ(0.92))
     return dict(pel=pel, prot=(20, 18, 0), chest=(30, 20, 0), head=(72, -14),
                 fL=(0.30, 0.10, z + 0.02, 36, -12), fR=(-0.26, 0.04, z - 0.03, 6, 6), aL=(0.85, 0.30, 0.30, 0.95), aR=(0.85, 0.35, -0.10, 0.95))
 def P_grab(kind):

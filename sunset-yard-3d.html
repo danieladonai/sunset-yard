@@ -491,7 +491,7 @@ const DECK_TOP=0.030*BOARD_S, SOLE_DROP=0.114;   /* SOLE_DROP is the shoe, not t
 /* v3: the tuck and the grab lift the board a REAL distance toward the chest
    (26cm / +16cm more), in metres — scaled by BOARD_S it was 9cm, which with the
    hips rising 14cm at the same time actually STRAIGHTENED the legs in the air. */
-function boardLift(){ return DECK_Y0*BOARD_S + (sk.tuck||0)*0.20 + (sk.grabL||0)*(0.27 + ((sk.grab&&sk.grab.name!=="Indy")?0.10:0)); }
+function boardLift(){ return DECK_Y0*BOARD_S + (sk.tuck||0)*0.30 + (sk.grabL||0)*(0.17 + ((sk.grab&&sk.grab.name!=="Indy")?0.10:0)); }
 /* Hip height above the sole while riding. Held constant because it is the
    CHARACTER's geometry, not the board's — and it is why HIPS_Y has to follow the
    deck down: the legs already sit 96% extended, so lowering the board on its own
@@ -3945,7 +3945,7 @@ function recolorOutfit(mesh, outfit){
    Clip space = the old model root space: X nose, Y up, Z the toe edge.
    ======================================================================= */
 const RIDER4 = { 'lowpoly-woman':'./sunset-yard-assets/chars/nova.glb', 'lowpoly-man':'./sunset-yard-assets/chars/rio.glb' };
-const R4 = { DECK:0.108, LIFT_TUCK:0.20, LIFT_GRAB:0.47, STRIDE:0.56, PLANT_F:14, PUSH_F:32, FPS:30 };
+const R4 = { DECK:0.108, LIFT_TUCK:0.30, LIFT_GRAB:0.47, STRIDE:0.56, PLANT_F:14, PUSH_F:32, FPS:30 };
 const V4_HAIR = { 'lowpoly-woman':0x2A1A12, 'lowpoly-man':0x1B1410 };
 const USE_R4 = !QS.has("v3rider");
 let rider4=null, rider4Id=null, rider4Loading=false;
