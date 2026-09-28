@@ -2857,9 +2857,17 @@ function buildProps(){
     const dckM=NEARM(new THREE.MeshStandardMaterial({color:0x2A2233,roughness:0.55,flatShading:true}));
     const btlM=NEARM(new THREE.MeshStandardMaterial({color:0x9FB8A8,roughness:0.35,metalness:0.1,flatShading:true}));
     const bag=[],bmb=[],spk=[],dck=[],btl=[];
+    /* v4: a kit needs ~2.4m of plain, flat slab: never on an obstacle, never on a rail's line */
+    const railD=(x,z)=>{ let d=1e9; for(const rl of rails){ const dx=x-rl.a.x, dz=z-rl.a.z; let t=dx*rl.dir.x+dz*rl.dir.z; t=Math.max(0,Math.min(rl.len,t));
+      d=Math.min(d, Math.hypot(x-(rl.a.x+rl.dir.x*t), z-(rl.a.z+rl.dir.z*t))); } return d; };
+    const kitOK=(x,z)=>{ if(railD(x,z)<3.2) return false;
+      for(let k=0;k<12;k++){ const a=k*0.5236; for(const rr of [0,1.2,2.4]){ const px=x+Math.cos(a)*rr, pz=z+Math.sin(a)*rr;
+        if(Math.abs(surfH(px,pz)-groundH(px,pz))>0.02 || Math.abs(groundH(px,pz))>0.05) return false; } }
+      return true; };
     for(const o of OBS.slice(0,6)){
-      const a=RNG()*6.283, r=o[2]*0.92;
-      const bx=o[0]+Math.cos(a)*r, bz=o[1]+Math.sin(a)*r;
+      let a=RNG()*6.283, r=o[2]*0.92, bx=o[0]+Math.cos(a)*r, bz=o[1]+Math.sin(a)*r, ok=kitOK(bx,bz);
+      for(let t=0;t<16 && !ok;t++){ a+=0.393; r=o[2]*(0.95+0.15*(t%3)); bx=o[0]+Math.cos(a)*r; bz=o[1]+Math.sin(a)*r; ok=kitOK(bx,bz); }
+      if(!ok) continue;
       if(Math.hypot(bx,bz)>34) continue;
       bag.push([bx,0.20,bz,RNG()*3.14,0,0.22,1]);
       bmb.push([bx+0.9,0.16,bz+0.5,RNG()*3.14,0,0,1]);
@@ -4006,6 +4014,14 @@ const _r4lean=new THREE.Quaternion(), _r4base=new THREE.Quaternion().setFromAxis
 function updateRider4(dt){
   const R=rider4, A=R.A, st=sk.state, air=st==="air", bw=sk.bailW||0;
   R.root.quaternion.copy(_r4lean.setFromAxisAngle(_r4Z, -(sk.roll||0)*0.85)).multiply(_r4base);
+  /* v4: the body stays more upright than the ramp under it (35% back toward world-up). The feet
+     stay on the deck through the foot lock below; the head no longer sweeps a big arc on every
+     transition, which is what made quarter/vert re-entries read as a dive. */
+  { const wu=_r4a.set(0,1,0).applyQuaternion(_r4q.copy(skater.quaternion).invert());
+    R.qc = (R.qc||new THREE.Quaternion()).setFromUnitVectors(_r4b.set(0,1,0), wu);
+    R.qc.slerp(_r4q.identity(), 0.65);
+    if(bw>0.001) R.qc.identity();
+    R.root.quaternion.premultiply(R.qc); }
   /* hip spring: landings drive the body down and it rebounds (underdamped, ~0.3s) */
   { const onGround = st!=="air";
     if(bw>0.001){ R.hipY=0; R.hipV=0; }
@@ -4076,7 +4092,7 @@ function updateRider4(dt){
   _r4m.makeTranslation(0, -(DECK_Y0*BOARD_S + nomLift), 0);          /* nominal board -> origin */
   _r4m2.multiplyMatrices(_r4o.matrix, _r4m);                            /* skater-space correction */
   /* the clips' deck lives in the ROOT frame, which the carve lean has tilted: undo that tilt */
-  _r4m2.multiply(_r4m.makeRotationZ((sk.roll||0)*0.85)).multiply(_r4m.makeTranslation(0, -(R.hipY||0), 0));
+  _r4m2.multiply(_r4m.makeRotationZ((sk.roll||0)*0.85)).multiply(_r4m.makeRotationFromQuaternion(_r4q.copy(R.qc||_r4q.identity()).invert())).multiply(_r4m.makeTranslation(0, -(R.hipY||0), 0));
   /* to world: skater.matrixWorld * corr * skater.matrixWorld^-1 */
   _r4inv.copy(skater.matrixWorld).invert();
   const corrW = _r4m.multiplyMatrices(skater.matrixWorld, _r4m2).multiply(_r4inv);
@@ -5535,7 +5551,7 @@ function launchLip(fx,fz){
   sk.lipTair = Math.max(0.35, 2*sk.vy/T.gravity);
   /* only a launch that goes UP the wall comes back down it facing the other way; a carve along a
      bowl lip keeps its heading (turning those 90deg in the air read as a spin and bailed sideways) */
-  sk.lipArc = Math.abs(wrapA(sk.lipDown - sk.lipYaw0 - Math.PI)) < 0.8;
+  sk.lipArc = !!sk.lipQ && Math.abs(wrapA(sk.lipDown - sk.lipYaw0 - Math.PI)) < 0.8;   /* quarters + vert only: a bowl lip is height-field, its "downhill" swings with position */
   if(charged){ sk.lipBoost=true; held.ollie=false; sk.ollieWas=false; sk.chargeT=0; } else sk.lipBoost=false;
   comboStart(); sfx.ollie(); sk.crouch=-0.15; sk.crouchT=0;
 }
