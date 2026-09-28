@@ -3975,8 +3975,10 @@ function r4s(k, v, dt, rate){ const W=rider4.W; if(W[k]===undefined){ W[k]=v; re
 const _r4a=new THREE.Vector3(), _r4b=new THREE.Vector3(), _r4c=new THREE.Vector3(), _r4k=new THREE.Vector3(), _r4n=new THREE.Vector3(),
       _r4q=new THREE.Quaternion(), _r4q2=new THREE.Quaternion(), _r4m=new THREE.Matrix4(), _r4m2=new THREE.Matrix4(), _r4inv=new THREE.Matrix4(),
       _r4o=new THREE.Object3D(), _r4d1=new THREE.Vector3(), _r4d2=new THREE.Vector3();
+const _r4lean=new THREE.Quaternion(), _r4base=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),-Math.PI/2), _r4Z=new THREE.Vector3(0,0,1);
 function updateRider4(dt){
   const R=rider4, A=R.A, st=sk.state, air=st==="air", bw=sk.bailW||0;
+  R.root.quaternion.copy(_r4lean.setFromAxisAngle(_r4Z, -(sk.roll||0)*0.85)).multiply(_r4base);
   /* ---- weights from game state ---- */
   const roll = st==="roll";
   const pushOn = !!(sk.pushOn && roll);
@@ -3993,7 +3995,9 @@ function updateRider4(dt){
   const wManual = r4s("man", st==="manual"?1:0, dt, 10), wGrind = r4s("grind", st==="grind"?1:0, dt, 14);
   const lean = roll ? (sk.lean||0)/0.35 : 0;
   const wToe = r4s("toe", Math.max(0, lean)*0.9*(1-wPush), dt, 8), wHeel = r4s("heel", Math.max(0,-lean)*0.9*(1-wPush), dt, 8);
-  const wBail = bw;
+  /* a slam FALLS: the weight follows gravity (t^2 over ~0.34s) instead of a linear morph */
+  R.bailT = bw>0.001 ? (R.bailT||0)+dt : 0;
+  const wBail = bw>0.001 ? Math.min(1, Math.pow(R.bailT/0.34, 2)) : 0;
   let W = { Push_Loop:wPush, Crouch:wCrouch*(1-wPush), Air_Tuck:wTuck, Air_Flip:wFlip, Pop:Math.max(0,Math.min(1,wPop))*(1-wFlip),
             Grab_Indy:wGrabI, Grab_Melon:wGrabM, Manual:wManual, Grind:wGrind, Carve_Toe:wToe, Carve_Heel:wHeel, Bail:wBail };
   let sum=0; for(const k in W) sum+=W[k];
@@ -4019,9 +4023,11 @@ function updateRider4(dt){
   const root=R.root; root.updateMatrixWorld(true);
   /* stance (board without its flip) vs the nominal board the clips assume, both in skater space */
   const pitch=sk.bpitch||0, wob=(st==="grind"||st==="manual")?(sk.balance||0)*0.3:0;
-  _r4o.position.set(0, board.position.y + (sk.flipRem>0.2?0.07:0), 0); _r4o.rotation.set(pitch,0,wob); _r4o.updateMatrix();
+  _r4o.position.set(0, board.position.y + (sk.flipRem>0.2?0.07:0), 0); _r4o.rotation.set(pitch,0,wob - (sk.roll||0)*0.45); _r4o.updateMatrix();
   _r4m.makeTranslation(0, -(DECK_Y0*BOARD_S + nomLift), 0);          /* nominal board -> origin */
   _r4m2.multiplyMatrices(_r4o.matrix, _r4m);                            /* skater-space correction */
+  /* the clips' deck lives in the ROOT frame, which the carve lean has tilted: undo that tilt */
+  _r4m2.multiply(_r4m.makeRotationZ((sk.roll||0)*0.85));
   /* to world: skater.matrixWorld * corr * skater.matrixWorld^-1 */
   _r4inv.copy(skater.matrixWorld).invert();
   const corrW = _r4m.multiplyMatrices(skater.matrixWorld, _r4m2).multiply(_r4inv);
@@ -5362,7 +5368,16 @@ function step(dt){
    only works on the flat. Returns "air" if the ride ended airborne. */
 const _g2={x:0,z:0}, _nrmT=new THREE.Vector3(), _v3=new THREE.Vector3();
 function rideGround(dt, steer, turnMul, passive){
-  sk.yaw += steer*T.turn*turnMul*dt;
+  /* v4 LEAN-STEER: a board turns because you tip it onto its trucks, so the turn follows the
+     SMOOTHED steer (the deck has to roll over first), pivots gently when slow and carves
+     harder with speed; a hard carve scrubs a little speed. The lean you'd need to hold
+     that turn (atan(v*w/g)) is what the rider and deck show. */
+  const st = passive ? steer : (sk.steer||0);
+  const v = Math.abs(sk.speed||0);
+  const w = st*Math.min(T.turn*1.12, 1.2 + 0.14*v)*turnMul;
+  sk.yaw += w*dt;
+  sk.carveW = w;
+  if(!passive && v>2) sk.speed -= Math.abs(st)*v*0.035*dt;
   let fx=Math.sin(sk.yaw), fz=Math.cos(sk.yaw);
   const along=slopeAt(sk.pos.x,sk.pos.z,fx,fz);
   const inv=1/Math.sqrt(1+along*along), sinA=along*inv, cosA=inv;
@@ -5698,7 +5713,10 @@ function applyTransform(dt){
   /* x/z reset EVERY frame: the slam kick-out below used to accumulate (+=) and
      never came back, so after any bail the board drifted off and you rode on air */
   board.position.set(0, boardLift(), 0);
-  board.rotation.set(pitch, sk.flip*sk.axis.y, sk.flip*sk.axis.z + wob);
+  /* the deck rolls onto its trucks through a carve (about half the rider's lean) */
+  { const want = (sk.state==="roll") ? Math.max(-0.5,Math.min(0.5, Math.atan((sk.speed||0)*(sk.carveW||0)/9.8))) : 0;
+    sk.roll = (sk.roll||0) + (want-(sk.roll||0))*Math.min(1,(dt||1/120)*10); }
+  board.rotation.set(pitch, sk.flip*sk.axis.y, sk.flip*sk.axis.z + wob - (sk.roll||0)*0.45);
   /* v3 SLAM: the board is its own object once it leaves your feet (see bailBoard*):
      it slides off, rolls onto its edge and stops. The rider drops onto the concrete.
      A short fade covers the reset, so there's no magnet glide back under the feet. */

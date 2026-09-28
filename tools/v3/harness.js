@@ -136,7 +136,7 @@ async function cards() {
     await pg.evaluate(i => window.__dbg.pick(i), i);
     await pg.waitForFunction('window.__dbg.charReady()', { timeout: 60000 }); await new Promise(r => setTimeout(r, 600));
     await pg.evaluate(() => { const D = window.__dbg; for (const k in D.held) D.held[k] = false; D.edges.clear();
-      D.state().phase = 'playing'; D.place(0, -5, 0.6, 15); D.held.ollie = true; D.step(50); D.state().phase = 'paused';
+      D.state().phase = 'playing'; D.place(0, -5, 0.6, 4); D.step(90); D.state().phase = 'paused';
       const s = D.sk(), yv = s.yaw, rx = -Math.cos(yv), rz = Math.sin(yv), fx = Math.sin(yv), fz = Math.cos(yv);
       window.__setFrame([s.pos.x + rx * 2.6 + fx * 1.1, s.pos.y + 1.15, s.pos.z + rz * 2.6 + fz * 1.1], [s.pos.x, s.pos.y + 0.75, s.pos.z]);
       for (const id of ['hud', 'touch', 'start', 'over']) { const e = document.getElementById(id); if (e) e.style.visibility = 'hidden'; } });
