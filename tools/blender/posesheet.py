@@ -24,7 +24,7 @@ sc.world=bpy.data.worlds.new("w"); sc.world.use_nodes=True; sc.world.node_tree.n
 r=3.3; a=math.radians(YAW); p=Vector((math.sin(a)*r,-math.cos(a)*r,1.3)); t=Vector((0,0,0.75))
 bpy.ops.object.camera_add(location=p); c=bpy.context.object; c.rotation_euler=(t-p).to_track_quat('-Z','Y').to_euler(); c.data.lens=45; sc.camera=c
 sc.render.engine='BLENDER_EEVEE'; sc.render.resolution_x=420; sc.render.resolution_y=520; sc.view_settings.view_transform='Standard'
-LIFT={"Air_Tuck":0.20,"Air_Flip":0.20,"Grab_Indy":0.47,"Grab_Melon":0.47}
+LIFT={"Air_Tuck":0.30,"Air_Flip":0.30,"Grab_Indy":0.47,"Grab_Melon":0.57}
 for act in bpy.data.actions:
     if NAMES!="all" and act.name not in NAMES.split(","): continue
     ad.action=act

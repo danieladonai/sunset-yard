@@ -164,16 +164,16 @@ def P_pop():
     # back leg snaps straight on the tail, front foot drags up toward the nose, arms rise
     pel = (-0.05, 0.03, PZ(0.95))
     return dict(pel=pel, prot=(24, 10, -4), chest=(34, 14, -4), head=(80, 6),
-                fL=(0.33, 0.045, ZD + 0.05, 42, -18), fR=(-0.33, 0.055, ZD, 4, 10), toeL=0, toeR=0, aL=(0.70, 0.35, 0.30, 0.95), aR=(0.70, 0.40, -0.10, 0.95))
+                fL=(0.33, 0.045, ZD + 0.05, 42, -18), fR=(-0.33, 0.055, ZD, 4, 10), toeL=0, toeR=0, aL=(0.62, 0.62, 0.34, 0.90), aR=(0.62, 0.66, -0.06, 0.90))
 def P_tuck():
     z = ZD + LIFT_TUCK; pel = (-0.02, 0.06, PZ(0.88))
     return dict(pel=pel, prot=(20, 30, 0), chest=(30, 34, 0), head=(76, -18),
-                fL=(0.20, 0.045, z, 30, 0), fR=(-0.23, 0.05, z, 4, 0), aL=(0.80, 0.45, 0.35, 0.93), aR=(0.80, 0.50, -0.05, 0.93))
+                fL=(0.20, 0.045, z, 30, 0), fR=(-0.23, 0.05, z, 4, 0), aL=(0.60, 0.66, 0.36, 0.88), aR=(0.60, 0.70, -0.02, 0.88))
 def P_flip():
     # feet off the board over the flip: front foot flicked out toward the nose/heel side, back foot up
     z = ZD + LIFT_TUCK + 0.10; pel = (-0.02, 0.05, PZ(0.92))
     return dict(pel=pel, prot=(20, 18, 0), chest=(30, 20, 0), head=(72, -14),
-                fL=(0.30, 0.10, z + 0.02, 36, -12), fR=(-0.26, 0.04, z - 0.03, 6, 6), aL=(0.85, 0.30, 0.30, 0.95), aR=(0.85, 0.35, -0.10, 0.95))
+                fL=(0.30, 0.10, z + 0.02, 36, -12), fR=(-0.26, 0.04, z - 0.03, 6, 6), aL=(0.66, 0.58, 0.32, 0.90), aR=(0.66, 0.62, -0.06, 0.90))
 def P_grab(kind):
     z = ZD + LIFT_GRAB; pel = (-0.02, 0.07, PZ(0.93))
     if kind == "indy":     # back hand, toe edge, between the feet
@@ -197,10 +197,10 @@ def P_carve(side):
 def P_manual():
     # weight over the back truck, front leg long, arms wide
     pel = (-0.13, 0.03, PZ(0.90))
-    return dict(pel=pel, prot=(24, 4, 0), chest=(36, 8, 0), head=(80, 8), fL=(0.21, 0.045, ZD, 34, 0), fR=(-0.25, 0.055, ZD, 4, 0), aL=(0.90, 0.35, 0.15, 0.95), aR=(0.90, 0.40, -0.10, 0.95))
+    return dict(pel=pel, prot=(24, 4, 0), chest=(36, 8, 0), head=(80, 8), fL=(0.21, 0.045, ZD, 34, 0), fR=(-0.25, 0.055, ZD, 4, 0), aL=(0.74, 0.52, 0.18, 0.92), aR=(0.74, 0.56, -0.08, 0.92))
 def P_grind():
     pel = (-0.02, 0.04, PZ(0.86))
-    return dict(pel=pel, prot=(22, 16, 0), chest=(32, 20, 0), head=(84, 0), fL=STANCE_L, fR=STANCE_R, aL=(0.95, 0.30, 0.20, 0.95), aR=(0.95, 0.35, -0.05, 0.95))
+    return dict(pel=pel, prot=(22, 16, 0), chest=(32, 20, 0), head=(84, 0), fL=STANCE_L, fR=STANCE_R, aL=(0.78, 0.48, 0.22, 0.92), aR=(0.78, 0.52, -0.04, 0.92))
 def P_bail():
     # slammed onto the concrete: sat down hard on the heel side, hands back, legs out toward the toe edge
     pel = (0.0, 0.22, 0.13)
