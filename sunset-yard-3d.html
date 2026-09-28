@@ -448,7 +448,7 @@ function applyCharacter(i){
   if(hairGroup) hairGroup.scale.setScalar(c.hairScale||1);
   /* the recolour above still drives the blocky rig; a generated model carries
      its own textures, so the roster swaps the whole mesh instead */
-  loadCharacterModel(c.id);
+  if(USE_R4 && RIDER4[c.id]) loadRider4(c.id); else loadCharacterModel(c.id);
   document.querySelectorAll(".char-card").forEach((card,ix)=>card.classList.toggle("sel", ix===i));
 }
 /* character-select row on the start overlay — built from CHARACTERS so the
@@ -3919,6 +3919,136 @@ function recolorOutfit(mesh, outfit){
         diffuseColor.rgb=mix(c, vRecolor.rgb*f, step(0.001,vRecolor.a)*warm); }`);
   }; m.customProgramCacheKey=()=>"sy-recolor"; m.needsUpdate=true; });
 }
+/* =======================================================================
+   v4 CLIP RIDER — hand-keyed animation from Blender, not poses invented per frame
+   tools/blender/author2.py keys every clip and pose on a dressed Quaternius body
+   (CC0) with IK controls and bakes them to plain bone keys. Here they are only
+   BLENDED by game state, then two small fixes are layered on top:
+     - the push clip's clock is the push stroke itself, so the planted foot
+       covers exactly the ground the board rolls over (no ice-skating)
+     - a residual foot lock: the clips assume a flat deck at its nominal lift;
+       the real deck pitches (pop, manual) and wobbles (grind), so each foot
+       that is ON the board is carried by that difference and the leg re-solved
+   Clip space = the old model root space: X nose, Y up, Z the toe edge.
+   ======================================================================= */
+const RIDER4 = { 'lowpoly-woman':'./sunset-yard-assets/chars/nova.glb', 'lowpoly-man':'./sunset-yard-assets/chars/rio.glb' };
+const R4 = { DECK:0.108, LIFT_TUCK:0.20, LIFT_GRAB:0.47, STRIDE:0.56, PLANT_F:14, PUSH_F:32, FPS:30 };
+const V4_HAIR = { 'lowpoly-woman':0x2A1A12, 'lowpoly-man':0x1B1410 };
+const USE_R4 = !QS.has("v3rider");
+let rider4=null, rider4Id=null, rider4Loading=false;
+function unloadRider4(){
+  if(!rider4) return;
+  if(rider4.root.parent) rider4.root.parent.remove(rider4.root);
+  rider4.mixer.stopAllAction();
+  rider4.root.traverse(o=>{ if(o.geometry) o.geometry.dispose(); const m=o.material; if(!m) return;
+    (Array.isArray(m)?m:[m]).forEach(mm=>{ for(const k in mm){ const v=mm[k]; if(v&&v.isTexture) v.dispose(); } mm.dispose(); }); });
+  (rider4.boxes||[]).forEach(m=>m.visible=true);
+  rider4=null; rider4Id=null;
+}
+function loadRider4(id){
+  const url=RIDER4[id]; if(!url || rider4Loading || rider4Id===id) return;
+  if(rider4) unloadRider4();
+  if(charModel) unloadCharacterModel();
+  rider4Loading=true; rider4Id=id;
+  new GLTFLoader().load(url, gltf=>{
+    const root=gltf.scene;
+    root.traverse(o=>{ if(o.isMesh||o.isSkinnedMesh){ o.castShadow=true; o.receiveShadow=true; o.frustumCulled=false;
+      (Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{ if(!m) return;
+        m.envMapIntensity=0.6; if(m.map) m.map.colorSpace=THREE.SRGBColorSpace;
+        if(/hair|eyebrow/i.test(m.name)) m.color.setHex(V4_HAIR[id]||0x241712);
+        if(/^(Shirt|Pants)/.test(m.name) && "sheen" in m){ m.sheen=0.5; m.sheenRoughness=0.8; m.sheenColor=new THREE.Color(0xFFE2C8); }
+        m.needsUpdate=true; }); } });
+    const boxes=boxMeshes();
+    skater.add(root); root.rotation.set(0,-Math.PI/2,0); root.updateMatrixWorld(true);
+    boxes.forEach(m=>m.visible=false);
+    const mixer=new THREE.AnimationMixer(root), A={};
+    for(const clip of gltf.animations){ const a=mixer.clipAction(clip); a.play(); a.setEffectiveWeight(0); A[clip.name]=a; }
+    if(A.Push_Loop){ A.Push_Loop.paused=true; }
+    const B=n=>root.getObjectByName(n);
+    const legs={}; for(const s of ["l","r"]) legs[s]={thigh:B("thigh_"+s), calf:B("calf_"+s), foot:B("foot_"+s)};
+    rider4={root, mixer, A, legs, boxes, W:{}, pushT:0};
+    rider4Loading=false;
+  }, undefined, err=>{ console.warn('[rider4] load failed, falling back', String(err&&err.message||err)); rider4Loading=false; rider4Id=null; loadCharacterModel(id); });
+}
+/* critically damped weight smoothing, per channel */
+function r4s(k, v, dt, rate){ const W=rider4.W; if(W[k]===undefined){ W[k]=v; return v; } W[k]+= (v-W[k])*Math.min(1, dt*(rate||12)); return W[k]; }
+const _r4a=new THREE.Vector3(), _r4b=new THREE.Vector3(), _r4c=new THREE.Vector3(), _r4k=new THREE.Vector3(), _r4n=new THREE.Vector3(),
+      _r4q=new THREE.Quaternion(), _r4q2=new THREE.Quaternion(), _r4m=new THREE.Matrix4(), _r4m2=new THREE.Matrix4(), _r4inv=new THREE.Matrix4(),
+      _r4o=new THREE.Object3D(), _r4d1=new THREE.Vector3(), _r4d2=new THREE.Vector3();
+function updateRider4(dt){
+  const R=rider4, A=R.A, st=sk.state, air=st==="air", bw=sk.bailW||0;
+  /* ---- weights from game state ---- */
+  const roll = st==="roll";
+  const pushOn = !!(sk.pushOn && roll);
+  const wPush = r4s("push", pushOn?1:0, dt, pushOn?13:(roll?5:16));
+  const wCrouch = r4s("crouch", Math.max(0,Math.min(1,sk.crouch||0))*(air?0:1), dt, 16);
+  const tuck = Math.max(0,Math.min(1,sk.tuck||0)), g = Math.max(0,Math.min(1,sk.grabL||0));
+  const flipOn = air && (sk.flipRem||0)>0.2;
+  const wFlip = r4s("flip", flipOn?1:0, dt, flipOn?20:10) * tuck;
+  const popU = (air && sk.airFrom!=="lip" && sk.airFrom!=="edge" && sk.airFrom!=="rail") ? Math.min(1,(sk.airT||0)/0.22) : 1;
+  const wPop = air ? Math.sin(Math.PI*Math.min(1,popU*1.4))*(1-popU) * 1.6 : 0;
+  const indy = sk.grab && sk.grab.name==="Indy";
+  const wGrabI = indy ? g : 0, wGrabM = indy ? 0 : g;
+  const wTuck = Math.max(0, tuck - g - wFlip);
+  const wManual = r4s("man", st==="manual"?1:0, dt, 10), wGrind = r4s("grind", st==="grind"?1:0, dt, 14);
+  const lean = roll ? (sk.lean||0)/0.35 : 0;
+  const wToe = r4s("toe", Math.max(0, lean)*0.9*(1-wPush), dt, 8), wHeel = r4s("heel", Math.max(0,-lean)*0.9*(1-wPush), dt, 8);
+  const wBail = bw;
+  let W = { Push_Loop:wPush, Crouch:wCrouch*(1-wPush), Air_Tuck:wTuck, Air_Flip:wFlip, Pop:Math.max(0,Math.min(1,wPop))*(1-wFlip),
+            Grab_Indy:wGrabI, Grab_Melon:wGrabM, Manual:wManual, Grind:wGrind, Carve_Toe:wToe, Carve_Heel:wHeel, Bail:wBail };
+  let sum=0; for(const k in W) sum+=W[k];
+  if(sum>1){ for(const k in W) W[k]/=sum; sum=1; }
+  W.Ride_Idle = 1-sum;
+  for(const k in A) A[k].setEffectiveWeight(W[k]||0);
+  /* ---- push clock = the stroke ---- */
+  if(A.Push_Loop){
+    const S=sk.stroke||{ph:"idle",t:0,d:0}, F=R4.PUSH_F, P=R4.PLANT_F;
+    let f=R.pushF||0;
+    if(S.ph==="plant") f = P*Math.min(1,(S.d||0)/R4.STRIDE);
+    else if(S.ph==="swing") f = P + (28-P)*Math.min(1,S.t/0.30);
+    else if(S.ph==="reach") f = 28 + (F-28)*Math.min(1,S.t/((S.first)?0.24:0.12));
+    else if(S.ph==="turn") f = 28;
+    R.pushF=f; A.Push_Loop.time = (f%F)/R4.FPS;
+  }
+  R.mixer.update(dt);
+  /* ---- residual foot lock ---- */
+  const nomLift = R4.LIFT_TUCK*(W.Air_Tuck+W.Air_Flip) + R4.LIFT_GRAB*(W.Grab_Indy+W.Grab_Melon);
+  const onL = 1 - Math.min(1, wFlip*1.2 + wBail);
+  const onR = 1 - Math.min(1, wFlip*1.2 + wBail + wPush);
+  if(onL<0.01 && onR<0.01) return;
+  const root=R.root; root.updateMatrixWorld(true);
+  /* stance (board without its flip) vs the nominal board the clips assume, both in skater space */
+  const pitch=sk.bpitch||0, wob=(st==="grind"||st==="manual")?(sk.balance||0)*0.3:0;
+  _r4o.position.set(0, board.position.y + (sk.flipRem>0.2?0.07:0), 0); _r4o.rotation.set(pitch,0,wob); _r4o.updateMatrix();
+  _r4m.makeTranslation(0, -(DECK_Y0*BOARD_S + nomLift), 0);          /* nominal board -> origin */
+  _r4m2.multiplyMatrices(_r4o.matrix, _r4m);                            /* skater-space correction */
+  /* to world: skater.matrixWorld * corr * skater.matrixWorld^-1 */
+  _r4inv.copy(skater.matrixWorld).invert();
+  const corrW = _r4m.multiplyMatrices(skater.matrixWorld, _r4m2).multiply(_r4inv);
+  corrW.decompose(_r4a, _r4q2, _r4b);
+  for(const [s,on] of [["l",onL],["r",onR]]){
+    if(on<0.01) continue;
+    const L=R.legs[s]; if(!L.thigh) continue;
+    const hip=L.thigh.getWorldPosition(_r4a.clone()), knee=L.calf.getWorldPosition(_r4b.clone()), ank=L.foot.getWorldPosition(_r4c.clone());
+    const footQ=L.foot.getWorldQuaternion(new THREE.Quaternion());
+    const tgt=ank.clone().applyMatrix4(corrW).lerp(ank, 1-on);
+    if(tgt.distanceToSquared(ank)<1e-8) continue;
+    const l1=hip.distanceTo(knee), l2=knee.distanceTo(ank);
+    const pole=_r4k.subVectors(knee, _r4n.copy(hip).lerp(ank,0.5));
+    const nk=new THREE.Vector3(), na=new THREE.Vector3();
+    ik2(hip, tgt, l1, l2, pole, nk, na);
+    /* thigh: swing hip->knee onto hip->newKnee (world), then back to local */
+    const swing=(bone, from, to)=>{ _r4q.setFromUnitVectors(from.normalize(), to.normalize());
+      const wq=bone.getWorldQuaternion(new THREE.Quaternion()); const nq=_r4q.clone().multiply(wq);
+      const pq=bone.parent.getWorldQuaternion(new THREE.Quaternion()).invert(); bone.quaternion.copy(pq.multiply(nq)); bone.updateMatrixWorld(true); };
+    swing(L.thigh, _r4d1.subVectors(knee,hip), _r4d2.subVectors(nk,hip));
+    const knee2=L.calf.getWorldPosition(new THREE.Vector3()), ank2=L.foot.getWorldPosition(new THREE.Vector3());
+    swing(L.calf, _r4d1.subVectors(ank2,knee2), _r4d2.subVectors(na,knee2));
+    /* foot: carried by the deck's rotation, blended by contact */
+    const want=_r4q2.clone().multiply(footQ); want.slerp(footQ, 1-on);
+    const pq=L.foot.parent.getWorldQuaternion(new THREE.Quaternion()).invert(); L.foot.quaternion.copy(pq.multiply(want)); L.foot.updateMatrixWorld(true);
+  }
+}
 function unloadCharacterModel(){
   if(!charModel) return;
   if(charModel.root.parent) charModel.root.parent.remove(charModel.root);
@@ -5167,7 +5297,7 @@ function step(dt){
         fxPuff(sk.pos.x - fwd.x*0.9, surfH(sk.pos.x,sk.pos.z), sk.pos.z - fwd.z*0.9, 4, 1.0); if(sfx.push) sfx.push(); } }
     else if(S.ph==="plant"){ S.t+=dt; S.d+=Math.max(0,sk.speed)*dt;
       if(sk.speed<T.pushMax) sk.speed=Math.min(T.pushMax, sk.speed + (T.pushKick/0.22)*(1-0.45*sk.speed/T.pushMax)*dt);
-      if(S.d>=0.60 || S.t>0.45 || !wantPush || sk.state!=="roll"){ S.ph="swing"; S.gz0=0.30-S.d; S.t=0; } }
+      if(S.d>=0.56 || S.t>0.60 || !wantPush || sk.state!=="roll"){   /* 0.56 = the v4 push clip's stride */ S.ph="swing"; S.gz0=0.30-S.d; S.t=0; } }
     else if(S.ph==="swing"){ S.t+=dt; if(S.t>=0.30){ S.ph = wantPush ? "reach" : "idle"; S.t=0; } }
     sk.pushOn = S.ph!=="idle" && S.ph!=="turn";
   }
@@ -5581,7 +5711,8 @@ function applyTransform(dt){
   /* the board flips UNDER a stable body — only a small counter-lean */
   poseRig(Math.max(0,Math.min(1,sk.crouch)), sk.lean - Math.sin(sk.flip)*0.12, sk.flip, dt||1/120);
   if(sk.state==="bail"){ rig.rotation.x = 1.1; hips.position.y = 0.55; }
-  if(charModel&&charModel.ik) solveRider(dt||1/120);
+  if(rider4) updateRider4(dt||1/120);
+  else if(charModel&&charModel.ik) solveRider(dt||1/120);
 
   const gy=surfH(sk.pos.x,sk.pos.z);
   const h=Math.max(0,sk.pos.y-gy);
@@ -5828,8 +5959,15 @@ function flash(txt,bail){ const f=el("flash"); f.textContent=txt; f.classList.to
    ======================================================================= */
 let acc=0; const DT=1/120;
 let __lastW=0, __lastH=0;
+/* record mode (harness): __recHold parks the live loop and __advance(n) runs exact
+   frames, so a capture is frame-perfect however slow the screenshots are */
+window.__advance=(n)=>{ for(let i=0;i<n;i++) frameBody(); };
 function frame(){
   requestAnimationFrame(frame);
+  if(window.__recHold) return;
+  frameBody();
+}
+function frameBody(){
   /* bulletproof against missed orientation/resize events (iOS): if the viewport
      no longer matches what we last sized to, re-fit this frame. Cheap int compare. */
   if(innerWidth!==__lastW || innerHeight!==__lastH){ __lastW=innerWidth; __lastH=innerHeight; onResize(); }
@@ -5889,7 +6027,7 @@ window.__pose=(name)=>{
 window.__setFrame=(c,l)=>{ window.__freezeCam=true;
   camera.position.set(c[0],c[1],c[2]); camera.lookAt(l[0],l[1],l[2]); };
 /* v3 test hooks: the headless physics harness drives and reads the sim here */
-window.__dbg={ cm:()=>charModel, board:()=>board, skater:()=>skater, bail:(w)=>bail(w||"test"), pick:(i)=>applyCharacter(i), charReady:()=>!!charModel&&!charLoading, sk:()=>sk, state:()=>state, combo:()=>combo, T, held, edges, surfH, QUARTERS, rails, kickers,
+window.__dbg={ r4:()=>rider4, cm:()=>charModel, board:()=>board, skater:()=>skater, bail:(w)=>bail(w||"test"), pick:(i)=>applyCharacter(i), charReady:()=>(!!charModel&&!charLoading)||(!!rider4&&!rider4Loading), sk:()=>sk, state:()=>state, combo:()=>combo, T, held, edges, surfH, QUARTERS, rails, kickers,
   place:(x,z,yaw,speed)=>{ sk.pos.set(x,surfH(x,z),z); sk.yaw=yaw; sk.yawVis=yaw; sk.speed=speed; sk.state="roll";
     sk.vy=0; sk.vel.set(Math.sin(yaw)*speed,0,Math.cos(yaw)*speed); camYaw=yaw; sk.flipRem=0; sk.flip=0; },
   step:(n)=>{ for(let i=0;i<n;i++) step(DT); } };
