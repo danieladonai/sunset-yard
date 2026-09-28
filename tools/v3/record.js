@@ -29,6 +29,7 @@ const SCRIPTS={
   bailprop: [ {place:[-2.4,-29.5,0,6.5]}, {t:0.4, js:"window.__dbg.bail(\"test\")"}, {t:3.5, end:true} ],
   kitroll: [ {place:[-2.4,-30,0,6]}, {t:2.5, end:true} ],
   bowl: [ {place:[30,6,0,9]}, {t:0.1, hold:["push"]}, {t:0.8, rel:["push"]}, {t:1.0, hold:["left"]}, {t:3.5, rel:["left"]}, {t:5, end:true} ],
+  cruise: [ {place:[0,-60,0,0]}, {t:0.1, hold:["push"]}, {t:11.9, rel:["push"]}, {t:12.0, end:true} ],
   grind: [ {rail:0, off:1.0, speed:6.5}, {t:0.05, hold:['push']}, {t:0.5, rel:['push']}, {prompt:'manual'}, {t:4.5, end:true} ],
 };
 (async()=>{ const b=await puppeteer.launch({executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:'new',args:['--use-angle=metal','--enable-gpu','--ignore-gpu-blocklist','--mute-audio']});

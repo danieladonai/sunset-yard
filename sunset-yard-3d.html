@@ -394,7 +394,7 @@ const T = {
      2.7m flat-ground ollie under 4.3x gravity: it read as a toy, not skating.
      Street speed is 20-30 km/h, a big ollie clears ~0.9m, and you PUSH to move. */
   cruise:8.5, accel:12, brake:5.5, turn:2.1,
-  pushMax:9.4, pushKick:2.5, rollFric:0.18,   /* urethane on smooth concrete, Crr ~0.02 */
+  pushMax:10.2, pushKick:3.3, rollFric:0.13,   /* urethane on smooth concrete, Crr ~0.02 */
   gravity:14, ollie:4.2, kicker:0,     /* full pop 0.62m, a tap 0.38m: a real street ollie, not a 0.9m hop */
   spin:6.2, flipSpeed:15, landTol:0.7,
   balanceDrift:0.8, balanceFix:2.0,
@@ -408,7 +408,7 @@ const T = {
   lipPop:1.2,       /* free vertical kick off any coping, so a lip air always reads as an air */
   lipOllie:2.6,     /* extra pop for a held-and-released ollie AT the lip: the skill shot */
   landAngle:0.87,
-  pushCruise:8.0,   /* v4: holding PUSH kicks up to this, cruises, kicks again ~1.7 m/s lower */   /* ~50deg: more off-line than this, forward OR fakie, and you bail */
+  pushCruise:9.2,   /* v4: holding PUSH kicks up to this, cruises, kicks again ~1.7 m/s lower */   /* ~50deg: more off-line than this, forward OR fakie, and you bail */
   ollieMin:0.78,    /* a quick tap pops 78% of a full ollie; a 0.28s crouch pops 100% */
 };
 const RUN_TIME=120, BOUND=78;
@@ -2862,7 +2862,7 @@ function buildProps(){
     /* v4: a kit needs ~2.4m of plain, flat slab: never on an obstacle, never on a rail's line */
     const railD=(x,z)=>{ let d=1e9; for(const rl of rails){ const dx=x-rl.a.x, dz=z-rl.a.z; let t=dx*rl.dir.x+dz*rl.dir.z; t=Math.max(0,Math.min(rl.len,t));
       d=Math.min(d, Math.hypot(x-(rl.a.x+rl.dir.x*t), z-(rl.a.z+rl.dir.z*t))); } return d; };
-    const kitOK=(x,z)=>{ if(railD(x,z)<3.2) return false;
+    const kitOK=(x,z)=>{ if(railD(x,z)<3.2) return false; for(const L of LANES) if(segDist(x,z,L[0],L[1],L[2],L[3])<3.0) return false;   /* never in a ride line */
       for(let k=0;k<12;k++){ const a=k*0.5236; for(const rr of [0,1.2,2.4,3.6]){ const px=x+Math.cos(a)*rr, pz=z+Math.sin(a)*rr;   /* 3.6: keep a run-out off every bank */
         if(Math.abs(surfH(px,pz)-groundH(px,pz))>0.02 || Math.abs(groundH(px,pz))>0.05) return false; } }
       return true; };
@@ -5467,7 +5467,7 @@ function rideGround(dt, steer, turnMul, passive){
      game played itself. Now wheels just roll: urethane friction slowly bleeds
      speed, the brake drags a foot, and speed only comes from pushing (the push
      cycle in step()) or from gravity on a ramp. */
-  if(sk.speed>0){ sk.speed=Math.max(0, sk.speed - (T.rollFric + (held.brake&&!passive?T.brake:0) + sk.speed*sk.speed*0.0035)*dt); }
+  if(sk.speed>0){ sk.speed=Math.max(0, sk.speed - (T.rollFric + (held.brake&&!passive?T.brake:0) + sk.speed*sk.speed*0.0026)*dt); }
   if(sk.pushBoostT>0 && !passive){ const dd=Math.min(dt,sk.pushBoostT); if(sk.speed<T.pushMax) sk.speed=Math.min(T.pushMax, sk.speed+sk.pushBoost*dd); sk.pushBoostT-=dd; }   /* pushing can't take you past push speed */
   sk.speed=Math.min(sk.speed,T.maxSpeed);
   /* ran out of speed climbing: KICKTURN. The visual yaw eases the 180 so it reads
