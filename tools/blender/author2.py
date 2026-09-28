@@ -87,7 +87,7 @@ def curl_axes():
 CURL = curl_axes()
 def key_fingers(frames, amt=1.0):
     for n in FINGERS:
-        deg = (22 if n.startswith("thumb") else (38 if "_01_" in n else 48)) * amt
+        deg = (6 if n.startswith("thumb") else (14 if "_01_" in n else 18)) * amt   # a relaxed hand, not a claw
         PB[n].rotation_quaternion = Quaternion(CURL[n], R(deg))
         for f in frames: PB[n].keyframe_insert("rotation_quaternion", frame=f)
 

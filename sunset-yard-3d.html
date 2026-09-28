@@ -407,7 +407,8 @@ const T = {
   lipSlope:2.0,     /* steeper than this (~63deg) AND flattening just ahead = the coping: launch */
   lipPop:1.2,       /* free vertical kick off any coping, so a lip air always reads as an air */
   lipOllie:2.6,     /* extra pop for a held-and-released ollie AT the lip: the skill shot */
-  landAngle:0.87,   /* ~50deg: more off-line than this, forward OR fakie, and you bail */
+  landAngle:0.87,
+  pushCruise:8.0,   /* v4: holding PUSH kicks up to this, cruises, kicks again ~1.7 m/s lower */   /* ~50deg: more off-line than this, forward OR fakie, and you bail */
   ollieMin:0.78,    /* a quick tap pops 78% of a full ollie; a 0.28s crouch pops 100% */
 };
 const RUN_TIME=120, BOUND=78;
@@ -5354,8 +5355,14 @@ function step(dt){
      press, so it never feels laggy from a standstill. */
   const flatHereP=Math.abs(slopeAt(sk.pos.x,sk.pos.z,fwd.x,fwd.z))<0.15;
   /* a light lean cruises, a full lean pushes to top push speed */
-  const wantPush = (sk.state==="roll" && held.push && flatHereP && !held.ollie
-                    && !(tiltOwnPush && sk.speed > T.pushMax*(0.45+0.55*tiltDrive)));
+  /* v4 PUSH-AND-GLIDE: real skaters kick 2-4 times up to speed, swivel back into their riding
+     stance and CRUISE, then kick again once they've bled off ~1.7 m/s. Holding PUSH (or leaning
+     the phone) now means "keep my speed up", not "kick forever". */
+  const pushTarget = tiltOwnPush ? T.pushMax*(0.45+0.55*tiltDrive) : T.pushCruise;
+  if(!held.push) sk.cruise=false;
+  else if(!sk.cruise && sk.speed>=pushTarget) sk.cruise=true;
+  else if(sk.cruise && sk.speed<pushTarget-1.7) sk.cruise=false;
+  const wantPush = (sk.state==="roll" && held.push && flatHereP && !held.ollie && !sk.cruise);
   /* ---- PUSH STROKE (v3.2): reach -> plant -> swing, a little state machine ----
      PLANT is DISTANCE-driven: the foot moves back exactly as far as the board rolls, so
      it can never ski along the concrete at any speed, and the drive happens only while
