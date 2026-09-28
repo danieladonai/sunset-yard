@@ -4005,8 +4005,9 @@ function updateRider4(dt){
   /* a slam FALLS: the weight follows gravity (t^2 over ~0.34s) instead of a linear morph */
   R.bailT = bw>0.001 ? (R.bailT||0)+dt : 0;
   const wBail = bw>0.001 ? Math.min(1, Math.pow(R.bailT/0.34, 2)) : 0;
+  const wBrake = r4s("brake", (roll && held.brake && (sk.speed||0)>0.6 && !pushOn) ? 1 : 0, dt, 9);
   let W = { Push_Loop:wPush, Crouch:wCrouch*(1-wPush), Air_Tuck:wTuck, Air_Flip:wFlip, Pop:Math.max(0,Math.min(1,wPop))*(1-wFlip),
-            Grab_Indy:wGrabI, Grab_Melon:wGrabM, Manual:wManual, Grind:wGrind, Carve_Toe:wToe, Carve_Heel:wHeel, Bail:wBail };
+            Grab_Indy:wGrabI, Grab_Melon:wGrabM, Manual:wManual, Brake:wBrake*(1-wPush), Grind:wGrind, Carve_Toe:wToe, Carve_Heel:wHeel, Bail:wBail };
   let sum=0; for(const k in W) sum+=W[k];
   if(sum>1){ for(const k in W) W[k]/=sum; sum=1; }
   W.Ride_Idle = 1-sum;
@@ -4031,7 +4032,7 @@ function updateRider4(dt){
   /* ---- residual foot lock ---- */
   const nomLift = R4.LIFT_TUCK*(W.Air_Tuck+W.Air_Flip) + R4.LIFT_GRAB*(W.Grab_Indy+W.Grab_Melon);
   const onL = 1 - Math.min(1, wFlip*1.2 + wBail);
-  const onR = 1 - Math.min(1, wFlip*1.2 + wBail + wPush);
+  const onR = 1 - Math.min(1, wFlip*1.2 + wBail + wPush + wBrake);
   if(onL<0.01 && onR<0.01) return;
   const root=R.root; root.updateMatrixWorld(true);
   /* stance (board without its flip) vs the nominal board the clips assume, both in skater space */

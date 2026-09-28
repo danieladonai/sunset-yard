@@ -205,7 +205,14 @@ def P_bail():
                 fL=(0.26, -0.42, ANK + 0.03, 20, -30), fR=(-0.14, -0.48, ANK + 0.02, -8, -35), toeL=-30, toeR=-35,
                 aL=(0.22, 0.46, 0.05), aR=(-0.20, 0.48, 0.05), kneeYawL=0, kneeYawR=0)
 
-POSES = [("Crouch", P_crouch), ("Pop", P_pop), ("Air_Tuck", P_tuck), ("Air_Flip", P_flip),
+def P_brake():
+    # foot brake: front foot turned to the nose, back foot off the tail and dragging flat on the
+    # toe side behind the front truck, weight sat down on the front leg
+    pel = (0.04, -0.06, PZ(0.86))
+    return dict(pel=pel, prot=(74, 20, 0), chest=(84, 22, -2), head=(90, 2),
+                fL=(0.20, 0.03, ZD, 78, 0), fR=(-0.12, -0.20, ANK + 0.004, 84, -6), toeR=-6,
+                aL=(0.55, 0.75, 0.25, 0.93), aR=(0.55, 0.75, 0.05, 0.93), kneeYawR=10)
+POSES = [("Brake", P_brake), ("Crouch", P_crouch), ("Pop", P_pop), ("Air_Tuck", P_tuck), ("Air_Flip", P_flip),
          ("Grab_Indy", lambda: P_grab("indy")), ("Grab_Melon", lambda: P_grab("melon")),
          ("Carve_Toe", lambda: P_carve("toe")), ("Carve_Heel", lambda: P_carve("heel")),
          ("Manual", P_manual), ("Grind", P_grind), ("Bail", P_bail)]
