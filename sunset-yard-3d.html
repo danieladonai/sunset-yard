@@ -1748,8 +1748,9 @@ function buildPark(){
      changes — but at any camera height something now crosses the frame edge and
      breaks the horizon, which is the whole reason the wide shots read as a void
      with debris in it. */
-  for(const [fx,fz,fw] of [[13,-27,11],[13,-13,11],[13,1,10],
-                           [-13,-22,11],[-13,-7,11],[-13,6,10]]){
+  /* v4: the x=-13 runs leave an 8m mouth (was 4m) where the vert wall's run-out crosses them */
+  for(const [fx,fz,fw] of [[13,-27,11],[13,-9,7],[13,1,10],
+                           [-13,-23,9],[-13,-6,9],[-13,6,10]]){
     wallFence(fx,fz, 0, fw, groundH(fx,fz)-0.05, 2.45);
     addBoxPhys(fx-0.52, fz, 0, 0.09, fw/2, 2.4);   /* v4: new lines through the park cross these runs */
   }
@@ -2819,7 +2820,7 @@ function buildProps(){
   const OBS=[[-14,10,7.2],[20,-18,7.2],[8,28,5.0],[-26,20,5.0],[30,-4,5.0],[-4,-30,5.0],
              [BOWL.x,BOWL.z,16.5],[DOCK.x,DOCK.z,12.0],[-18,-8,11.5],[22,14,6.5],
              [-16,34,9.5],[-7.4,30.4,4.5],[9.5,-31,7.0]];
-  const LANES=[[0,-62,2,12],[-14,10,20,-18],[20,-18,30,18],[-7,2,-13,-9]];
+  const LANES=[[0,-62,2,12],[-14,10,20,-18],[20,-18,30,18],[-7,2,-13,-9],[-16,-15.2,24,-15.2],[-16,-12,20,-12],[-16,-18.5,20,-18.5]];   /* + the vert wall run-out */
   const segDist=(px,pz,ax,az,bx,bz)=>{
     const vx=bx-ax, vz=bz-az, wx=px-ax, wz=pz-az;
     const t=Math.max(0,Math.min(1,(wx*vx+wz*vz)/Math.max(1e-4,vx*vx+vz*vz)));
@@ -5489,7 +5490,9 @@ function rideGround(dt, steer, turnMul, passive){
     const v0=sk.speed;
     if(dn>0.85){                                    /* head-on: you STOP (or slam) — the board never flips round */
       if(!passive && v0>3.6 && h-py>0.45){ sk.speed=v0*0.45; bail("Hit a wall"); return "block"; }
-      if(!passive && v0>2.8){ sk.speed=v0*0.4; bail("Clipped it"); return "block"; }
+      if(!passive && v0>2.8){ sk.speed=0;   /* you stop against it and get knocked back off it, you don't slide into it */
+        { const bx=px-fx*0.5, bz=pz-fz*0.5; if(Math.abs(surfH(bx,bz)-groundH(bx,bz))<0.05){ sk.pos.x=bx; sk.pos.z=bz; } }
+        bail("Clipped it"); return "block"; }
       /* slow: a small bounce back off it instead of sticking */
       if(!passive && v0>0.8){ sk.pos.x-=fx*0.06; sk.pos.z-=fz*0.06; }
       sk.speed=0; if(!passive){ state.shake=Math.max(state.shake,0.15); if(sfx.bonk) sfx.bonk(); } return "block"; }
@@ -5766,7 +5769,7 @@ function clearBailSpot(){
   for(let it=0; it<4; it++){ let moved=false;
     for(const b of BOXES){ if(b.top<0.12) continue;
       const dx=sk.pos.x-b.x, dz=sk.pos.z-b.z; if(dx*dx+dz*dz>(b.rr+1.2)*(b.rr+1.2)) continue;
-      const lx=dx*b.c-dz*b.s, lz=dx*b.s+dz*b.c, m=1.1;
+      const lx=dx*b.c-dz*b.s, lz=dx*b.s+dz*b.c, m=1.35;
       const ox=b.hw+m-Math.abs(lx), oz=b.hd+m-Math.abs(lz);
       if(ox<=0||oz<=0) continue;
       let ax=0, az=0; if(ox<oz) ax=Math.sign(lx||1)*ox; else az=Math.sign(lz||1)*oz;

@@ -19,7 +19,7 @@ const SCRIPTS={
   grab: [ {place:[-21,-31,Math.PI,8.8]}, {t:1.0, hold:['manual']}, {t:1.9, rel:['manual']}, {t:3.2, js:"window.__dbg.bail('test')"}, {t:5.0, end:true} ],
   brake: [ {place:[-2,-44,0,0]}, {t:0.1, hold:['push']}, {t:2.2, rel:['push']}, {t:2.5, hold:['brake']}, {t:4.2, rel:['brake']}, {t:4.5, end:true} ],
   quarter: [ {place:[-16,20,0,8.8]}, {t:0.05, hold:['push']}, {t:0.6, rel:['push']}, {t:4.5, end:true} ],
-  vert: [ {place:[5,-15.2,-Math.PI/2,10]}, {t:0.1, hold:["push"]}, {t:1.2, rel:["push"]}, {t:5.0, end:true} ],
+  vert: [ {place:[5,-15.2,-Math.PI/2,10]}, {t:0.1, hold:["push"]}, {t:1.2, rel:["push"]}, {t:8.0, end:true} ],
   quarter2: [ {place:[-16,14,0,9.5]}, {t:4.5, end:true} ],
   prail: [ {place:[1.9,-44,0,6.5]}, {t:0.45, hold:["ollie"]}, {t:0.7, rel:["ollie"]}, {prompt:"manual"}, {t:4.0, end:true} ],
   ollie: [ {place:[-2,-44,0,5.5]}, {t:0.5, hold:["ollie"]}, {t:0.8, rel:["ollie"]}, {t:2.0, end:true} ],
