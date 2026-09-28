@@ -2863,7 +2863,7 @@ function buildProps(){
     const railD=(x,z)=>{ let d=1e9; for(const rl of rails){ const dx=x-rl.a.x, dz=z-rl.a.z; let t=dx*rl.dir.x+dz*rl.dir.z; t=Math.max(0,Math.min(rl.len,t));
       d=Math.min(d, Math.hypot(x-(rl.a.x+rl.dir.x*t), z-(rl.a.z+rl.dir.z*t))); } return d; };
     const kitOK=(x,z)=>{ if(railD(x,z)<3.2) return false;
-      for(let k=0;k<12;k++){ const a=k*0.5236; for(const rr of [0,1.2,2.4]){ const px=x+Math.cos(a)*rr, pz=z+Math.sin(a)*rr;
+      for(let k=0;k<12;k++){ const a=k*0.5236; for(const rr of [0,1.2,2.4,3.6]){ const px=x+Math.cos(a)*rr, pz=z+Math.sin(a)*rr;   /* 3.6: keep a run-out off every bank */
         if(Math.abs(surfH(px,pz)-groundH(px,pz))>0.02 || Math.abs(groundH(px,pz))>0.05) return false; } }
       return true; };
     for(const o of OBS.slice(0,6)){
@@ -5993,9 +5993,11 @@ function _updateCamera(dt){
      registered occluders, so the rig could sink into the coping slab while carving a lip. Walk
      the rider->camera line; wherever the ground pokes through it, lift the camera until the line
      clears by 0.35m. Cheap: 10 height reads. */
-  { const hx=sk.pos.x, hy=sk.pos.y+0.9, hz=sk.pos.z; let need=0;
+  /* a slammed rider is ON the ground: clear the line to the body, not the head, or a bank lip
+     hides everything but a head poking over it */
+  { const down=sk.state==="bail"; const hx=sk.pos.x, hy=sk.pos.y+(down?0.3:0.9), hz=sk.pos.z; let need=0;
     for(let i=2;i<=10;i++){ const u=i/10, px=hx+(_cam.x-hx)*u, pz=hz+(_cam.z-hz)*u, ly=hy+(_cam.y-hy)*u;
-      const g=surfH(px,pz)+0.35; if(g>ly) need=Math.max(need,(g-hy)/u - (_cam.y-hy)); }
+      const g=surfH(px,pz)+(down?0.5:0.35); if(g>ly) need=Math.max(need,(g-hy)/u - (_cam.y-hy)); }
     if(need>0) _cam.y+=Math.min(need,4.0); }
   camera.position.lerp(_cam, Math.min(1,dt*(4+tc*6)));
   /* and never let the lerp itself carry the lens under the surface it is passing */
