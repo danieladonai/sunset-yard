@@ -1456,7 +1456,8 @@ function addPipe(x,z,rot){   /* hero landmark: tipped concrete pipe, half-buried
     /* v4: the spoil mound is a rideable bank (the exact frustum of the mesh) */
     MOUNDS.push({x:x+px*s*3.9, z:z+pz*s*3.9, r0:2.2, r1:3.4, y0:0.875, y1:-0.275});
     /* v4: the barrel walls (where the outer shell meets the slab) are solid; the bore stays open */
-    addBoxPhys(x+px*s*2.34, z+pz*s*2.34, rot, 3.2, 0.26, 2.6);
+    addBoxPhys(x+px*s*2.52, z+pz*s*2.52, rot, 3.25, 0.48, 3.0);
+    for(const a of [-2.2,0,2.2]) occ(x+Math.cos(rot)*a, z-Math.sin(rot)*a, 1.9, 3.0);   /* the camera lifts over the barrel instead of pressing on it */
   }
   aoBlobs.push([x,z,4.2]);
 }
@@ -1743,6 +1744,7 @@ function buildPark(){
   for(const [fx,fz,fw] of [[13,-27,11],[13,-13,11],[13,1,10],
                            [-13,-22,11],[-13,-7,11],[-13,6,10]]){
     wallFence(fx,fz, 0, fw, groundH(fx,fz)-0.05, 2.45);
+    addBoxPhys(fx-0.52, fz, 0, 0.09, fw/2, 2.4);   /* v4: new lines through the park cross these runs */
   }
   /* SPINE MINI: two mirrored 2.4m quarters back to back on one shared coping */
   addQuarter(22,14, 0,        9, 2.4, 0, 0.55, false);
@@ -4026,6 +4028,9 @@ function updateRider4(dt){
   let W = { Push_Loop:wPush, Crouch:wCrouch*(1-wPush), Air_Tuck:wTuck, Air_Flip:wFlip, Pop:Math.max(0,Math.min(1,wPop))*(1-wFlip),
             Grab_Indy:wGrabI, Grab_Melon:wGrabM, Manual:wManual, Brake:wBrake*(1-wPush), Grind:wGrind, Carve_Toe:wToe, Carve_Heel:wHeel, Bail:0 };
   if(A.Slam){ W.Slam=wBail; A.Slam.paused=true; A.Slam.time=Math.min(26/30, R.bailT||0); } else W.Bail=wBail;
+  /* the slam owns the body: every other layer yields to it (Crouch used to share 50/50 and
+     left the rider kneeling upright) */
+  if(wBail>0){ const k=1-wBail; for(const n in W) if(n!=="Slam" && n!=="Bail") W[n]*=k; }
   let sum=0; for(const k in W) sum+=W[k];
   if(sum>1){ for(const k in W) W[k]/=sum; sum=1; }
   W.Ride_Idle = 1-sum;
@@ -5437,18 +5442,35 @@ function rideGround(dt, steer, turnMul, passive){
   const px=sk.pos.x, pz=sk.pos.z, py=sk.pos.y;
   const hs=sk.speed*cosA;
   sk.pos.x+=fx*hs*dt; sk.pos.z+=fz*hs*dt;
-  const h=surfH(sk.pos.x,sk.pos.z);
+  let h=surfH(sk.pos.x,sk.pos.z), hitBox=_boxHit;
+  { const hn=surfH(sk.pos.x+fx*0.42, sk.pos.z+fz*0.42);   /* the nose, 0.42m ahead */
+    if(_boxHit && hn-py>0.25 && hn>h){ h=hn; hitBox=_boxHit; } }
   if(h-py>0.32 || (_boxHit && h-py>0.04)){   /* a face you can't roll up (any ledge/stair riser counts): glance off it */
     sk.pos.x=px; sk.pos.z=pz;
     /* the face normal, read from the cliff itself (which side got taller) */
-    const e=0.25, hx=surfH(px+e,pz)-surfH(px-e,pz), hz=surfH(px,pz+e)-surfH(px,pz-e);
-    const nl=Math.hypot(hx,hz)||1, nx=hx/nl, nz=hz/nl, dn=fx*nx+fz*nz;
+    /* read the face where the NOSE meets it, not under the feet (a small prop is out of reach there) */
+    const qx=px+fx*0.40, qz=pz+fz*0.40;
+    const e=0.25, hx=surfH(qx+e,qz)-surfH(qx-e,qz), hz=surfH(qx,qz+e)-surfH(qx,qz-e);
+    const nl0=Math.hypot(hx,hz), nl=nl0||1; let nx=hx/nl, nz=hz/nl;
+    if(hitBox){ /* a box: take the face straight from its geometry (thin fences read as flat otherwise) */
+      const b=hitBox, dx=px-b.x, dz=pz-b.z, lx=dx*b.c-dz*b.s, lz=dx*b.s+dz*b.c;
+      if(Math.abs(lx)-b.hw > Math.abs(lz)-b.hd){ const sg=-Math.sign(lx||1); nx=sg*b.c; nz=-sg*b.s; }
+      else { const sg=-Math.sign(lz||1); nx=sg*b.s; nz=sg*b.c; } }
+    else if(nl0<0.05){ nx=fx; nz=fz; }                 /* no readable face: treat it as head-on */
+    const dn=fx*nx+fz*nz;
     const v0=sk.speed;
     if(dn>0.85){                                    /* head-on: you STOP (or slam) — the board never flips round */
       if(!passive && v0>3.6 && h-py>0.45){ sk.speed=v0*0.45; bail("Hit a wall"); return "block"; }
+      if(!passive && v0>2.8){ sk.speed=v0*0.4; bail("Clipped it"); return "block"; }
+      /* slow: a small bounce back off it instead of sticking */
+      if(!passive && v0>0.8){ sk.pos.x-=fx*0.06; sk.pos.z-=fz*0.06; }
       sk.speed=0; if(!passive){ state.shake=Math.max(state.shake,0.15); if(sfx.bonk) sfx.bonk(); } return "block"; }
     let tx=fx-nx*dn, tz=fz-nz*dn;                   /* glancing: slide along the face */
-    { const want=Math.atan2(tx,tz), dd=wrapA(want-sk.yaw); sk.yaw+=Math.max(-0.12,Math.min(0.12,dd)); } sk.speed*=0.6;   /* glance: turn by at most ~7deg a step */
+    /* v4: deflect ONCE onto the face's line and keep the along-face speed. Bleeding 40% per
+       120Hz step while turning 7deg a step stopped you dead against every fence and prop. */
+    { const want=Math.atan2(tx,tz); sk.yaw=want; sk.yawEaseT=Math.max(sk.yawEaseT||0,0.18);
+      sk.speed = v0*Math.max(0.35, Math.sqrt(Math.max(0,1-dn*dn)))*0.92;
+      sk.pos.x=px-nx*0.03; sk.pos.z=pz-nz*0.03; }
     /* a knee-high ledge at jogging speed is a stumble; a tall face or real speed is a slam */
     if(!passive && dn>0.6 && (v0>7.5 || (h-py>0.7 && v0>5.0))){ bail("Slammed into it"); return "block"; }
     if(!passive && dn>0.5){ state.shake=Math.max(state.shake,0.2); if(typeof sfx!=="undefined"&&sfx.bonk) sfx.bonk(); }
@@ -5683,10 +5705,10 @@ function bailBoardStart(){
    spot wedged riders into stair corners and ledge ends where no push could free them */
 function spotClear(x,z){ if(Math.abs(surfH(x,z)-groundH(x,z))>0.02) return false;
   if(Math.hypot(gradAt(x,z,_g2).x,_g2.z)>0.15) return false;
-  for(const rr of [0.4,0.85,1.3]) for(let k=0;k<8;k++){ const a=k*Math.PI/4, px=x+Math.cos(a)*rr, pz=z+Math.sin(a)*rr; if(Math.abs(surfH(px,pz)-groundH(px,pz))>0.02) return false; }
+  for(const rr of [0.4,0.85,1.3,1.8]) for(let k=0;k<12;k++){ const a=k*Math.PI/6, px=x+Math.cos(a)*rr, pz=z+Math.sin(a)*rr; if(Math.abs(surfH(px,pz)-groundH(px,pz))>0.02) return false; }
   return true; }
 function relocateAfterBail(){ const x0=sk.pos.x, z0=sk.pos.z; let bx=x0, bz=z0, found=spotClear(x0,z0);
-  for(let r=0.5; !found && r<=5; r+=0.5) for(let k=0;k<16 && !found;k++){ const a=k*Math.PI/8, x=x0+Math.cos(a)*r, z=z0+Math.sin(a)*r; if(spotClear(x,z)){ bx=x; bz=z; found=true; } }
+  for(let r=0.5; !found && r<=8; r+=0.5) for(let k=0;k<16 && !found;k++){ const a=k*Math.PI/8, x=x0+Math.cos(a)*r, z=z0+Math.sin(a)*r; if(spotClear(x,z)){ bx=x; bz=z; found=true; } }
   if(found) sk.pos.set(bx, surfH(bx,bz), bz);
   let best=sk.yaw, bestD=-1e9;
   for(let k=0;k<16;k++){ const a=sk.yaw+k*Math.PI/8; let d=0; const h0=surfH(sk.pos.x,sk.pos.z);
@@ -5707,7 +5729,22 @@ function bailBoardStep(dt){
   if(sk.bailT<0.26 && f && !f.classList.contains("on")) f.classList.add("on");
   if(sk.bailT<0.12 && !sk.fadeDone){ sk.fadeDone=true; B.alive=false; sk.bailW=0; relocateAfterBail(); setTimeout(()=>{ const g=el("fade"); if(g) g.classList.remove("on"); },60); }
 }
-function bail(why){ bailBoardStart(); if(sk.state==="grind") endGrindStat(); else if(sk.state==="manual") endManualStat(); sk.grab=null; sk.lastRail=null; sk.flipN=0; if(state.stats) state.stats.bails++; sfx.bail(); flash(why?("BAIL · "+why):"BAIL!",true); loseCombo(); fxBail(sk.pos.x,sk.pos.y,sk.pos.z); sk.state="bail"; sk.bailT=T.bailLock; sk.vy=0; sk.flipRem=0; sk._tip=0;
+/* v4: the body needs ~0.8m of floor around it to fall onto. Slide the slam spot out of any
+   solid box it would land in (the cooler, a barricade, a ledge), along the shallower side. */
+function clearBailSpot(){
+  for(let it=0; it<4; it++){ let moved=false;
+    for(const b of BOXES){ if(b.top<0.12) continue;
+      const dx=sk.pos.x-b.x, dz=sk.pos.z-b.z; if(dx*dx+dz*dz>(b.rr+1.2)*(b.rr+1.2)) continue;
+      const lx=dx*b.c-dz*b.s, lz=dx*b.s+dz*b.c, m=1.1;
+      const ox=b.hw+m-Math.abs(lx), oz=b.hd+m-Math.abs(lz);
+      if(ox<=0||oz<=0) continue;
+      let ax=0, az=0; if(ox<oz) ax=Math.sign(lx||1)*ox; else az=Math.sign(lz||1)*oz;
+      /* local -> world (inverse of the box rotation) */
+      const wx=ax*b.c+az*b.s, wz=-ax*b.s+az*b.c;
+      const nx=sk.pos.x+wx, nz=sk.pos.z+wz;
+      if(Math.abs(surfH(nx,nz)-groundH(nx,nz))<0.05){ sk.pos.x=nx; sk.pos.z=nz; sk.pos.y=surfH(nx,nz); moved=true; } }
+    if(!moved) break; } }
+function bail(why){ if(sk.state!=="air") clearBailSpot(); bailBoardStart(); if(sk.state==="grind") endGrindStat(); else if(sk.state==="manual") endManualStat(); sk.grab=null; sk.lastRail=null; sk.flipN=0; if(state.stats) state.stats.bails++; sfx.bail(); flash(why?("BAIL · "+why):"BAIL!",true); loseCombo(); fxBail(sk.pos.x,sk.pos.y,sk.pos.z); sk.state="bail"; sk.bailT=T.bailLock; sk.vy=0; sk.flipRem=0; sk._tip=0;
   state.hitStop=0.09; state.shake=0.35; }
 
 /* =======================================================================
@@ -6097,7 +6134,7 @@ window.__pose=(name)=>{
 window.__setFrame=(c,l)=>{ window.__freezeCam=true;
   camera.position.set(c[0],c[1],c[2]); camera.lookAt(l[0],l[1],l[2]); };
 /* v3 test hooks: the headless physics harness drives and reads the sim here */
-window.__dbg={ cam:()=>({occ:camOcc, occY:_occ.y, trick:trickCam, hero:heroCam, orbit:camOrbit, x:camera.position.x, y:camera.position.y, z:camera.position.z}), r4:()=>rider4, cm:()=>charModel, board:()=>board, skater:()=>skater, bail:(w)=>bail(w||"test"), pick:(i)=>applyCharacter(i), charReady:()=>(!!charModel&&!charLoading)||(!!rider4&&!rider4Loading), sk:()=>sk, state:()=>state, combo:()=>combo, T, held, edges, surfH, QUARTERS, rails, kickers,
+window.__dbg={ scene:()=>scene, BOXES:()=>BOXES, cam:()=>({occ:camOcc, occY:_occ.y, trick:trickCam, hero:heroCam, orbit:camOrbit, x:camera.position.x, y:camera.position.y, z:camera.position.z}), r4:()=>rider4, cm:()=>charModel, board:()=>board, skater:()=>skater, bail:(w)=>bail(w||"test"), pick:(i)=>applyCharacter(i), charReady:()=>(!!charModel&&!charLoading)||(!!rider4&&!rider4Loading), sk:()=>sk, state:()=>state, combo:()=>combo, T, held, edges, surfH, QUARTERS, rails, kickers,
   place:(x,z,yaw,speed)=>{ sk.pos.set(x,surfH(x,z),z); sk.yaw=yaw; sk.yawVis=yaw; sk.speed=speed; sk.state="roll";
     sk.vy=0; sk.vel.set(Math.sin(yaw)*speed,0,Math.cos(yaw)*speed); camYaw=yaw; sk.flipRem=0; sk.flip=0; },
   step:(n)=>{ for(let i=0;i<n;i++) step(DT); } };
