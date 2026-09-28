@@ -3979,6 +3979,13 @@ const _r4lean=new THREE.Quaternion(), _r4base=new THREE.Quaternion().setFromAxis
 function updateRider4(dt){
   const R=rider4, A=R.A, st=sk.state, air=st==="air", bw=sk.bailW||0;
   R.root.quaternion.copy(_r4lean.setFromAxisAngle(_r4Z, -(sk.roll||0)*0.85)).multiply(_r4base);
+  /* hip spring: landings drive the body down and it rebounds (underdamped, ~0.3s) */
+  { const onGround = st!=="air";
+    if(R.wasAir && onGround){ R.hipV = (R.hipV||0) - Math.min(1.1, 0.075*Math.abs(sk.landImpact||0)); }
+    R.wasAir = st==="air";
+    const w=15, z=0.42, h=Math.min(dt,1/60);
+    R.hipV = (R.hipV||0) + (-w*w*(R.hipY||0) - 2*z*w*(R.hipV||0))*h; R.hipY = (R.hipY||0) + R.hipV*h;
+    R.root.position.set(0, R.hipY, 0); }
   /* ---- weights from game state ---- */
   const roll = st==="roll";
   const pushOn = !!(sk.pushOn && roll);
@@ -4015,6 +4022,12 @@ function updateRider4(dt){
     R.pushF=f; A.Push_Loop.time = (f%F)/R4.FPS;
   }
   R.mixer.update(dt);
+  { const hd=R.head||(R.head=R.root.getObjectByName("Head"));
+    if(hd && Math.abs(sk.roll||0)>0.002){ R.root.updateMatrixWorld(true);
+      const ax=_r4a.set(0,0,1).transformDirection(skater.matrixWorld);
+      const q=_r4q.setFromAxisAngle(ax, (sk.roll||0)*0.85*0.65);
+      const wq=hd.getWorldQuaternion(_r4q2); const nq=q.multiply(wq);
+      const pq=hd.parent.getWorldQuaternion(new THREE.Quaternion()).invert(); hd.quaternion.copy(pq.multiply(nq)); } }
   /* ---- residual foot lock ---- */
   const nomLift = R4.LIFT_TUCK*(W.Air_Tuck+W.Air_Flip) + R4.LIFT_GRAB*(W.Grab_Indy+W.Grab_Melon);
   const onL = 1 - Math.min(1, wFlip*1.2 + wBail);
@@ -4027,7 +4040,7 @@ function updateRider4(dt){
   _r4m.makeTranslation(0, -(DECK_Y0*BOARD_S + nomLift), 0);          /* nominal board -> origin */
   _r4m2.multiplyMatrices(_r4o.matrix, _r4m);                            /* skater-space correction */
   /* the clips' deck lives in the ROOT frame, which the carve lean has tilted: undo that tilt */
-  _r4m2.multiply(_r4m.makeRotationZ((sk.roll||0)*0.85));
+  _r4m2.multiply(_r4m.makeRotationZ((sk.roll||0)*0.85)).multiply(_r4m.makeTranslation(0, -(R.hipY||0), 0));
   /* to world: skater.matrixWorld * corr * skater.matrixWorld^-1 */
   _r4inv.copy(skater.matrixWorld).invert();
   const corrW = _r4m.multiplyMatrices(skater.matrixWorld, _r4m2).multiply(_r4inv);
@@ -5620,7 +5633,8 @@ function landGround(){
   landedStats(halfs, gl);
   const n=combo.tricks.length;
   sk.spinAcc=0; sk.spinNet=0; sk._tip=0; sfx.land(Math.max(1,n), sk.landImpact);
-  sk.crouch=1.0; sk.crouchHold=1.0; sk.crouchT=0.18;
+  /* absorb it by how hard you came down: a flat ollie is a soft knee bend, a vert air a full squat */
+  { const k=Math.min(1, 0.38 + 0.085*Math.abs(sk.landImpact||0)); sk.crouch=k; sk.crouchHold=k; sk.crouchT=0.08 + 0.12*k; }
   /* every landing gets weight now, not just 3+ combos: a short 0.25 decaying
      shake is what separates "stomped it" from "the pose changed" */
   state.shake=Math.max(state.shake, 0.25);
@@ -5836,7 +5850,10 @@ function _updateCamera(dt){
      short of any ramp face rising above him, so the rig never parks over a
      transition or up on a deck behind the coping (it pulls in instead) */
   { const gy0=surfH(sk.pos.x,sk.pos.z), ox=_cam.x-sk.pos.x, oz=_cam.z-sk.pos.z, L=Math.hypot(ox,oz);
-    if(L>0.5){ let keep=1; for(let i=1;i<=10;i++){ const u=i/10; if(surfH(sk.pos.x+ox*u, sk.pos.z+oz*u) > gy0+0.55){ keep=Math.max(2.0/L,(i-1)/10); break; } }
+    /* v4: only pull in when the ground actually crosses the SIGHTLINE. Stairs or a ledge you
+       just came down sit well under it, and pulling in there buried the rig overhead */
+    if(L>0.5){ let keep=1; for(let i=1;i<=10;i++){ const u=i/10, sy=sk.pos.y+0.8+(_cam.y-sk.pos.y-0.8)*u;
+      if(surfH(sk.pos.x+ox*u, sk.pos.z+oz*u) > Math.max(gy0+0.55, sy-0.35)){ keep=Math.max(2.8/L,(i-1)/10); break; } }
       if(keep<1){ _cam.x=sk.pos.x+ox*keep; _cam.z=sk.pos.z+oz*keep; } } }
   _cam.y=Math.max(_cam.y, surfH(_cam.x,_cam.z)+1.0);
   /* ---- OCCLUSION CLEARANCE ----
@@ -5853,6 +5870,11 @@ function _updateCamera(dt){
     camOcc += (want-camOcc)*Math.min(1, dt*(want>camOcc?9:2.5));
     if(camOcc>0.01) _cam.y += Math.min(camOcc, 5.0);
   }
+  /* v4: never look down steeper than ~40deg. Climbing over a tall deck behind the rider
+     (after dropping off it) made a bird's-eye shot of the top of his head; the rider
+     cutout dissolve already clears whatever sits in the cone, so stay low and see him */
+  { const hd=Math.hypot(_cam.x-sk.pos.x,_cam.z-sk.pos.z), up=_cam.y-sk.pos.y, maxUp=Math.max(CAM.height()+0.35, hd*0.85);
+    if(up>maxUp) _cam.y=sk.pos.y+maxUp; }
   camera.position.lerp(_cam, Math.min(1,dt*(4+tc*6)));
 
   /* velocity lookahead — the camera leads the line instead of trailing it */
@@ -6045,7 +6067,7 @@ window.__pose=(name)=>{
 window.__setFrame=(c,l)=>{ window.__freezeCam=true;
   camera.position.set(c[0],c[1],c[2]); camera.lookAt(l[0],l[1],l[2]); };
 /* v3 test hooks: the headless physics harness drives and reads the sim here */
-window.__dbg={ r4:()=>rider4, cm:()=>charModel, board:()=>board, skater:()=>skater, bail:(w)=>bail(w||"test"), pick:(i)=>applyCharacter(i), charReady:()=>(!!charModel&&!charLoading)||(!!rider4&&!rider4Loading), sk:()=>sk, state:()=>state, combo:()=>combo, T, held, edges, surfH, QUARTERS, rails, kickers,
+window.__dbg={ cam:()=>({occ:camOcc, occY:_occ.y, trick:trickCam, hero:heroCam, orbit:camOrbit, x:camera.position.x, y:camera.position.y, z:camera.position.z}), r4:()=>rider4, cm:()=>charModel, board:()=>board, skater:()=>skater, bail:(w)=>bail(w||"test"), pick:(i)=>applyCharacter(i), charReady:()=>(!!charModel&&!charLoading)||(!!rider4&&!rider4Loading), sk:()=>sk, state:()=>state, combo:()=>combo, T, held, edges, surfH, QUARTERS, rails, kickers,
   place:(x,z,yaw,speed)=>{ sk.pos.set(x,surfH(x,z),z); sk.yaw=yaw; sk.yawVis=yaw; sk.speed=speed; sk.state="roll";
     sk.vy=0; sk.vel.set(Math.sin(yaw)*speed,0,Math.cos(yaw)*speed); camYaw=yaw; sk.flipRem=0; sk.flip=0; },
   step:(n)=>{ for(let i=0;i<n;i++) step(DT); } };
