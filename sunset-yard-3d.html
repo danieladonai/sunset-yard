@@ -133,6 +133,13 @@
   #touch{position:absolute;inset:auto 0 0 0;display:none;padding:0 12px calc(16px + env(safe-area-inset-bottom,0)) 12px;
     justify-content:space-between;align-items:flex-end;pointer-events:none;flex-wrap:nowrap;}
   #touch.show{display:flex;}
+  /* v4.1 live tilt readout: you can SEE whether the phone is being read and how far you lean; tap = recentre */
+  #tiltHud{display:none;pointer-events:auto;align-self:flex-start;flex:0 0 auto;width:auto;max-width:170px;white-space:nowrap;align-items:center;gap:7px;margin-bottom:6px;padding:5px 10px;border-radius:14px;
+    border:1px solid rgba(255,255,255,.28);background:rgba(20,16,32,.55);color:#EDE6DA;font:600 11px/1 system-ui,sans-serif;letter-spacing:.12em;}
+  #tiltHud.on{display:flex;} #tiltHud.bad{border-color:#F0562A;color:#F0562A;} #tiltHud.bad .bar{display:none;}
+  #tiltHud .bar{position:relative;width:54px;height:8px;border-radius:4px;background:rgba(255,255,255,.14);overflow:hidden;}
+  #tiltHud .bar i{position:absolute;top:0;bottom:0;}
+  #tiltHud .fw{left:50%;width:0;background:#3FD0B0;} #tiltHud .st{left:50%;width:2px;margin-left:-1px;background:#fff;}
   .pad{display:flex;gap:8px;pointer-events:auto;align-items:flex-end;flex-wrap:nowrap;}
   .btn{user-select:none;-webkit-user-select:none;touch-action:none;cursor:pointer;font-weight:700;letter-spacing:.08em;
     text-transform:uppercase;color:var(--chalk);background:rgba(36,30,51,.6);border:1.5px solid rgba(207,195,174,.45);
@@ -231,7 +238,7 @@
   #hint{position:absolute;left:50%;top:22%;bottom:auto;transform:translateX(-50%);font-size:13px;letter-spacing:.14em;text-transform:uppercase;
     color:var(--chalk);background:rgba(36,30,51,.72);padding:6px 14px;white-space:nowrap;transition:opacity .4s;pointer-events:none;}
   #hint b{color:var(--orange);} #hint.gone{opacity:0;}
-  @media (pointer:coarse){ #hint{bottom:auto;top:212px;font-size:11px;} }
+  @media (pointer:coarse){ #hint{bottom:auto;top:212px;font-size:11px;white-space:normal;width:calc(100% - 40px);max-width:360px;text-align:center;line-height:1.6;} }
   /* v3 touch layout: two stacked rows per thumb so six controls fit a 375px phone */
   #touch .pad{flex-direction:column;gap:8px;}
   #touch .pad.left{align-items:flex-start;} #touch .pad.right{align-items:flex-end;}
@@ -285,6 +292,7 @@
   </div>
   <div id="touch">
     <div class="pad left">
+      <button id="tiltHud" aria-label="Tilt: tap to recentre"><span class="lbl">TILT</span><span class="bar"><i class="fw"></i><i class="st"></i></span></button>
       <button class="btn word push" data-act="push" aria-label="Push">PUSH</button>
       <div class="row">
         <button class="btn arrow" data-act="left" aria-label="steer left"><span class="tri l"></span></button>
@@ -308,7 +316,8 @@
       <b>MANUAL</b> links tricks across the flat. Land straight, finish your flip, keep the combo alive.</div>
     <div class="help" id="kbHelp"><b>Keys:</b> ↑ push · ↓ brake · ←/→ steer · Space ollie · J flip · K grab / grind / manual</div>
     <div style="display:flex;gap:22px;flex-wrap:wrap;align-items:center;justify-content:center;">
-    <label class="help" style="display:flex;gap:9px;align-items:center;justify-content:center;cursor:pointer;user-select:none;margin:0;"><input type="checkbox" id="tiltChk" autocomplete="off" style="width:18px;height:18px;accent-color:var(--orange);"> Tilt to ride <span id="tiltNote" style="opacity:.55">(lean fwd = go)</span></label>
+    <label class="help" id="tiltRow" style="display:flex;gap:9px;align-items:center;justify-content:center;cursor:pointer;user-select:none;margin:0;flex-basis:100%;"><input type="checkbox" id="tiltChk" autocomplete="off" style="width:18px;height:18px;accent-color:var(--orange);"> Tilt to ride <span id="tiltNote" style="opacity:.55">(lean fwd = go)</span></label>
+    <div id="tiltHelp" class="help" style="display:none;flex-basis:100%;margin:0;padding:10px 14px;border:1px solid #F0562A;border-radius:10px;background:rgba(240,86,42,.10);font-size:13px;line-height:1.45;text-align:left;"></div>
     <label class="help" style="display:flex;gap:9px;align-items:center;justify-content:center;cursor:pointer;user-select:none;margin:0;"><input type="checkbox" id="freeChk" style="width:18px;height:18px;accent-color:var(--orange);"> Free skate <span style="opacity:.55">(no timer · Esc ends)</span></label>
     <label class="help" style="display:flex;gap:9px;align-items:center;justify-content:center;cursor:pointer;user-select:none;margin:0;"><input type="checkbox" id="musicChk" checked style="width:18px;height:18px;accent-color:var(--orange);"> Sound</label>
     </div>
@@ -4721,7 +4730,24 @@ let tiltSteer=0, tiltOn=false, tiltEvents=0, tiltWatch=0;
    portrait and both landscapes, and never wraps when the phone is held near upright.
    Neutral is whatever angle you hold it at when the run starts. */
 let tiltDrive=0, tiltPitch=null, tiltNeutral=null, _tiltCal=[], tiltOwnPush=false, tiltOwnBrake=false;
-function tiltRecenter(){ tiltNeutral=null; _tiltCal=[]; tiltDrive=0; }
+/* recentre on the LAST reading straight away: some browsers only fire on change, so waiting for a
+   fresh event after Drop In could calibrate on the lean itself (then leaning did nothing) */
+function tiltRecenter(){ tiltDrive=0; if(tiltPitch!=null){ tiltNeutral=tiltPitch; _tiltCal=[performance.now()]; } else { tiltNeutral=null; _tiltCal=[]; } }
+function updateTiltHud(){ const h=document.getElementById("tiltHud"); if(!h) return;
+  const want=!!(document.getElementById("tiltChk")||{}).checked || tiltWanted;   /* a failure stays visible in play */
+  h.classList.toggle("on", want); if(!want) return;
+  const live=tiltOn && tiltEvents>0; h.classList.toggle("bad", !live);
+  const note=(document.getElementById("tiltNote")||{}).textContent||"";
+  h.querySelector(".lbl").textContent = live ? "TILT" : (/denied/.test(note) ? "TILT BLOCKED" : (/no motion/.test(note) ? "NO TILT SENSOR" : "TILT OFF · TAP"));
+  /* the start hint must describe controls that actually work right now */
+  const hint=document.getElementById("hint");
+  if(hint && !live && /LEAN THE PHONE|Lean the phone/i.test(hint.innerHTML)) hint.innerHTML="Hold <b>PUSH</b> to roll · hold &amp; release <b>OLLIE</b> to pop";
+  const fw=h.querySelector(".fw"), st=h.querySelector(".st"), d=Math.max(-1,Math.min(1,tiltDrive||0));
+  fw.style.width=(Math.abs(d)*50)+"%"; fw.style.left=(d>=0?50:50-Math.abs(d)*50)+"%"; fw.style.background=d>=0?"#3FD0B0":"#F0562A";
+  st.style.left=(50-(tiltSteer||0)*50)+"%"; }
+setInterval(updateTiltHud, 100);
+document.addEventListener("pointerup", e=>{ if(e.target && e.target.closest && e.target.closest("#tiltHud")){ e.stopPropagation(); if(tiltOn) tiltRecenter(); else enableTilt(); } }, true);
+window.__tilt=()=>({on:tiltOn, events:tiltEvents, pitch:tiltPitch, neutral:tiltNeutral, drive:tiltDrive, steer:tiltSteer});
 function __handleTilt(e){
   if(e.beta!=null && e.gamma!=null){
     const D2R=Math.PI/180, b=e.beta*D2R, g=e.gamma*D2R;
@@ -4734,7 +4760,12 @@ function __handleTilt(e){
     const dz=4; roll = Math.abs(roll)<dz ? 0 : (roll>0?roll-dz:roll+dz);
     tiltSteer = Math.max(-1, Math.min(1, roll/20));
     tiltPitch = Math.atan2(uz, sy)/D2R;                             /* 0 upright, 90 flat, grows as the top leans away */
-    if(tiltNeutral==null){ _tiltCal.push(tiltPitch); if(_tiltCal.length>=8){ tiltNeutral=_tiltCal.reduce((p,q)=>p+q,0)/_tiltCal.length; } tiltDrive=0; return; }
+    /* v4.1: neutral = the FIRST reading, at once, then refined for 0.35s. Waiting for 8 readings
+       broke tilt on any browser that only fires deviceorientation when the angle CHANGES: a phone
+       held steady never finished calibrating and leaning did nothing. */
+    const now=performance.now();
+    if(tiltNeutral==null){ tiltNeutral=tiltPitch; _tiltCal=[now]; tiltDrive=0; return; }
+    if(_tiltCal.length && now-_tiltCal[0]<350){ tiltNeutral += (tiltPitch-tiltNeutral)*0.25; tiltDrive=0; return; }
     const lean=tiltPitch-tiltNeutral;
     tiltDrive = lean>6 ? Math.min(1,(lean-6)/14) : (lean<-10 ? -Math.min(1,(-lean-10)/10) : 0);
     return; }
@@ -4766,6 +4797,15 @@ function __tiltNote(msg, bad){
   const n=document.getElementById("tiltNote"); if(!n) return;
   n.textContent=msg; n.style.opacity = bad ? "1" : ".55";
   n.style.color = bad ? "#F0562A" : "";
+  /* v4.1: a refusal must say HOW to undo it. iOS remembers "Cancel" for the whole Safari session,
+     so ticking the box again can never re-ask - the box just silently snapped back off. */
+  const h=document.getElementById("tiltHelp"); if(!h) return;
+  let t="";
+  if(/denied|tap again/.test(msg)) t="<b>Motion is blocked for this site.</b> iPhone remembers the Cancel. To turn tilt on: fully close Safari (swipe it away) and reopen this page, then tap <b>Allow</b>. If it still won't ask: Settings &rarr; Apps &rarr; Safari &rarr; <b>Motion &amp; Orientation Access</b> on. The PUSH and &#9664; &#9654; buttons work meanwhile.";
+  else if(/no motion data/.test(msg)) t="<b>No motion data from this device.</b> Tilt needs a phone or tablet with a gyroscope, opened directly in Safari or Chrome (not inside another app). Use the PUSH and &#9664; &#9654; buttons.";
+  else if(/needs https/.test(msg)) t="<b>Tilt needs a secure (https) link.</b>";
+  else if(/no motion sensor/.test(msg)) t="<b>This browser has no motion sensor access.</b> Use the PUSH and &#9664; &#9654; buttons.";
+  h.innerHTML=t; h.style.display=t?"block":"none";
 }
 function disableTilt(){
   if(!tiltOn) return;
@@ -4773,7 +4813,9 @@ function disableTilt(){
   tiltOn=false; tiltSteer=0; tiltDrive=0; clearTimeout(tiltWatch);
   if(tiltOwnPush){ held.push=false; tiltOwnPush=false; } if(tiltOwnBrake){ held.brake=false; tiltOwnBrake=false; }
 }
+let tiltWanted=false;   /* the player asked for tilt (box or Drop In with the box ticked) */
 function enableTilt(){
+  tiltWanted=true;
   if(tiltOn) return;
   const D=window.DeviceOrientationEvent;
   const fail=(m)=>{ const c=document.getElementById("tiltChk"); if(c) c.checked=false;
@@ -4800,7 +4842,7 @@ function enableTilt(){
    the box is ticked (a direct tap), not only via the Drop In chain. */
 document.addEventListener("change", e=>{
   if(!e.target || e.target.id!=="tiltChk") return;
-  if(e.target.checked) enableTilt(); else { disableTilt(); __tiltNote("(beta)", false); }
+  if(e.target.checked) enableTilt(); else { tiltWanted=false; disableTilt(); __tiltNote("(beta)", false); }
 });
 function press(a){ if(!held[a])edges.add(a); held[a]=true; }
 function rel(a){ held[a]=false; }
